@@ -1,0 +1,769 @@
+/*
+ * Agentic OS — Index Atelier visual skin.
+ *
+ * Layout lock: this file may recolor and restyle existing elements, but it must
+ * not redefine the application grid, navigation order, page composition, or
+ * agent tab order. The existing React structure remains the source of truth.
+ */
+
+:root {
+  color-scheme: light;
+
+  --perfect-white: #ffffff;
+  --outer-space: #1f2853;
+  --deep-outer-space: #101630;
+  --warm-red: #ff4e45;
+
+  --paper: #ffffff;
+  --paper-raised: #f5f5f2;
+  --paper-muted: #e9e9e5;
+  --ink: #101630;
+  --ink-soft: #303a58;
+  --ink-muted: #566078;
+  --rule: #d3d5dc;
+  --rule-strong: #9299ab;
+  --signal-text: #9b2c28;
+  --success: #176b4d;
+  --warning: #735200;
+  --danger: #9d302b;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --motion-fast: 120ms;
+  --motion-default: 160ms;
+  --motion-slow: 200ms;
+
+  --font-display: var(--font-geist-sans);
+  --font-data: var(--font-geist-mono);
+  --face-display: var(--font-geist-sans), system-ui, sans-serif;
+  --face-ui: var(--font-geist-sans), system-ui, sans-serif;
+  --face-data: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Compatibility aliases for the existing 47 surfaces. */
+  --bg-deep: var(--paper);
+  --bg-mid: var(--paper-raised);
+  --bg-card: var(--paper);
+  --bg-elev: var(--paper-raised);
+  --bg: var(--paper);
+  --bg-2: var(--paper-raised);
+  --panel: var(--paper);
+  --panel-border: var(--rule);
+  --panel-border-hot: var(--rule-strong);
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --fg-dim: var(--ink-muted);
+  --fg-mute: var(--ink-muted);
+  --fg-dimmer: var(--ink-muted);
+  --cream: var(--ink);
+  --cream-soft: var(--ink-soft);
+  --cream-dim: var(--ink-muted);
+  --cream-mute: var(--ink-muted);
+  --gold: var(--signal-text);
+  --gold-soft: #7d2421;
+  --gold-deep: #651d1a;
+  --sdi-blue: var(--outer-space);
+  --sdi-soft: #4f5a82;
+  --sdi-deep: var(--deep-outer-space);
+  --emerald: var(--success);
+  --emerald-dim: #11533c;
+  --preview: var(--success);
+  --amber: var(--warning);
+  --rust: var(--warning);
+  --tally: var(--danger);
+  --plum: var(--danger);
+  --cyan: #236778;
+  --magenta: #744466;
+  --line: var(--rule-strong);
+  --line-soft: var(--rule);
+  --line-deep: #e8e9ed;
+  --grid: transparent;
+  --glow: none;
+  --shadow-1: none;
+  --shadow-2: none;
+}
+
+html,
+body {
+  background: var(--perfect-white);
+  color: var(--deep-outer-space);
+  font-family: var(--face-ui);
+}
+
+body::before {
+  background-image: url("/textures/agent-os/contours.webp");
+  background-position: center top;
+  background-repeat: repeat;
+  background-size: 1024px auto;
+  mix-blend-mode: multiply;
+  opacity: 0.055;
+}
+
+body::after {
+  display: none;
+  content: none;
+}
+
+::selection {
+  background: var(--warm-red);
+  color: var(--deep-outer-space);
+}
+
+:focus-visible {
+  outline: 2px solid var(--warm-red) !important;
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+textarea,
+select,
+summary {
+  transition-duration: var(--motion-default) !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.page-title {
+  color: var(--fg);
+  font-family: var(--face-display);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+code,
+pre,
+kbd,
+samp,
+.mono,
+.metric,
+.status-meta {
+  font-family: var(--face-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.hand,
+.hand-num,
+[data-hand="true"],
+h1 em,
+h2 em,
+h3 em,
+h4 em,
+h5 em,
+h6 em {
+  color: var(--fg);
+  font-family: var(--face-data);
+  font-style: normal;
+  text-shadow: none;
+}
+
+.eyebrow .line,
+.heading-strip::before {
+  background: var(--warm-red);
+}
+
+.eyebrow .label,
+.page-subtitle,
+.status-meta,
+.action-desc {
+  color: var(--fg-dim);
+}
+
+/* Preserve the original two-column shell and 244px sidebar exactly. */
+[data-agent-os-shell] {
+  background: var(--perfect-white);
+}
+
+[data-agent-os-main] {
+  position: relative;
+  isolation: isolate;
+  background: var(--perfect-white);
+}
+
+[data-agent-os-main]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  background-image: url("/textures/agent-os/contours.webp");
+  background-position: center top;
+  background-repeat: repeat;
+  background-size: 1280px auto;
+  mix-blend-mode: multiply;
+  opacity: 0.075;
+  pointer-events: none;
+}
+
+[data-agent-os-main] > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-agent-os-sidebar] {
+  --fg: #ffffff;
+  --fg-soft: #e1e4ef;
+  --fg-dim: #c7ccde;
+  --fg-mute: #aeb5cc;
+  --fg-dimmer: #aeb5cc;
+  --cream: #ffffff;
+  --cream-soft: #e1e4ef;
+  --cream-dim: #c7ccde;
+  --cream-mute: #aeb5cc;
+  --gold: var(--warm-red);
+  --line: #68708e;
+  --line-soft: #3f486d;
+  border-color: #3f486d !important;
+  background-color: var(--outer-space) !important;
+  background-image: url("/textures/agent-os/weave.webp") !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-blend-mode: soft-light !important;
+  color: #ffffff;
+}
+
+[data-agent-os-sidebar] .sidebar-section-label,
+[data-agent-os-sidebar] .sidebar-item {
+  color: var(--fg-dim);
+}
+
+[data-agent-os-sidebar] .sidebar-item:hover,
+[data-agent-os-sidebar] .sidebar-item.active {
+  background: rgba(255, 255, 255, 0.075);
+  color: #ffffff;
+}
+
+[data-agent-os-sidebar] .sidebar-item.active {
+  box-shadow: inset 2px 0 0 var(--warm-red) !important;
+}
+
+[data-agent-os-mobile-menu],
+[data-agent-os-mobile-nav] {
+  --fg: #ffffff;
+  --fg-soft: #e1e4ef;
+  --fg-dim: #c7ccde;
+  --fg-mute: #aeb5cc;
+  --fg-dimmer: #aeb5cc;
+  --cream: #ffffff;
+  --cream-dim: #c7ccde;
+  --gold: var(--warm-red);
+  --line-soft: #3f486d;
+  background: var(--outer-space) !important;
+  color: #ffffff;
+  backdrop-filter: none !important;
+}
+
+/* Existing component primitives: same boxes and order, quieter material. */
+.action-card,
+.surface-card,
+.vital-tile,
+.mascot-card,
+.panel {
+  border-color: var(--panel-border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  box-shadow: none;
+}
+
+.action-card:hover,
+.surface-card:hover,
+.vital-tile:hover,
+.panel-hover:hover {
+  border-color: var(--panel-border-hot);
+  box-shadow: none;
+}
+
+.action-card.active {
+  border-color: var(--warm-red);
+  box-shadow: inset 2px 0 0 var(--warm-red) !important;
+}
+
+.copy-btn,
+.pill,
+.cmdk-item,
+.heading-strip {
+  border-radius: var(--radius-sm);
+}
+
+.copy-btn {
+  border-color: var(--warm-red);
+  background: var(--warm-red);
+  color: var(--deep-outer-space);
+}
+
+.copy-btn:hover,
+.copy-btn:active {
+  background: #f0443c;
+  color: var(--deep-outer-space);
+}
+
+.pill {
+  border-color: var(--line-soft);
+  background: var(--bg-elev);
+}
+
+.pill-ok {
+  border-color: #6f9f8d;
+  background: #edf7f2;
+  color: var(--success);
+}
+
+.pill-warn {
+  border-color: #b29a63;
+  background: #fbf6e8;
+  color: var(--warning);
+}
+
+.pill-err {
+  border-color: #bf7772;
+  background: #fbefee;
+  color: var(--danger);
+}
+
+.pill-info {
+  border-color: #8991ab;
+  background: #f0f1f6;
+  color: var(--outer-space);
+}
+
+.pbar,
+.pbar .fill {
+  border-radius: var(--radius-sm);
+}
+
+.pbar {
+  background: var(--paper-muted);
+}
+
+.pbar .fill {
+  background-color: var(--warm-red) !important;
+  background-image: none !important;
+  box-shadow: none;
+}
+
+.status-dot,
+.heartbeat,
+.tick {
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.status-dot.ok { background: var(--success); }
+.status-dot.warn { background: var(--warning); }
+.status-dot.err { background: var(--danger); }
+.status-dot.info { background: var(--outer-space); }
+
+.divider .ornament {
+  color: var(--warm-red);
+}
+
+.divider .rule {
+  background: var(--line-soft);
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: #9ca3b6;
+}
+
+.scroll::-webkit-scrollbar-thumb:hover {
+  background: #737c96;
+}
+
+.glow-c,
+.glow-o,
+.glow-h {
+  color: var(--fg);
+  text-shadow: none;
+}
+
+.cmdk-item[data-selected="true"] {
+  border-color: var(--warm-red);
+  background: var(--paper-raised);
+  box-shadow: inset 2px 0 0 var(--warm-red) !important;
+}
+
+/* Strip legacy decorative rendering without touching document flow. */
+[style*="linear-gradient"],
+[style*="radial-gradient"] {
+  background-image: none !important;
+}
+
+[class*="bg-gradient"],
+[class*="from-"],
+[class*="to-"] {
+  background-image: none !important;
+}
+
+[class*="bg-clip-text"][class*="text-transparent"] {
+  background: none !important;
+  color: var(--fg) !important;
+}
+
+.surface-card > .pointer-events-none[class*="blur-"],
+.action-card > .pointer-events-none[class*="blur-"] {
+  display: none !important;
+}
+
+[style*="box-shadow"],
+[style*="boxShadow"] {
+  box-shadow: none !important;
+}
+
+[style*="backdrop-filter"],
+[style*="backdropFilter"],
+.backdrop-blur,
+.backdrop-blur-sm,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl {
+  backdrop-filter: none !important;
+}
+
+.fx-aurora,
+.aurora,
+.fusion-shimmer {
+  display: none !important;
+  animation: none !important;
+}
+
+.tick.live,
+.heartbeat,
+.fusion-caret {
+  animation: none !important;
+}
+
+.rounded-sm,
+.rounded,
+.rounded-md {
+  border-radius: var(--radius-sm) !important;
+}
+
+.rounded-lg,
+.rounded-xl {
+  border-radius: var(--radius-md) !important;
+}
+
+.rounded-2xl,
+.rounded-3xl {
+  border-radius: var(--radius-lg) !important;
+}
+
+/* Provider color lives inside the existing agent workspace only. */
+[data-agent-workspace] {
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--radius-lg);
+  background-color: var(--agent-canvas);
+  color: var(--fg);
+}
+
+[data-agent-workspace]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+  background-image: var(--agent-texture);
+  background-position: center;
+  background-repeat: repeat;
+  background-size: 960px auto;
+  mix-blend-mode: multiply;
+  opacity: var(--agent-texture-opacity, 0.12);
+  pointer-events: none;
+}
+
+[data-agent-workspace] > * {
+  position: relative;
+  z-index: 1;
+}
+
+[data-agent-workspace="claude"] {
+  --agent-canvas: #f1ece4;
+  --agent-texture: url("/textures/agent-os/contours.webp");
+  --agent-texture-opacity: 0.14;
+  --bg-deep: #f1ece4;
+  --bg-mid: #e8e0d7;
+  --bg-card: #fbf7f0;
+  --bg-elev: #f1ece4;
+  --panel: #fbf7f0;
+  --panel-border: #cfc3b8;
+  --panel-border-hot: #9b8d82;
+  --fg: #191817;
+  --fg-soft: #302d2a;
+  --fg-dim: #5f554e;
+  --fg-mute: #6b635c;
+  --fg-dimmer: #6b635c;
+  --cream: #191817;
+  --cream-soft: #302d2a;
+  --cream-dim: #5f554e;
+  --cream-mute: #6b635c;
+  --gold: #8c3d26;
+  --line: #9b8d82;
+  --line-soft: #cfc3b8;
+}
+
+[data-agent-workspace="codex"] {
+  --agent-canvas: #10101a;
+  --agent-texture: url("/textures/agent-os/weave.webp");
+  --agent-texture-opacity: 0.24;
+  --bg-deep: #10101a;
+  --bg-mid: #141421;
+  --bg-card: #171724;
+  --bg-elev: #1d1d2d;
+  --panel: #171724;
+  --panel-border: #343448;
+  --panel-border-hot: #6867aa;
+  --fg: #d9d9e8;
+  --fg-soft: #c1c1d3;
+  --fg-dim: #ababbe;
+  --fg-mute: #9a9aaa;
+  --fg-dimmer: #9a9aaa;
+  --cream: #d9d9e8;
+  --cream-soft: #c1c1d3;
+  --cream-dim: #ababbe;
+  --cream-mute: #9a9aaa;
+  --gold: #b8b7e5;
+  --line: #6867aa;
+  --line-soft: #343448;
+}
+
+[data-agent-workspace="hermes"] {
+  --agent-canvas: #0000f2;
+  --agent-texture: url("/textures/agent-os/ridges.webp");
+  --agent-texture-opacity: 0.28;
+  --bg-deep: #0000f2;
+  --bg-mid: #0808ce;
+  --bg-card: #0c0cc7;
+  --bg-elev: #1313b2;
+  --panel: #0c0cc7;
+  --panel-border: #6868f4;
+  --panel-border-hot: #edff45;
+  --fg: #f5f5f5;
+  --fg-soft: #eeeeff;
+  --fg-dim: #ddddf5;
+  --fg-mute: #c8c8ee;
+  --fg-dimmer: #c8c8ee;
+  --cream: #f5f5f5;
+  --cream-soft: #eeeeff;
+  --cream-dim: #ddddf5;
+  --cream-mute: #c8c8ee;
+  --gold: #edff45;
+  --line: #edff45;
+  --line-soft: #6868f4;
+}
+
+[data-agent-workspace="openclaw"] {
+  --agent-canvas: #101012;
+  --agent-texture: url("/textures/agent-os/weave.webp");
+  --agent-texture-opacity: 0.22;
+  --bg-deep: #101012;
+  --bg-mid: #171719;
+  --bg-card: #1d1d20;
+  --bg-elev: #242428;
+  --panel: #1d1d20;
+  --panel-border: #414147;
+  --panel-border-hot: #f5654a;
+  --fg: #f6f5f3;
+  --fg-soft: #deddd9;
+  --fg-dim: #c5c4c0;
+  --fg-mute: #aaa9a6;
+  --fg-dimmer: #aaa9a6;
+  --cream: #f6f5f3;
+  --cream-soft: #deddd9;
+  --cream-dim: #c5c4c0;
+  --cream-mute: #aaa9a6;
+  --gold: #ff8c77;
+  --emerald: #4fc8ae;
+  --preview: #4fc8ae;
+  --line: #f5654a;
+  --line-soft: #414147;
+}
+
+[data-agent-workspace="antigravity"] {
+  --agent-canvas: #1f2853;
+  --agent-texture: url("/textures/agent-os/contours.webp");
+  --agent-texture-opacity: 0.18;
+  --bg-deep: #1f2853;
+  --bg-mid: #27315f;
+  --bg-card: #2b3564;
+  --bg-elev: #333d6d;
+  --panel: #2b3564;
+  --panel-border: #5d668c;
+  --panel-border-hot: #ff4e45;
+  --fg: #ffffff;
+  --fg-soft: #e1e4ef;
+  --fg-dim: #c7ccde;
+  --fg-mute: #aeb5cc;
+  --fg-dimmer: #aeb5cc;
+  --cream: #ffffff;
+  --cream-soft: #e1e4ef;
+  --cream-dim: #c7ccde;
+  --cream-mute: #aeb5cc;
+  --gold: #ff746d;
+  --line: #ff4e45;
+  --line-soft: #5d668c;
+}
+
+/* Enforce the two-family type contract even in legacy inline styles. */
+[data-agent-os-shell] * {
+  font-family: var(--face-ui) !important;
+}
+
+[data-agent-os-shell] code,
+[data-agent-os-shell] pre,
+[data-agent-os-shell] kbd,
+[data-agent-os-shell] samp,
+[data-agent-os-shell] .mono,
+[data-agent-os-shell] .metric,
+[data-agent-os-shell] .status-meta,
+[data-agent-os-shell] .action-tag,
+[data-agent-os-shell] [class*="font-mono"],
+[data-agent-os-shell] [class*="font-[var(--font-geist-mono)"],
+[data-agent-os-shell] [style*="JetBrains Mono"],
+[data-agent-os-shell] [style*="ui-monospace"] {
+  font-family: var(--face-data) !important;
+}
+
+/* Legacy specialist surfaces keep their exact geometry but lose idle FX. */
+.rdr *,
+.rdr *::before,
+.rdr *::after,
+.furnace-root *,
+.furnace-root *::before,
+.furnace-root *::after,
+.asx *,
+.asx *::before,
+.asx *::after {
+  animation: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.rdr .rdr-orb .face {
+  background-image: var(--oracle) !important;
+}
+
+.asx .asx-dome {
+  background-color: #0000f2 !important;
+  background-image: url("/textures/agent-os/ridges.webp") !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-blend-mode: soft-light !important;
+}
+
+.asx .asx-brand h2 {
+  background: none !important;
+  color: #f5f5f5 !important;
+  -webkit-text-fill-color: #f5f5f5 !important;
+}
+
+.asx .asx-scan {
+  background: #edff45 !important;
+  color: #101630 !important;
+}
+
+.asx .asx-card,
+.asx .asx-watch {
+  border-color: #3f486d !important;
+  background: #101630 !important;
+  color: #f5f5f5 !important;
+}
+
+.asx .asx-title,
+.asx .asx-sig,
+.asx .asx-kwadd input {
+  background: #1f2853 !important;
+}
+
+.asx .asx-card h3,
+.asx .asx-card .asx-why,
+.asx .asx-card .asx-angle,
+.asx .asx-card .asx-hook,
+.asx .asx-card .asx-title {
+  color: #f5f5f5 !important;
+}
+
+.hud-grid {
+  background-color: #101630 !important;
+  background-image: url("/textures/agent-os/weave.webp") !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-blend-mode: soft-light !important;
+}
+
+.hud-scan,
+.hud-scan::before,
+.hud-scan::after {
+  animation: none !important;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.hermes-pet {
+  animation: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+/* Narrow-window legacy dopamine layer: keep geometry, remove decorative FX. */
+.page-title,
+.surface-card,
+.panel {
+  animation: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+.page-title {
+  background: none !important;
+  color: var(--fg) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.surface-card::before,
+.surface-card::after,
+.panel::before,
+.panel::after,
+nav.md\:hidden.\!fixed::before {
+  display: none !important;
+  animation: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+nav[data-agent-os-mobile-nav].md\:hidden a[style*="background"],
+[data-agent-os-mobile-nav] a,
+[data-agent-os-mobile-nav] button {
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+[style*="hyAurora"],
+[style*="hgAurora"],
+[style*="orAurora"],
+[style*="hyGlow"],
+[style*="orGlow"],
+[style*="hyPulse"],
+[style*="orPulse"] {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
