@@ -8,11 +8,18 @@
 // All verified live: big-pickle drives both. The catch with the free reasoning
 // models is they loop unless told to answer immediately — hence OMNIROUTE_STEER.
 
-export const OMNIROUTE_BASE = process.env.OMNIROUTE_BASE_URL || "http://localhost:20128";
+export const OMNIROUTE_BASE = (process.env.OMNIROUTE_BASE_URL || "http://127.0.0.1:20128").replace(/\/+$/, "");
 // Proven-reliable free coding model on this gateway (deepseek-v4-flash loops).
 export const OMNIROUTE_FREE_MODEL = process.env.OMNIROUTE_MODEL || "oc/big-pickle";
 // Dummy key — the free providers are keyless, but the CLIs require *something*.
 export const OMNIROUTE_KEY = process.env.OMNIROUTE_API_KEY || "free-local";
+
+export function omnirouteRequestHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${OMNIROUTE_KEY}`,
+    "x-api-key": OMNIROUTE_KEY,
+  };
+}
 
 // Without this, the free reasoning models deliberate until they exhaust the
 // token budget and never act. This cuts reasoning from ~4000 tokens to ~100 and
@@ -62,8 +69,42 @@ export function openrouterCodexArgs(model?: string | null): string[] {
     "--model", m,
   ];
 }
+
+function envValue(file: string, name: string): string | null {
+  if (!existsSync(file)) return null;
+  try {
+    const text = readFileSync(file, "utf8");
+    const match = text.match(new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=\\s*(.+?)\\s*$`, "m"));
+    if (!match) return null;
+    const value = match[1].trim().replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, (_whole, doubleQuoted, singleQuoted) => doubleQuoted ?? singleQuoted ?? "");
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+export function openrouterApiKey(): string {
+  if (process.env.OPENROUTER_API_KEY?.trim()) return process.env.OPENROUTER_API_KEY.trim();
+  const home = hermesHome();
+  const candidates = [
+    path.join(home, ".env"),
+    path.join(os.homedir(), ".fcc", ".env"),
+  ];
+  try {
+    const profilesRoot = path.join(home, "profiles");
+    for (const entry of readdirSync(profilesRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) candidates.push(path.join(profilesRoot, entry.name, ".env"));
+    }
+  } catch { /* no Hermes profiles directory */ }
+  for (const file of candidates) {
+    const key = envValue(file, "OPENROUTER_API_KEY");
+    if (key) return key;
+  }
+  return "";
+}
+
 export function openrouterCodexEnv(): Record<string, string> {
-  return { OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "" };
+  return { OPENROUTER_API_KEY: openrouterApiKey() };
 }
 
 // ── Native OpenAI path — the REAL Codex on the user's ChatGPT OAuth login ──────
@@ -108,13 +149,27 @@ export function withSteer(prompt: string): string {
 
 // Is the gateway up? Probes the OpenAI model list (cheap, keyless).
 export async function probeOmniRoute(): Promise<boolean> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 4000);
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 1500);
-    const r = await fetch(`${OMNIROUTE_BASE}/v1/models`, { signal: ctl.signal });
-    clearTimeout(t);
-    return r.ok;
+    const r = await fetch(`${OMNIROUTE_BASE}/v1/models`, {
+      signal: ctl.signal,
+      cache: "no-store",
+      headers: omnirouteRequestHeaders(),
+    });
+    if (!r.ok) return false;
+    const payload = await r.json().catch(() => null) as { data?: unknown; models?: unknown } | null;
+    const models = payload?.data ?? payload?.models;
+    return Array.isArray(models) && models.length > 0;
   } catch {
     return false;
+  } finally {
+    clearTimeout(t);
   }
 }
+import "server-only";
+
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { hermesHome } from "@/lib/config";

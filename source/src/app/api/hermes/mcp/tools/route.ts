@@ -17,10 +17,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const name = url.searchParams.get("name");
+  const profile = url.searchParams.get("profile") ?? undefined;
   if (!name) {
     return NextResponse.json({ ok: false, error: "name query param required" }, { status: 400 });
   }
-  const tools = await getToolsInclude(name);
+  const tools = await getToolsInclude(name, profile);
   return NextResponse.json({ ok: true, tools });
 }
 
@@ -31,13 +32,13 @@ export async function POST(req: Request) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ ok: false, error: "missing body" }, { status: 400 });
   }
-  const { name, tools } = body as { name?: string; tools?: unknown };
+  const { name, tools, profile } = body as { name?: string; tools?: unknown; profile?: string };
   if (!name || !Array.isArray(tools)) {
     return NextResponse.json({ ok: false, error: "name and tools[] required" }, { status: 400 });
   }
   if (!tools.every((t): t is string => typeof t === "string")) {
     return NextResponse.json({ ok: false, error: "tools must all be strings" }, { status: 400 });
   }
-  const r = await setToolsInclude(name, tools);
+  const r = await setToolsInclude(name, tools, profile);
   return NextResponse.json(r, { status: r.ok ? 200 : 500 });
 }

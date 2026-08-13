@@ -23,6 +23,7 @@ export interface AgenticConfig {
   kimi: string | null; // Kimi Code CLI (Kimi K2.7) — installs to ~/.kimi-code/bin
   grok: string | null; // Grok Build CLI (xAI grok-build-0.1) — installs to ~/.grok/bin
   ruflo: string | null;
+  opencode: string | null;
   ant: string | null; // Claude Platform CLI (`ant`) — note: collides with Apache Ant
   nlmBin: string | null; // NotebookLM MCP server binary (`notebooklm-mcp`)
 
@@ -84,7 +85,12 @@ function which(cmd: string): string | null {
   try {
     const lookup = process.platform === "win32" ? `where.exe ${cmd}` : `command -v ${cmd}`;
     const out = execSync(lookup, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-    return out.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? null;
+    const matches = out.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (process.platform === "win32") {
+      const executable = matches.find((candidate) => /\.(?:exe|cmd|bat|com)$/i.test(candidate));
+      if (executable) return executable;
+    }
+    return matches[0] ?? null;
   } catch { return null; }
 }
 
@@ -123,6 +129,22 @@ function grokBinGuess(): string | null {
     "/usr/local/bin/grok",
   ];
   for (const g of guesses) if (existsSync(g)) return g;
+  return null;
+}
+
+function opencodeBinGuess(): string | null {
+  const executable = process.platform === "win32" ? "opencode.exe" : "opencode";
+  const guesses = [
+    path.join(os.homedir(), ".opencode", "bin", executable),
+    path.join(os.homedir(), ".local", "bin", executable),
+    ...(process.platform === "win32"
+      ? [
+          path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "npm", "opencode.cmd"),
+          path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "Microsoft", "WinGet", "Links", "opencode.exe"),
+        ]
+      : ["/opt/homebrew/bin/opencode", "/usr/local/bin/opencode"]),
+  ];
+  for (const guess of guesses) if (existsSync(guess)) return guess;
   return null;
 }
 
@@ -202,6 +224,8 @@ export const config: AgenticConfig = {
   grok: process.env.AGENTIC_OS_GROK_BIN ?? fileCfg.grok ?? which("grok") ?? grokBinGuess(),
   // Ruflo (ruvnet/ruflo) — multi-agent swarm orchestration. Powers the Swarm tab.
   ruflo: process.env.AGENTIC_OS_RUFLO_BIN ?? fileCfg.ruflo ?? which("ruflo"),
+  opencode: process.env.OPENCODE_BIN ?? process.env.AGENTIC_OS_OPENCODE_BIN
+    ?? fileCfg.opencode ?? which("opencode") ?? opencodeBinGuess(),
   // Claude Platform CLI (`ant`) — powers the Claude → Ant CLI / Agents tabs.
   ant: process.env.AGENTIC_OS_ANT_BIN ?? fileCfg.ant ?? which("ant"),
   // NotebookLM MCP server (jacob-bd/notebooklm-mcp-cli → `notebooklm-mcp`).

@@ -24,7 +24,23 @@ function binFor(agent: AgentName): string {
 // crash mid-task with `fork/exec /bin/zsh: no such file or directory` and similar.
 // We force SHELL + a baseline PATH covering all the standard macOS bin dirs + Homebrew + the
 // user's local Node, so any tool the agent shells out to can be resolved.
-function agentEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+function openClawCredentialEnv(base: NodeJS.ProcessEnv): Record<string, string> {
+  if (base.OPENCLAW_GATEWAY_TOKEN || base.OPENCLAW_GATEWAY_PASSWORD) return {};
+  const home = base.USERPROFILE || base.HOME;
+  if (!home) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(path.join(home, ".openclaw", "openclaw.json"), "utf8")) as {
+      gateway?: { auth?: { token?: unknown; password?: unknown } };
+    };
+    const token = parsed.gateway?.auth?.token;
+    if (typeof token === "string" && token.trim()) return { OPENCLAW_GATEWAY_TOKEN: token.trim() };
+    const password = parsed.gateway?.auth?.password;
+    if (typeof password === "string" && password.trim()) return { OPENCLAW_GATEWAY_PASSWORD: password.trim() };
+  } catch { /* OpenClaw will return its own actionable authentication error. */ }
+  return {};
+}
+
+function agentEnv(agent: AgentName, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const base = process.env;
   const ensurePath = [
     "/usr/local/bin",
@@ -44,6 +60,7 @@ function agentEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const merged = [...new Set([...existing, ...ensurePath])].join(path.delimiter);
   return {
     ...base,
+    ...(agent === "openclaw" ? openClawCredentialEnv(base) : {}),
     PATH: merged,
     SHELL: base.SHELL || "/bin/zsh",
     HOME: base.HOME || `/Users/${process.env.USER || "juliangoldie"}`,
@@ -127,7 +144,7 @@ export async function run(
     const resolved = resolveWinScript(bin, cleanArgs);
     const child = spawn(resolved.bin, resolved.args, {
       cwd: opts.cwd ?? process.env.HOME,
-      env: agentEnv(opts.extraEnv ?? {}),
+      env: agentEnv(agent, opts.extraEnv ?? {}),
     });
     let stdout = "";
     let stderr = "";
@@ -161,13 +178,31 @@ export function spawnStream(
   const resolved = resolveWinScript(bin, cleanArgs);
   const child = spawn(resolved.bin, resolved.args, {
     cwd: opts.cwd ?? process.env.HOME,
-    env: agentEnv(opts.extraEnv ?? {}),
+    env: agentEnv(agent, opts.extraEnv ?? {}),
     stdio: ["pipe", "pipe", "pipe"],
   }) as ChildProcessWithoutNullStreams;
   if (typeof opts.input === "string" && opts.input.length > 0) {
     // Write the prompt to stdin (no OS arg-length limit, no per-arg cap).
     child.stdin.write(opts.input);
   }
+  try { child.stdin.end(); } catch {}
+  return child;
+}
+
+export function spawnDetached(
+  agent: AgentName,
+  args: readonly string[],
+  opts: { cwd?: string; extraEnv?: Record<string, string> } = {},
+): ChildProcessWithoutNullStreams {
+  const bin = binFor(agent);
+  const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
+  const resolved = resolveWinScript(bin, cleanArgs);
+  const child = spawn(resolved.bin, resolved.args, {
+    cwd: opts.cwd ?? process.env.HOME,
+    env: agentEnv(agent, opts.extraEnv ?? {}),
+    detached: true,
+    stdio: ["pipe", "pipe", "pipe"],
+  }) as ChildProcessWithoutNullStreams;
   try { child.stdin.end(); } catch {}
   return child;
 }

@@ -26,8 +26,8 @@ interface Msg { role: "user" | "assistant"; agent?: AgentKey; text: string; ts: 
 
 // Per-agent storage so each thread persists independently across navigation.
 // Hermes additionally namespaces by profile — each employee keeps its own thread.
-const storageKey = (agent: AgentKey, sub?: string, sessionPath?: string) =>
-  `agentic-os-chat-v3:${agent}${sub ? `:${sub}` : ""}${sessionPath ? `:${sessionPath}` : ":inbox"}`;
+const storageKey = (agent: AgentKey, sessionPath: string, sub?: string) =>
+  `agentic-os-chat-v3:${agent}${sub ? `:${sub}` : ""}:${sessionPath}`;
 
 function safeContext(raw: string | null): { project: WorkspaceProjectRef | null; session: WorkspaceSessionRef | null } {
   if (!raw) return { project: null, session: null };
@@ -88,20 +88,30 @@ export default function UnifiedChat({
   const interimRef = useRef<string>("");
 
   // Hermes profile switcher — chat as any employee (each gets its own thread).
-  const [hermesProfile, setHermesProfile] = useState<string>(() => {
-    try { return localStorage.getItem("agentic-os-hermes-profile") ?? ""; } catch { return ""; }
-  });
+  const [hermesProfile, setHermesProfile] = useState("");
+  const [hermesProfileReady, setHermesProfileReady] = useState(false);
   const [hermesProfiles, setHermesProfiles] = useState<string[]>([]);
   const [openclawAgent, setOpenclawAgent] = useState("main");
   const [openclawAgents, setOpenclawAgents] = useState<string[]>([]);
   const [workspaceProject, setWorkspaceProject] = useState<WorkspaceProjectRef | null>(null);
   const [workspaceSession, setWorkspaceSession] = useState<WorkspaceSessionRef | null>(null);
+  const localWorkspaceSession = workspaceSession?.source === "local" || workspaceSession?.path.startsWith("local:");
+  const readOnlyConversation = agent === "antigravity"
+    && Boolean(workspaceSession)
+    && !localWorkspaceSession
+    && workspaceSession?.resumable !== true;
+  useEffect(() => {
+    if (agent !== "hermes") return;
+    try { setHermesProfile(localStorage.getItem("agentic-os-hermes-profile") ?? ""); }
+    catch { setHermesProfile(""); }
+    finally { setHermesProfileReady(true); }
+  }, [agent]);
   useEffect(() => {
     if (agent !== "hermes") return;
     fetch("/api/hermes/profiles", { cache: "no-store" })
       .then((r) => r.json())
       .then((j: { profiles?: { name: string }[] }) => {
-        const names = (j.profiles ?? []).map((p) => p.name).filter((n) => !n.startsWith("swarm"));
+        const names = (j.profiles ?? []).map((p) => p.name).filter((n) => n !== "default" && !n.startsWith("swarm"));
         setHermesProfiles(names);
         // Drop a stale selection (a profile that no longer exists on this machine) so we
         // never keep sending a dead `--profile` that fails every message.
@@ -110,8 +120,9 @@ export default function UnifiedChat({
       .catch(() => {});
   }, [agent]);
   useEffect(() => {
+    if (agent !== "hermes" || !hermesProfileReady) return;
     try { localStorage.setItem("agentic-os-hermes-profile", hermesProfile); } catch {}
-  }, [hermesProfile]);
+  }, [agent, hermesProfile, hermesProfileReady]);
   useEffect(() => {
     if (agent !== "openclaw") return;
     fetch("/api/vitals", { cache: "no-store" })
@@ -138,7 +149,7 @@ export default function UnifiedChat({
       if (forceFresh || !session) {
         setMsgs([]);
       } else if (session.source === "local" || session.path.startsWith("local:")) {
-        const raw = localStorage.getItem(storageKey(agent, undefined, session.path));
+        const raw = localStorage.getItem(storageKey(agent, session.path));
         setMsgs(raw ? JSON.parse(raw) : []);
       } else {
         const response = await fetch(`/api/agent-history?agent=${agent}&path=${encodeURIComponent(session.path)}`, { cache: "no-store" });
@@ -178,8 +189,8 @@ export default function UnifiedChat({
 
   // Persist current thread.
   useEffect(() => {
-    if (!loaded) return;
-    try { localStorage.setItem(storageKey(agent, undefined, workspaceSession?.path), JSON.stringify(msgs.slice(-200))); } catch {}
+    if (!loaded || !workspaceSession?.path) return;
+    try { localStorage.setItem(storageKey(agent, workspaceSession.path), JSON.stringify(msgs.slice(-200))); } catch {}
   }, [msgs, agent, workspaceSession?.path, loaded]);
 
   useEffect(() => {
@@ -188,7 +199,7 @@ export default function UnifiedChat({
 
   async function send(voicePrompt?: string, speakReply = false) {
     const prompt = (voicePrompt ?? input).trim();
-    if (!prompt || streaming) return;
+    if (!prompt || streaming || !workspaceProject || !workspaceSession || readOnlyConversation) return;
     const userMsg: Msg = { role: "user", text: prompt, ts: Date.now() };
     if (workspaceSession && !msgs.some((message) => message.role === "user")) {
       window.dispatchEvent(new CustomEvent("agent-conversation-renamed", { detail: {
@@ -399,6 +410,7 @@ export default function UnifiedChat({
   }
 
   function handleVoice(t: string, opts: { final: boolean }) {
+    if (readOnlyConversation) return;
     if (opts.final) {
       const base = (interimRef.current ? input.replace(/\s*\[voice\][^]*$/, "") : input);
       interimRef.current = "";
@@ -413,10 +425,11 @@ export default function UnifiedChat({
   }
 
   function clearChat() {
+    if (!workspaceSession?.path) return;
     if (!confirm(`Clear ${agentLabel(agent)} chat history?`)) return;
     setMsgs([]);
     setPartial("");
-    try { localStorage.removeItem(storageKey(agent, undefined, workspaceSession?.path)); } catch {}
+    try { localStorage.removeItem(storageKey(agent, workspaceSession.path)); } catch {}
   }
 
   const accent = agentColor(agent);
@@ -696,11 +709,21 @@ export default function UnifiedChat({
 
       {/* Composer */}
       <div className="border-t border-[var(--panel-border)] p-3">
+        {readOnlyConversation && (
+          <div
+            role="status"
+            className="mb-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-[11.5px] leading-snug"
+            style={{ borderColor: "rgba(148,163,184,0.38)", background: "rgba(148,163,184,0.08)", color: "var(--fg-dim)" }}
+          >
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            <span><strong className="text-[var(--fg)]">Read only.</strong> This native Antigravity conversation can be viewed here, but the installed CLI cannot resume it. Start a new mission in the same workspace to continue.</span>
+          </div>
+        )}
         <div
           className="flex items-end gap-2 rounded-2xl border bg-[rgba(0,0,0,0.25)] p-2 focus-within:border-[var(--panel-border-hot)] transition"
           style={{ borderColor: "var(--panel-border)" }}
         >
-          <VoiceButton onTranscript={handleVoice} size={38} />
+          <VoiceButton onTranscript={handleVoice} size={38} disabled={readOnlyConversation || !workspaceProject || !workspaceSession} />
           <textarea
             ref={taRef}
             value={input}
@@ -710,7 +733,14 @@ export default function UnifiedChat({
               if (e.key === "Escape" && streaming) stop();
             }}
             rows={2}
-            placeholder={`Message ${agentLabel(agent)}… (⌘+Enter)`}
+            disabled={!workspaceProject || !workspaceSession || readOnlyConversation}
+            placeholder={readOnlyConversation
+              ? "Read-only native conversation"
+              : workspaceProject && workspaceSession
+              ? `Message ${agentLabel(agent)}… (⌘+Enter)`
+              : workspaceProject
+                ? `Start a new conversation in ${workspaceProject.label}`
+                : "Choose a project to start"}
             className="flex-1 bg-transparent outline-none resize-none px-2 py-2 text-[14px] text-[var(--fg)] placeholder:text-[var(--fg-dimmer)]"
           />
           {streaming ? (
@@ -723,7 +753,7 @@ export default function UnifiedChat({
           ) : (
             <button
               onClick={() => send()}
-              disabled={!input.trim()}
+              disabled={!input.trim() || !workspaceProject || !workspaceSession || readOnlyConversation}
               className="px-3 h-[38px] rounded-lg flex items-center gap-1.5 text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background: `${accent}24`,

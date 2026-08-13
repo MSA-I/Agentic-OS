@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
-import { Route, Check, Copy, ExternalLink, Zap, Shield, Infinity as InfinityIcon, Boxes, Send, Loader2, ChevronDown, ChevronRight, Play, Download, Code2, Eye, Sparkles, Wand2, Save, FolderOpen, Plus, FileCode, MessageSquare } from "lucide-react";
+import { Route, Check, Copy, ExternalLink, Zap, Shield, Infinity as InfinityIcon, Boxes, Send, Loader2, Play, Download, Code2, Eye, Sparkles, Wand2, Save, FolderOpen, Plus, FileCode, MessageSquare, PlugZap } from "lucide-react";
+import { openSetupCenter } from "./SetupCenterHost";
 
 const ACCENT = "#2dd4bf";
 const ACCENT2 = "#a78bfa";
@@ -69,18 +70,6 @@ function Rendered({ text }: { text: string }) {
   );
 }
 
-function Cmd({ children }: { children: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="flex items-center gap-2 rounded-md px-3 py-2 mono text-[12px]" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid var(--panel-border)", color: "var(--cream)" }}>
-      <span className="flex-1 overflow-x-auto whitespace-nowrap">{children}</span>
-      <button onClick={() => { navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1200); }} className="shrink-0 opacity-70 hover:opacity-100" title="Copy">
-        {copied ? <Check size={13} color={ACCENT} /> : <Copy size={13} />}
-      </button>
-    </div>
-  );
-}
-
 export default function OmniRouteView() {
   const [st, setSt] = useState<Status | null>(null);
   const [backend, setBackend] = useState<BackendKey>("omniroute");
@@ -89,7 +78,6 @@ export default function OmniRouteView() {
   const handleVoice = useVoiceToInput(setInput);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [setupOpen, setSetupOpen] = useState(false);
   const [tab, setTab] = useState<"preview" | "code">("preview");
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState<{ builds: SavedBuild[]; sessions: SavedSession[] }>({ builds: [], sessions: [] });
@@ -224,10 +212,13 @@ export default function OmniRouteView() {
             Type a prompt. Watch it build — <b className="text-[var(--cream)]">live, on the right, for free</b>. Everything is saved to your workspace — builds and chat history both survive a refresh.
           </p>
           <div className="flex gap-2 mt-3 overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-1 px-1 pb-1">
-            {[{ i: <InfinityIcon size={12} />, t: "90+ free providers" }, { i: <Zap size={12} />, t: "15–95% token savings" }, { i: <Boxes size={12} />, t: "auto-fallback" }, { i: <Shield size={12} />, t: "local & private" }].map((c, k) => (
+            {[{ i: <InfinityIcon size={12} />, t: "90+ free providers" }, { i: <Zap size={12} />, t: "15–95% token savings" }, { i: <Boxes size={12} />, t: "auto-fallback" }, { i: <Shield size={12} />, t: "local gateway" }].map((c, k) => (
               <span key={k} className="inline-flex shrink-0 items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--line-soft)", color: "var(--cream-mute)" }}>{c.i}{c.t}</span>
             ))}
           </div>
+          <p className="mt-2 max-w-[720px] text-[10px] leading-relaxed text-[var(--cream-mute)]">
+            Routing and fallback run on this computer. Prompts, code, and attachments may be sent to the upstream model provider selected by the gateway; do not submit secrets you would not share with that provider.
+          </p>
         </div>
       </div>
 
@@ -341,22 +332,17 @@ export default function OmniRouteView() {
       </div>
       <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5"><Save size={11} /> Saved to <span className="mono">~/.agentic-os/omniroute-workspace/</span> — builds as HTML, chats as JSON + readable transcript.</div>
 
-      {/* setup */}
-      <div className="rounded-2xl border" style={{ borderColor: "var(--panel-border)", background: "rgba(255,255,255,0.02)" }}>
-        <button onClick={() => setSetupOpen((o) => !o)} className="w-full flex items-center gap-2 px-4 py-3 text-left">
-          {setupOpen ? <ChevronDown size={15} color="var(--cream-mute)" /> : <ChevronRight size={15} color="var(--cream-mute)" />}
-          <span className="text-[12.5px] text-[var(--cream)] font-medium">Setup &amp; connect your own IDE (Claude Code, Cursor, Cline)</span>
-          {running && st?.dashboard && <a href={st.dashboard} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} className="ml-auto inline-flex items-center gap-1 text-[11px]" style={{ color: ACCENT }}>Open dashboard <ExternalLink size={11} /></a>}
-        </button>
-        {setupOpen && (
-          <div className="px-4 pb-4 space-y-3">
-            <div className="space-y-1"><div className="text-[12px] text-[var(--cream)] font-medium">1 · Install &amp; start</div><Cmd>npm install -g omniroute &amp;&amp; omniroute</Cmd></div>
-            <div className="space-y-1"><div className="text-[12px] text-[var(--cream)] font-medium">2 · Point Claude Code at it</div><Cmd>export ANTHROPIC_BASE_URL=http://localhost:20128/v1</Cmd></div>
-            <div className="space-y-1"><div className="text-[12px] text-[var(--cream)] font-medium">3 · Or any OpenAI tool (Cursor/Cline/Copilot)</div>
-              <div className="text-[11px] text-[var(--cream-mute)]">Base URL <span className="mono">{BACKENDS[backend].baseUrl}</span> · model <span className="mono">auto</span> · key from the dashboard. Verify: <span className="mono">curl localhost:20128/v1/models</span></div></div>
-            <a href={BACKENDS[backend].gh} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: ACCENT }}><ExternalLink size={12} /> {BACKENDS[backend].ghLabel}</a>
-          </div>
-        )}
+      {/* Centralized setup */}
+      <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center" style={{ borderColor: "var(--panel-border)", background: "rgba(255,255,255,0.02)" }}>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: ACCENT, background: `${ACCENT}16`, border: `1px solid ${ACCENT}45` }}><PlugZap size={16} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] font-medium text-[var(--cream)]">Install, start, connect and verify from Setup Center</div>
+          <div className="mt-0.5 text-[10.5px] leading-relaxed text-[var(--cream-mute)]">The central flow uses pinned Windows commands, explicit confirmation and a live model-list check. IDE connection steps remain in the OmniRoute guide.</div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {running && st?.dashboard && <a href={st.dashboard} target="_blank" rel="noopener" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-[11px]" style={{ color: ACCENT, borderColor: `${ACCENT}45` }}>Dashboard <ExternalLink size={11} /></a>}
+          <button type="button" onClick={() => openSetupCenter("/omniroute")} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-[11px] font-semibold" style={{ color: "#071915", background: ACCENT }}><PlugZap size={12} /> Open Setup Center</button>
+        </div>
       </div>
     </div>
   );

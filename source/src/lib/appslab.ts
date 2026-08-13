@@ -15,11 +15,11 @@ export const APPS_REPO = path.join(os.homedir(), "Developer", "awesome-llm-apps"
 export const APPLAB_STATE = path.join(os.homedir(), ".agentic-os", "app-lab");
 
 const BIN_PATH = [
-  path.join(os.homedir(), ".local/bin"),
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
+  ...(process.platform === "win32"
+    ? [path.join(os.homedir(), "AppData", "Roaming", "npm")]
+    : [path.join(os.homedir(), ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin"]),
   process.env.PATH || "",
-].filter(Boolean).join(":");
+].filter(Boolean).join(path.delimiter);
 
 export interface LabApp {
   slug: string;
@@ -91,7 +91,12 @@ export function appRunning(slug: string): boolean {
 export async function startApp(app: LabApp): Promise<number> {
   await mkdir(path.join(APPLAB_STATE, "logs"), { recursive: true });
   const cwd = path.join(APPS_REPO, app.dir);
-  const venvPy = path.join(cwd, ".venv", "bin", "python");
+  const venvPy = path.join(
+    cwd,
+    ".venv",
+    process.platform === "win32" ? "Scripts" : "bin",
+    process.platform === "win32" ? "python.exe" : "python",
+  );
   const logFd = openSync(path.join(APPLAB_STATE, "logs", `${app.slug}.log`), "a");
   const child = spawn(venvPy, [
     "-m", "streamlit", "run", app.file,

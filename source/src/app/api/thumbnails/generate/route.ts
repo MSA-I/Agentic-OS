@@ -11,6 +11,7 @@ const exec = promisify(execFile);
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+const PYTHON = process.env.AGENTIC_OS_PY_BIN || (process.platform === "win32" ? "py" : "python3");
 
 // Proven generator: gpt-image-2, /edits when a ref is given, 1280×720 JPGs.
 const SCRIPT = path.join(homedir(), ".claude/skills/youtube-thumbnails/scripts/generate.py");
@@ -45,7 +46,13 @@ export async function POST(req: Request) {
     if (dec) { inputs.push(dec); const p = path.join(work, `ref${i}.${dec.ext}`); await writeFile(p, dec.buf); refPaths.push(p); }
   }
 
-  const env = { ...process.env, PATH: `${process.env.PATH || ""}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin` };
+  const env = {
+    ...process.env,
+    PATH: [
+      process.env.PATH || "",
+      ...(process.platform === "win32" ? [] : ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]),
+    ].filter(Boolean).join(path.delimiter),
+  };
   // Your prompt is sent VERBATIM. The only optional addition is the anti-collage
   // line, and only when you tick "Prevent 4-in-1 grid" (singleImage). Default: off.
   const SINGLE = " (Render as ONE single full-frame thumbnail — not a grid, collage, contact sheet, split-screen, or multiple thumbnails combined into one image.)";
@@ -83,7 +90,7 @@ export async function POST(req: Request) {
     // just a clean resize to 1920x1080 (aspect already matches → no crop, no bars).
     // This is how ChatGPT does it: ask for 16:9 directly. 1920x1080 PNG.
     a.push("--out", sub, "--slug", "thumb", "--fit", "cover", "--out-size", "1920x1080", "--format", "png");
-    await exec("python3", a, { timeout: 285_000, maxBuffer: 32 * 1024 * 1024, env });
+    await exec(PYTHON, a, { timeout: 285_000, maxBuffer: 32 * 1024 * 1024, env });
     const f = (await readdir(sub)).find((x) => /\.(jpe?g|png)$/i.test(x));
     if (!f) throw new Error("no image produced");
     return readFile(path.join(sub, f));

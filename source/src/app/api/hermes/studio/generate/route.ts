@@ -12,7 +12,15 @@ const pexecFile = promisify(execFile);
 // ALL Grok gen (image/video/voice) runs through Hermes' own xAI credentials (Grok OAuth),
 // NOT openclaw. HERMES_HOME points at a profile holding the xai-oauth token; the hermes-agent
 // venv python runs scripts/hermes-xai-media.py, which refreshes + calls xAI's endpoints.
-const HERMES_VENV_PY = path.join(hermesHome(), "hermes-agent", ".venv", "bin", "python");
+function hermesVenvPython(): string {
+  return path.join(
+    hermesHome(),
+    "hermes-agent",
+    ".venv",
+    process.platform === "win32" ? "Scripts" : "bin",
+    process.platform === "win32" ? "python.exe" : "python",
+  );
+}
 const XAI_MEDIA_SCRIPT = path.join(process.cwd(), "scripts", "hermes-xai-media.py");
 // The xai-oauth token lives in the ACTIVE profile's dir (legacy installs used "julian").
 function xaiHome(): string {
@@ -20,16 +28,15 @@ function xaiHome(): string {
     const p = readFileSync(path.join(hermesHome(), "active_profile"), "utf8").trim();
     if (p && existsSync(path.join(hermesHome(), "profiles", p))) return path.join(hermesHome(), "profiles", p);
   } catch { /* fall through */ }
-  return path.join(hermesHome(), "profiles", "julian");
+  return hermesHome();
 }
-const XAI_HOME = xaiHome();
 
 // Run the Hermes xAI media helper for one kind; returns whether the output file was written.
 async function xaiMedia(kind: "image" | "video" | "voice", prompt: string, outPath: string, voice?: string, timeoutMs = 130_000): Promise<{ ok: boolean; detail: string }> {
   const args = [XAI_MEDIA_SCRIPT, kind, prompt, outPath];
   if (kind === "voice" && voice) args.push(voice);
   try {
-    const { stdout } = await pexecFile(HERMES_VENV_PY, args, { env: { ...process.env, HERMES_HOME: XAI_HOME }, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
+    const { stdout } = await pexecFile(hermesVenvPython(), args, { env: { ...process.env, HERMES_HOME: xaiHome() }, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
     return { ok: existsSync(outPath), detail: stdout.slice(-400) };
   } catch (e) {
     const err = e as { stdout?: string; stderr?: string; message?: string };

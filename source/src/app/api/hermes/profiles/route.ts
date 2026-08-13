@@ -3,6 +3,7 @@ import { hermesHome } from "@/lib/config";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { DEFAULT_HERMES_PROFILE, listHermesProfileNames, resolveHermesProfile } from "@/lib/hermesProfile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,12 @@ interface HermesProfile {
 }
 
 async function readProfile(name: string, activeName: string): Promise<HermesProfile | null> {
-  const dir = path.join(PROFILES_DIR, name);
-  try {
-    if (!(await stat(dir)).isDirectory()) return null;
-  } catch { return null; }
+  const dir = name === DEFAULT_HERMES_PROFILE ? hermesHome() : path.join(PROFILES_DIR, name);
+  if (name !== DEFAULT_HERMES_PROFILE) {
+    try {
+      if (!(await stat(dir)).isDirectory()) return null;
+    } catch { return null; }
+  }
 
   let description = "";
   try {
@@ -66,10 +69,8 @@ async function readProfile(name: string, activeName: string): Promise<HermesProf
 
 export async function GET() {
   try {
-    let activeName = "";
-    try { activeName = (await readFile(path.join(hermesHome(), "active_profile"), "utf8")).trim(); } catch { /* */ }
-    const names = (await readdir(PROFILES_DIR)).filter((n) => !n.startsWith("."));
-    if (!activeName) activeName = names.includes("main") ? "main" : (names[0] ?? "");
+    const activeName = await resolveHermesProfile();
+    const names = await listHermesProfileNames();
     const profiles = (await Promise.all(names.map((n) => readProfile(n, activeName)))).filter(Boolean) as HermesProfile[];
     // Active first, then most recently used
     profiles.sort((a, b) => Number(b.active) - Number(a.active) || b.lastActive - a.lastActive);

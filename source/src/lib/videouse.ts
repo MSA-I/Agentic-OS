@@ -19,12 +19,11 @@ export const VIDEOUSE_ROOT = path.join(os.homedir(), ".agentic-os", "video-use-j
 // launchd starts the dev server with a minimal PATH; make sure `claude`,
 // ffmpeg and uv resolve.
 export const BIN_PATH = [
-  path.join(os.homedir(), ".local/bin"),
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  path.join(os.homedir(), ".npm-global/bin"),
+  ...(process.platform === "win32"
+    ? [path.join(os.homedir(), ".local", "bin"), path.join(os.homedir(), "AppData", "Roaming", "npm")]
+    : [path.join(os.homedir(), ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(os.homedir(), ".npm-global/bin")]),
   process.env.PATH || "",
-].filter(Boolean).join(":");
+].filter(Boolean).join(path.delimiter);
 
 export function slugify(s: string): string {
   return (s.toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "job");

@@ -3,6 +3,7 @@ import { hermesHome } from "@/lib/config";
 import { spawn, execSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
+import { hermesProfileEnvPath } from "@/lib/hermesProfile";
 
 // Orchestration for the "Call your Hermes agent" phone pipeline:
 //   Twilio number → ElevenLabs ConvAI agent → public tunnel → Hermes API server.
@@ -15,11 +16,11 @@ function activeProfile(): string {
     const p = readFileSync(path.join(hermesHome(), "active_profile"), "utf8").trim();
     if (p) return p;
   } catch { /* fall through */ }
-  return process.env.HERMES_PROFILE || "main";
+  return process.env.HERMES_PROFILE || "default";
 }
-const ENV_FILE = path.join(hermesHome(), "profiles", activeProfile(), ".env");
-const TUNNEL_LOG = "/tmp/agentos-cf-tunnel.log";
-const TUNNEL_URL_FILE = "/tmp/agentos-cf-url.txt";
+function activeEnvFile(): string { return hermesProfileEnvPath(activeProfile()); }
+const TUNNEL_LOG = path.join(os.tmpdir(), "agentos-cf-tunnel.log");
+const TUNNEL_URL_FILE = path.join(os.tmpdir(), "agentos-cf-url.txt");
 const API_PORT = 8642;
 const EL = "https://api.elevenlabs.io/v1/convai";
 const AGENT_NAME = "Hermes Phone Agent (Agent OS)";
@@ -28,8 +29,9 @@ const ADAM_VOICE = "pNInz6obpgDQGcFmaJgB";
 
 export function readHermesEnv(): Record<string, string> {
   const out: Record<string, string> = {};
-  if (!existsSync(ENV_FILE)) return out;
-  for (const raw of readFileSync(ENV_FILE, "utf8").split("\n")) {
+  const envFile = activeEnvFile();
+  if (!existsSync(envFile)) return out;
+  for (const raw of readFileSync(envFile, "utf8").split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const eq = line.indexOf("=");
@@ -113,7 +115,7 @@ export function stopTunnel(): void {
   try { writeFileSync(TUNNEL_URL_FILE, ""); } catch {}
 }
 
-const INSTALL_LOG = "/tmp/agentos-cf-install.log";
+const INSTALL_LOG = path.join(os.tmpdir(), "agentos-cf-install.log");
 export function installerRunning(): boolean {
   try { execSync("pgrep -f 'brew install cloudflared'", { stdio: ["ignore", "pipe", "ignore"] }); return true; }
   catch { return false; }

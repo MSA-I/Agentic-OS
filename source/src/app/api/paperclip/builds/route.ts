@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPaperclipConfig } from "@/lib/paperclipConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,13 +8,11 @@ export const dynamic = "force-dynamic";
 // link + an image attachment). Auto-tracks history — as agents attach a build
 // and drop a /builds/ link in the description, it shows up here.
 
-const PAPERCLIP = process.env.PAPERCLIP_API || "http://localhost:3100/api";
-const COMPANY = process.env.PAPERCLIP_COMPANY || ""; // your OWN company id (set PAPERCLIP_COMPANY) — never ship one
 const BUILD_RE = /(https?:\/\/[^\s)]+\/builds\/[A-Za-z0-9_.-]+\.html)/i;
 
-async function jget<T>(path: string, fb: T): Promise<T> {
+async function jget<T>(apiBase: string, routePath: string, fb: T): Promise<T> {
   try {
-    const r = await fetch(`${PAPERCLIP}${path}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+    const r = await fetch(`${apiBase}${routePath}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
     if (!r.ok) return fb;
     return (await r.json()) as T;
   } catch {
@@ -27,10 +26,14 @@ type Att = { id: string; contentType?: string; mimeType?: string };
 type Project = { id: string; name?: string };
 
 export async function GET() {
+  const { apiBase, companyId } = await getPaperclipConfig();
+  if (!companyId) {
+    return NextResponse.json({ count: 0, builds: [], error: "Paperclip company is not configured." }, { status: 409 });
+  }
   const [agents, issues, projects] = await Promise.all([
-    jget<Agent[]>(`/companies/${COMPANY}/agents`, []),
-    jget<Issue[]>(`/companies/${COMPANY}/issues`, []),
-    jget<Project[]>(`/companies/${COMPANY}/projects`, []),
+    jget<Agent[]>(apiBase, `/companies/${encodeURIComponent(companyId)}/agents`, []),
+    jget<Issue[]>(apiBase, `/companies/${encodeURIComponent(companyId)}/issues`, []),
+    jget<Project[]>(apiBase, `/companies/${encodeURIComponent(companyId)}/projects`, []),
   ]);
 
   const agentOf = (id?: string | null) => agents.find((a) => a.id === id);
@@ -42,7 +45,7 @@ export async function GET() {
     candidates.map(async (i) => {
       const m = (i.description || "").match(BUILD_RE);
       const liveUrl = m ? m[1] : null;
-      const atts = await jget<Att[]>(`/issues/${i.id}/attachments`, []);
+      const atts = await jget<Att[]>(apiBase, `/issues/${encodeURIComponent(i.id)}/attachments`, []);
       const img = (atts || []).find((a) => String(a.contentType || a.mimeType || "").startsWith("image/"));
       const ag = agentOf(i.assigneeAgentId);
       return {

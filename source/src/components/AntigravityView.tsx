@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FolderOpen, FileText, Copy, Download, RefreshCw, X, Eye, ExternalLink,
-  MessageSquare, Layers,
 } from "lucide-react";
 import UnifiedChat from "./UnifiedChat";
 import AgentWorkspaceShell, { type WorkspaceSection } from "./AgentWorkspaceShell";
@@ -79,8 +78,13 @@ export default function AntigravityView() {
   useEffect(() => { refreshProjects(); }, []);
   useEffect(() => {
     const onNav = (event: Event) => {
-      const d = (event as CustomEvent<{ agent?: string; section?: WorkspaceSection }>).detail;
+      const d = (event as CustomEvent<{ agent?: string; section?: WorkspaceSection; target?: string }>).detail;
       if (d?.agent !== "antigravity") return;
+      const target = d.target;
+      if (target === "chat" || target === "history" || target === "workspace") {
+        setTab(target);
+        return;
+      }
       setTab(d.section === "messages" || d.section === "new" ? "chat" : d.section === "history" ? "history" : "workspace");
     };
     window.addEventListener("agent-workspace-nav", onNav);
@@ -96,32 +100,7 @@ export default function AntigravityView() {
   const accent = "#7c3aed"; // matches the Antigravity sidebar accent
 
   return (
-    <AgentWorkspaceShell agent="antigravity" active={tab === "chat" ? "messages" : tab === "history" ? "history" : "projects"}><div className="space-y-5">
-      {/* Tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {([
-          { key: "chat" as const, label: "Chat", icon: <MessageSquare size={14} /> },
-          { key: "history" as const, label: "Sessions", icon: <FileText size={14} /> },
-          { key: "workspace" as const, label: "Workspace files", icon: <Layers size={14} />, badge: projects.length },
-        ]).map((t) => {
-          const active = tab === t.key;
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12.5px] transition"
-              style={{
-                background: active ? `${accent}22` : "transparent",
-                borderColor: active ? accent : "var(--panel-border)",
-                color: active ? "var(--fg)" : "var(--fg-dim)",
-              }}>
-              {t.icon}{t.label}
-              {typeof t.badge === "number" && t.badge > 0 && (
-                <span className="text-[10px] metric px-1.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.06)] text-[var(--fg-dim)]">{t.badge}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
+    <AgentWorkspaceShell agent="antigravity" active={tab === "chat" ? "messages" : tab === "history" ? "history" : "projects"} activeTarget={tab}><div className="space-y-5">
       {tab === "history" && <AgentHistory agent="antigravity" />}
 
       {tab === "chat" && (

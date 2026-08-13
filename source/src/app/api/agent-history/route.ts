@@ -164,6 +164,28 @@ async function claudeCwd(file: string | undefined): Promise<string | null> {
   return null;
 }
 
+async function claudeTranscriptTitle(file: string): Promise<string | null> {
+  try {
+    const data = await readPrefix(file, 256_000);
+    let customTitle = "";
+    let aiTitle = "";
+    let slug = "";
+    let firstUser = "";
+    for (const line of data.text.split(/\r?\n/)) {
+      try {
+        const row = JSON.parse(line) as Record<string, unknown>;
+        if (!customTitle && typeof row.customTitle === "string") customTitle = row.customTitle.trim();
+        if (!aiTitle && typeof row.aiTitle === "string") aiTitle = row.aiTitle.trim();
+        if (!slug && typeof row.slug === "string") slug = row.slug.trim();
+        const message = row.message && typeof row.message === "object" ? row.message as Record<string, unknown> : null;
+        const role = String(message?.role ?? row.role ?? row.type ?? "").toLowerCase();
+        if (!firstUser && role === "user") firstUser = textOf(message?.content ?? row.content ?? row.text).replace(/\s+/g, " ").trim();
+      } catch { /* partial/non-json line */ }
+    }
+    return (customTitle || aiTitle || slug || firstUser || "").slice(0, 120) || null;
+  } catch { return null; }
+}
+
 async function claudeHistory(home: string) {
   const titles = new Map<string, { title: string; project?: string; timestamp: number }>();
   try {
@@ -398,18 +420,17 @@ export async function GET(req: Request) {
     source = path.join(home, ".claude", "projects");
     const titles = await claudeHistory(home);
     groups = await grouped(source, false);
-    groups = await Promise.all(groups.map(async (group) => ({
-      ...group,
-      label: (await claudeCwd(group.sessions[0]?.path)) ?? group.label,
-      root: (await claudeCwd(group.sessions[0]?.path)) ?? group.root,
-      sessions: group.sessions.map((session) => ({
+    groups = await Promise.all(groups.map(async (group) => {
+      const cwd = await claudeCwd(group.sessions[0]?.path);
+      const sessions = await Promise.all(group.sessions.map(async (session) => ({
         ...session,
-        name: titles.get(session.id)?.title ?? session.name,
+        name: titles.get(session.id)?.title ?? await claudeTranscriptTitle(session.path) ?? session.name,
         nativeId: session.id,
         resumable: true,
         source: "native" as const,
-      })),
-    })));
+      })));
+      return { ...group, label: cwd ?? group.label, root: cwd ?? group.root, sessions };
+    }));
   } else if (agent === "openclaw") {
     source = path.join(home, ".openclaw", "agents");
     groups = await openClawGroups(home);

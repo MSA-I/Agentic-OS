@@ -1,6 +1,6 @@
 import { spawnStream } from "@/lib/runner";
 import { codexApprovalArgs, codexResumeApprovalArgs } from "@/lib/codexWorkspace";
-import { omnirouteCodexArgs, openrouterCodexArgs, openrouterCodexEnv, OPENROUTER_HY3_MODEL, omnirouteCodexEnv, nativeCodexArgs, nativeCodexEnv, NATIVE_CODEX_MODEL, withSteer, probeOmniRoute } from "@/lib/omniroute";
+import { omnirouteCodexArgs, openrouterApiKey, openrouterCodexArgs, openrouterCodexEnv, OPENROUTER_HY3_MODEL, omnirouteCodexEnv, nativeCodexArgs, nativeCodexEnv, NATIVE_CODEX_MODEL, withSteer, probeOmniRoute } from "@/lib/omniroute";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -88,9 +88,9 @@ export async function POST(req: Request) {
       { status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" } },
     );
   }
-  if (engine === "hy3" && !process.env.OPENROUTER_API_KEY) {
+  if (engine === "hy3" && !openrouterApiKey()) {
     return new Response(
-      JSON.stringify({ type: "error", message: "OPENROUTER_API_KEY is missing from the server env — add it to .env.local and restart the OS." }) + "\n",
+      JSON.stringify({ type: "error", message: "OPENROUTER_API_KEY is missing — connect OpenRouter in Setup Center, then retry." }) + "\n",
       { status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" } },
     );
   }
@@ -129,6 +129,11 @@ export async function POST(req: Request) {
         // Codex still pings its (unused) OpenAI OAuth refresh on startup even when
         // running on the OmniRoute provider — pure noise here, don't show the user.
         if (/codex_login|refresh token|auth::manager|log out and sign in/i.test(text)) return;
+        // A malformed third-party SKILL.md elsewhere in the user's global skills
+        // registry does not affect this chat turn. Codex reports those discovery
+        // warnings on stderr even when the OmniRoute response succeeds, which made
+        // a working integration look broken in the chat UI.
+        if (/failed to load skill|skills context budget|skill descriptions were removed/i.test(text)) return;
         send(JSON.stringify({ type: "stderr", text }) + "\n");
       });
       child.on("close", (code) => {

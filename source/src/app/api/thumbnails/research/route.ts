@@ -14,6 +14,7 @@ const exec = promisify(execFile);
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
+const PYTHON = process.env.AGENTIC_OS_PY_BIN || (process.platform === "win32" ? "py" : "python3");
 
 // POST /api/thumbnails/research  { topic, faceless }
 // 1) Grok 4.5 (Hermes, Grok OAuth) uses LIVE web/X search to see what wins RIGHT NOW
@@ -217,7 +218,13 @@ export async function POST(req: Request) {
 
   // 2) Render each concept with gpt-image-2, in parallel
   const useFace = !faceless && existsSync(FACE_PHOTO);
-  const env = { ...process.env, PATH: `${process.env.PATH || ""}:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin` };
+  const env = {
+    ...process.env,
+    PATH: [
+      process.env.PATH || "",
+      ...(process.platform === "win32" ? [] : ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]),
+    ].filter(Boolean).join(path.delimiter),
+  };
   const work = path.join(tmpdir(), `thumbresearch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const outRoot = path.join(work, "out");
   await mkdir(outRoot, { recursive: true });
@@ -230,7 +237,7 @@ export async function POST(req: Request) {
     const cliArgs = [SCRIPT, "--prompt", conceptToPrompt(c, faceless, i, refs.length), "--out", sub, "--slug", "thumb", "--fit", "cover", "--out-size", "1920x1080", "--format", "png"];
     refs.forEach((r) => cliArgs.push("--ref", r));
     if (useFace) cliArgs.push("--ref", FACE_PHOTO); // host photo LAST — prompt refers to "final reference image"
-    await exec("python3", cliArgs, { timeout: 285_000, maxBuffer: 32 * 1024 * 1024, env });
+    await exec(PYTHON, cliArgs, { timeout: 285_000, maxBuffer: 32 * 1024 * 1024, env });
     const f = (await readdir(sub)).find((x) => /\.(jpe?g|png)$/i.test(x));
     if (!f) throw new Error("no image produced");
     return readFile(path.join(sub, f));

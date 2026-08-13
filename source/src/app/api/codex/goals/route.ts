@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
-import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, existsSync, statSync } from "node:fs";
+import path from "node:path";
 import { config } from "@/lib/config";
 import { codexApprovalArgs } from "@/lib/codexWorkspace";
-import { omnirouteCodexArgs, omnirouteCodexEnv, nativeCodexArgs, nativeCodexEnv, withSteer } from "@/lib/omniroute";
+import {
+  nativeCodexArgs,
+  nativeCodexEnv,
+  omnirouteCodexArgs,
+  omnirouteCodexEnv,
+  openrouterApiKey,
+  openrouterCodexArgs,
+  openrouterCodexEnv,
+  OPENROUTER_HY3_MODEL,
+  probeOmniRoute,
+  withSteer,
+} from "@/lib/omniroute";
+import { spawnDetached } from "@/lib/runner";
 import {
   listGoals, createGoal, updateGoal, deleteGoal, stopGoal, getGoal, readGoalLog,
 } from "@/lib/codexGoals";
@@ -37,13 +49,44 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const title = String(body.title ?? "");
   const prompt = String(body.prompt ?? "");
-  const cwd = typeof body.cwd === "string" && body.cwd ? body.cwd : undefined;
   if (!prompt.trim()) return NextResponse.json({ error: "prompt required" }, { status: 400 });
+  if (prompt.length > 16_000) return NextResponse.json({ error: "prompt too long" }, { status: 413 });
 
-  // "gpt56" → native OpenAI Codex on the ChatGPT OAuth login; default → OmniRoute.
-  const engine = body.engine === "gpt56" ? "gpt56" : "omniroute";
-  const engineArgs = engine === "gpt56" ? nativeCodexArgs() : omnirouteCodexArgs();
-  const engineEnv = engine === "gpt56" ? nativeCodexEnv() : omnirouteCodexEnv();
+  let cwd: string | undefined;
+  if (typeof body.cwd === "string" && body.cwd.trim()) {
+    const candidate = body.cwd.trim();
+    try {
+      if (!path.isAbsolute(candidate) || !existsSync(candidate) || !statSync(candidate).isDirectory()) {
+        return NextResponse.json({ error: "cwd must be an existing absolute directory" }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: "cwd is not accessible" }, { status: 400 });
+    }
+    cwd = candidate;
+  }
+
+  const requestedEngine = body.engine;
+  if (requestedEngine !== undefined && requestedEngine !== "omniroute" && requestedEngine !== "hy3" && requestedEngine !== "gpt56") {
+    return NextResponse.json({ error: "unknown Codex engine" }, { status: 400 });
+  }
+  const engine: "omniroute" | "hy3" | "gpt56" = requestedEngine ?? "omniroute";
+  if (engine === "omniroute" && !(await probeOmniRoute())) {
+    return NextResponse.json({ error: "OmniRoute is not running on :20128. Start it in Setup Center, then retry." }, { status: 503 });
+  }
+  if (engine === "hy3" && !openrouterApiKey()) {
+    return NextResponse.json({ error: "OPENROUTER_API_KEY is missing. Connect OpenRouter in Setup Center, then retry." }, { status: 503 });
+  }
+
+  const engineArgs = engine === "hy3"
+    ? openrouterCodexArgs(OPENROUTER_HY3_MODEL)
+    : engine === "gpt56"
+      ? nativeCodexArgs()
+      : omnirouteCodexArgs();
+  const engineEnv = engine === "hy3"
+    ? openrouterCodexEnv()
+    : engine === "gpt56"
+      ? nativeCodexEnv()
+      : omnirouteCodexEnv();
 
   const goal = await createGoal(title, prompt, cwd);
 
@@ -52,7 +95,7 @@ export async function POST(req: Request) {
   // the browser can't answer), so set the approval policy explicitly. Default is
   // "auto" (never prompt, sandboxed to the goal's cwd); the UI can pass "yolo".
   const log = createWriteStream(goal.logFile, { flags: "a" });
-  const child = spawn(config.codex, [
+  const child = spawnDetached("codex", [
     "exec",
     "--json",
     "--skip-git-repo-check",
@@ -61,16 +104,7 @@ export async function POST(req: Request) {
     withSteer(goal.prompt),
   ], {
     cwd: goal.cwd,
-    env: {
-      ...process.env,
-      ...engineEnv,
-      PATH: process.env.PATH ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
-      HOME: process.env.HOME ?? "",
-      SHELL: process.env.SHELL ?? "/bin/zsh",
-      NO_COLOR: "1",
-    },
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
+    extraEnv: engineEnv,
   });
 
   child.stdout.on("data", (b: Buffer) => {
@@ -80,6 +114,16 @@ export async function POST(req: Request) {
   });
   child.stderr.on("data", (b: Buffer) => {
     log.write(`[stderr] ${b}`);
+  });
+  child.on("error", (error) => {
+    log.write(`[spawn error] ${String(error)}\n`);
+    log.end();
+    updateGoal(goal.id, {
+      status: "failed",
+      finishedAt: Date.now(),
+      pid: undefined,
+      lastOutput: String(error).slice(0, 200),
+    }).catch(() => {});
   });
   child.on("close", (code) => {
     log.end();
