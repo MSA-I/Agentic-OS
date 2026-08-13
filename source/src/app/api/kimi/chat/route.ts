@@ -1,22 +1,9 @@
 import { spawnStream } from "@/lib/runner";
-import { mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { ensureProject, KIMI_SCRATCH_ROOT } from "@/lib/kimiWorkspace";
 import path from "node:path";
-import os from "node:os";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const KIMI_SCRATCH_ROOT = process.env.AGENTIC_OS_KIMI_SCRATCH
-  ?? path.join(os.homedir(), ".agentic-os", "kimi-projects");
-
-async function ensureKimiProject(name: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9_.-]+$/.test(name)) return null;
-  if (!existsSync(KIMI_SCRATCH_ROOT)) await mkdir(KIMI_SCRATCH_ROOT, { recursive: true });
-  const dir = path.join(KIMI_SCRATCH_ROOT, name);
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-  return dir;
-}
 
 // Kimi Code chat — `kimi -p "<prompt>" --output-format stream-json` runs one
 // turn non-interactively and emits NDJSON. Kimi's events look like:
@@ -77,11 +64,11 @@ export async function POST(req: Request) {
   // assets) lands somewhere the Workspace tab + preview route can serve.
   let cwd: string | undefined;
   if (typeof body.project === "string" && /^[A-Za-z0-9_.-]+$/.test(body.project)) {
-    cwd = (await ensureKimiProject(body.project)) ?? undefined;
+    cwd = (await ensureProject(body.project)) ?? undefined;
   } else if (typeof body.cwd === "string") {
     cwd = body.cwd;
   } else {
-    cwd = (await ensureKimiProject("kimi-default")) ?? path.join(KIMI_SCRATCH_ROOT, "kimi-default");
+    cwd = (await ensureProject("kimi-default")) ?? path.join(KIMI_SCRATCH_ROOT, "kimi-default");
   }
 
   // `-p` is single-shot non-interactive; stream-json emits one JSON object per line.

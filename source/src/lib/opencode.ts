@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { config } from "@/lib/config";
 import { OMNIROUTE_BASE, OMNIROUTE_KEY } from "@/lib/omniroute";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 const OPENCODE_EXECUTABLE = process.platform === "win32" ? "opencode.exe" : "opencode";
 export const OPENCODE_BIN = config.opencode
@@ -13,7 +14,7 @@ export const OPENCODE_BIN = config.opencode
 export const OPENCODE_CONFIG = process.env.OPENCODE_CONFIG
   || path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "opencode", "opencode.json");
 
-export const OPENCODE_ROOT = path.join(os.homedir(), ".agentic-os", "opencode", "builds");
+export const OPENCODE_ROOT = workspacePath("opencode", "builds");
 
 const CORE_MODELS = [
   { id: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra", sub: "NVIDIA · free · verified" },

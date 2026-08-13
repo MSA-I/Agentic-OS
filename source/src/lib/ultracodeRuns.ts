@@ -22,10 +22,10 @@
 import { readdir, readFile, writeFile, mkdir, rename, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 export const ULTRACODE_RUNS_ROOT = process.env.AGENTIC_OS_ULTRACODE_RUNS
-  ?? path.join(os.homedir(), ".agentic-os", "ultracode-runs");
+  ?? workspacePath("ultracode-runs");
 
 export type SubagentStatus = "running" | "completed" | "failed";
 

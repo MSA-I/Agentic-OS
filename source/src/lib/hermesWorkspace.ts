@@ -18,6 +18,7 @@ import { hermesHome } from "@/lib/config";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { AGENT_OS_FOLDERS_ROOT, workspacePath } from "@/lib/workspaceRoot";
 
 const HOME = os.homedir();
 export const HERMES_ROOT = path.join(hermesHome());
@@ -88,7 +89,7 @@ const BUCKETS: BucketDef[] = [
     // terminal coding agent, via OpenRouter / the real CLI on the X Premium+ plan).
     // depth 0 so it shows ONLY the deliverables (playable HTML games + demos), not
     // intermediate assets.
-    paths: [path.join(HERMES_ROOT, "profiles", "grok-build", "workspace")],
+    paths: [workspacePath("grok-build"), path.join(HERMES_ROOT, "profiles", "grok-build", "workspace")],
     description: "Games + apps built with Grok Build (xAI · grok-build-0.1). Click any → plays live.",
     extsAllow: [".html", ".htm", ".mp4", ".webm", ".mov", ".m4v"],
     maxDepth: 0,
@@ -137,7 +138,7 @@ const BUCKETS: BucketDef[] = [
     // research → script → assets → edit → compose, driven by an AI coding assistant).
     // Renders land under workspace/videos/, projects under workspace/projects/, any
     // guide under workspace/guides/. depth 2 so videos/ + projects/ + guides/ surface.
-    paths: [path.join(HERMES_ROOT, "profiles", "openmontage", "workspace")],
+    paths: [workspacePath("openmontage"), path.join(HERMES_ROOT, "profiles", "openmontage", "workspace")],
     description: "Real videos produced with OpenMontage. Click any → plays in the workspace.",
     extsAllow: [".mp4", ".webm", ".mov", ".m4v", ".html", ".htm", ".md", ".png", ".jpg"],
     maxDepth: 2,
@@ -150,7 +151,7 @@ const BUCKETS: BucketDef[] = [
     // the run — full Next.js sites, blog posts, scripts, generated assets.
     // We scan deeper than other buckets so users can browse the full tree,
     // and skip node_modules / .next / .git so we don't drown the UI.
-    paths: [path.join(HERMES_ROOT, "goals")],
+    paths: [workspacePath("hermes-goals"), path.join(HERMES_ROOT, "goals")],
     description: "Output from autonomous Goal Mode runs. Click any file → preview.",
     maxDepth: 4,
   },
@@ -161,6 +162,8 @@ const BUCKETS: BucketDef[] = [
     // land in HOME or ~/Guides at the top level. Strict ext filter so we don't
     // pick up package.json / config files.
     paths: [
+      workspacePath("hermes-studio", "videos"),
+      AGENT_OS_FOLDERS_ROOT,
       HOME,
       path.join(HOME, "Guides"),
       path.join(PROFILE_ROOT, "workspace"),
@@ -177,6 +180,7 @@ const BUCKETS: BucketDef[] = [
     // maxDepth: 0 = top-level files only — keeps us from pulling in your
     // entire ~/Downloads folder of unrelated YouTube clips.
     paths: [
+      workspacePath("hermes-media", "videos"),
       HOME,
       path.join(PROFILE_ROOT, "workspace"),
       path.join(HERMES_ROOT, "videos"),
@@ -188,19 +192,19 @@ const BUCKETS: BucketDef[] = [
   {
     id: "images",
     label: "Images",
-    paths: [path.join(HERMES_ROOT, "images")],
+    paths: [workspacePath("hermes-studio", "images"), workspacePath("hermes-media", "images"), path.join(HERMES_ROOT, "images")],
     description: "Image generation outputs from Hermes.",
   },
   {
     id: "audio",
     label: "Audio",
-    paths: [path.join(PROFILE_ROOT, "audio_cache"), path.join(HERMES_ROOT, "audio_cache")],
+    paths: [workspacePath("hermes-studio", "audio"), workspacePath("hermes-media", "audio"), path.join(PROFILE_ROOT, "audio_cache"), path.join(HERMES_ROOT, "audio_cache")],
     description: "Voice + TTS renders.",
   },
   {
     id: "workspace",
     label: "Workspace",
-    paths: [path.join(PROFILE_ROOT, "workspace")],
+    paths: [AGENT_OS_FOLDERS_ROOT, path.join(PROFILE_ROOT, "workspace")],
     description: "Generic scratch where Hermes saves files — HTML, scripts, etc.",
   },
   {

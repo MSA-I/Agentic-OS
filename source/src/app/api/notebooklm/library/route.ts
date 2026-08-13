@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ASSETS_DIR = path.join(os.homedir(), "Documents", "Obsidian Vault", "Agentic OS", "Notebooks", "_assets");
+const ASSETS_DIR = workspacePath("notebooklm", "assets");
 
 interface SavedAsset {
   name: string; path: string; relPath: string;

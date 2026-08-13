@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { writeFile, mkdir, readFile, readdir, rm } from "node:fs/promises";
-import { tmpdir, homedir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import { saveThumbnailSession } from "@/lib/thumbnailLog";
 import { enhancePrompt } from "@/lib/thumbnailPrompt";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 const exec = promisify(execFile);
 export const runtime = "nodejs";
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   const imageList = (Array.isArray(body.images) ? body.images : body.image ? [body.image] : []).filter(Boolean).slice(0, 6);
   if (!instructions && !imageList.length) return NextResponse.json({ error: "Add a reference image or some instructions." }, { status: 400 });
 
-  const work = path.join(tmpdir(), `thumb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const work = workspacePath("thumbnail-generation", ".tmp", `thumb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const out = path.join(work, "out");
   await mkdir(out, { recursive: true });
 

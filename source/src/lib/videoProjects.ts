@@ -9,11 +9,12 @@ import { readFile, writeFile, mkdir, readdir, stat, unlink, rename } from "node:
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 const HOME = os.homedir();
-export const VIDEO_ROOT = path.join(HOME, ".agentic-os", "video-projects");
+export const VIDEO_ROOT = workspacePath("video-projects");
 export const RENDER_JOBS_FILE = path.join(HOME, ".agentic-os", "video-render-jobs.json");
-export const RENDER_LOGS_DIR = path.join(HOME, ".agentic-os", "video-render-logs");
+export const RENDER_LOGS_DIR = path.join(VIDEO_ROOT, ".render-logs");
 
 export interface HFProject {
   slug: string;

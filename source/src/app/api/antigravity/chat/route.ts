@@ -57,7 +57,7 @@ export async function POST(req: Request) {
   if (dangerouslySkipPermissions === true) args.push("--dangerously-skip-permissions");
 
   const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : undefined;
-  const out = await run("antigravity", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd });
+  const out = await run("antigravity", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd, signal: req.signal });
   const text = out.stdout.replace(ANSI_STRIP, "").trim();
   const stderrClean = out.stderr.replace(ANSI_STRIP, "").trim();
 

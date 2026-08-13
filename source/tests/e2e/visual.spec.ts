@@ -3,7 +3,9 @@ import path from "node:path";
 import { expectNoClientErrors, settlePage, test } from "./support/fixtures";
 import { QA_VIEWPORTS, VISUAL_ROUTES } from "./support/routes";
 
-const outputDirectory = path.resolve(process.cwd(), ".next", "visual-qa");
+const outputDirectory = process.env.AGENT_OS_VISUAL_QA_DIR
+  ? path.resolve(process.env.AGENT_OS_VISUAL_QA_DIR)
+  : path.resolve(process.cwd(), ".next", "visual-qa");
 
 test.beforeAll(() => {
   mkdirSync(outputDirectory, { recursive: true });

@@ -8,10 +8,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import type { Briefing } from "./apolloBriefing";
+import { workspacePath } from "./workspaceRoot";
 
-const STATE_DIR = path.join(os.homedir(), ".agentic-os");
+const STATE_DIR = workspacePath("apollo", "briefings");
 const FILE = path.join(STATE_DIR, "apollo-briefings.jsonl");
 const MAX = 200;
 

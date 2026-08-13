@@ -1,4 +1,4 @@
-import { spawnStream } from "@/lib/runner";
+import { spawnStream, terminateChildProcessTree } from "@/lib/runner";
 import { CLAUDE_MODEL } from "@/lib/config";
 import { ensureProject, CLAUDE_SCRATCH_ROOT } from "@/lib/claudeWorkspace";
 import { newRun, applyEvent, saveRun, getRun, makeRunId, type UltracodeRun } from "@/lib/ultracodeRuns";
@@ -93,6 +93,7 @@ export async function POST(req: Request) {
   );
 
   const child = spawnStream("claude", args, { cwd: runCwd });
+  req.signal.addEventListener("abort", () => { void terminateChildProcessTree(child); }, { once: true });
 
   // Register the live process so the Stop button (a separate request) can kill
   // it by run id. Registered below once runId is known.
@@ -203,10 +204,10 @@ export async function POST(req: Request) {
         safeClose();
       });
     },
-    cancel() {
+    async cancel() {
       // Client disconnected (tab closed / navigated away). Kill the child.
       const userStopped = runId ? isStopped(runId) : false;
-      try { child.kill("SIGTERM"); } catch {}
+      await terminateChildProcessTree(child);
       if (runId) unregisterProc(runId);
       if (run) {
         if (run.status === "running") run.status = userStopped ? "stopped" : "failed";

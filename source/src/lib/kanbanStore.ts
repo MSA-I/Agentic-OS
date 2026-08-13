@@ -4,9 +4,9 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
-const ROOT = path.join(os.homedir(), ".agentic-os", "agent-kanban");
+const ROOT = workspacePath("agent-kanban");
 const BUILDS = path.join(ROOT, "builds");
 const MANIFEST = path.join(ROOT, "manifest.json");
 

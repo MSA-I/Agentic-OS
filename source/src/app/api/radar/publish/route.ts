@@ -3,6 +3,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { config } from "@/lib/config";
+import { AGENT_OS_FOLDERS_ROOT, workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,8 +14,8 @@ export const dynamic = "force-dynamic";
 // live URL submitted to Indexceptional. Runs as a background job; the UI polls for progress + URLs.
 // The author name/bio/CTAs/footer are config-driven (wordpress.json "profile") — default generic.
 
-const HERMES_WORKSPACE = os.homedir(); // cwd for the hermes writer run — output comes back on stdout
-const RADAR_DIR = path.join(os.homedir(), ".agentic-os", "radar");
+const HERMES_WORKSPACE = AGENT_OS_FOLDERS_ROOT;
+const RADAR_DIR = workspacePath("radar");
 const PUB_STATUS = path.join(RADAR_DIR, "publish-status.json");
 const PUBLISHED_LOG = path.join(RADAR_DIR, "published.json");
 const WP_CONFIG = path.join(os.homedir(), ".agentic-os", "wordpress.json");

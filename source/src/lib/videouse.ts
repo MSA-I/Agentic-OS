@@ -13,8 +13,9 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { glmcodeSpawnEnv, GLM_CODE_MODEL } from "@/lib/glmcode";
+import { workspacePath } from "@/lib/workspaceRoot";
 
-export const VIDEOUSE_ROOT = path.join(os.homedir(), ".agentic-os", "video-use-jobs");
+export const VIDEOUSE_ROOT = workspacePath("video-use-jobs");
 
 // launchd starts the dev server with a minimal PATH; make sure `claude`,
 // ffmpeg and uv resolve.

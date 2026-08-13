@@ -4,11 +4,11 @@
 // the orchestrator (orchestrate.mjs). The dashboard reads this state.
 
 import { readFile, writeFile } from "node:fs/promises";
-import { hermesHome } from "@/lib/config";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
-export const CONTENT_ROOT = path.join(hermesHome(), "content-studio");
+export const CONTENT_ROOT = workspacePath("content-studio");
 export const STATE_FILE = path.join(CONTENT_ROOT, "state.json");
 export const ARTIFACTS_DIR = path.join(CONTENT_ROOT, "artifacts");
 

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { hermesHome } from "@/lib/config";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 // Everything the Mixture-of-Agents tool makes lives in one workspace folder so the
 // Mixture tab (and the Hermes Workspace tab) can show it all in one place:
@@ -19,7 +20,7 @@ export function activeProfile(): string {
 }
 
 export function moaDir(): string {
-  const dir = path.join(hermesHome(), "profiles", activeProfile(), "workspace", "moa-builds");
+  const dir = workspacePath("moa-builds");
   try { fs.mkdirSync(dir, { recursive: true }); } catch { /* ignore */ }
   return dir;
 }

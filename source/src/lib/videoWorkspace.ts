@@ -13,6 +13,7 @@ import { readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 const HOME = os.homedir();
 
@@ -27,7 +28,7 @@ export interface BucketDef {
 
 const VIDEO_EXTS = [".mp4", ".webm", ".mov", ".m4v", ".mkv"];
 
-const PROJECTS_ROOT = path.join(HOME, ".agentic-os", "video-projects");
+const PROJECTS_ROOT = workspacePath("video-projects");
 
 const BUCKETS: BucketDef[] = [
   {
@@ -153,7 +154,7 @@ async function walkBucket(def: BucketDef, maxFiles: number): Promise<VWFile[]> {
           // Build preview URL — if file is inside ~/.agentic-os/video-projects use
           // the `project` mode (containment-checked + cleaner). Otherwise use
           // `local` mode (which has its own allowlist).
-          const projectsRoot = path.join(HOME, ".agentic-os", "video-projects");
+          const projectsRoot = workspacePath("video-projects");
           let url: string;
           if (full.startsWith(projectsRoot + path.sep)) {
             const rel = path.relative(projectsRoot, full);

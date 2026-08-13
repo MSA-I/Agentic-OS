@@ -14,9 +14,10 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const JCODE_BIN = path.join(os.homedir(), ".local/bin/jcode");
-export const JCODE_BUILDS = path.join(os.homedir(), ".agentic-os", "jcode", "builds");
+export const JCODE_BUILDS = workspacePath("jcode", "builds");
 export const JCODE_SESSIONS = path.join(os.homedir(), ".jcode", "sessions");
 
 export const JCODE_PATH = [

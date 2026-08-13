@@ -8,16 +8,16 @@ import { writeFile, mkdir, readFile, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { searchNotes, recentNotes, searchOmi, readNote, VAULT_AVAILABLE } from "@/lib/vault";
-import { AGENTIC_DIR } from "@/lib/vaultWriter";
 import { uniqueSlug, writeItem, type PipelineItem } from "@/lib/pipeline";
 import { config, hermesHome } from "@/lib/config";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 const HOME = os.homedir();
 const OLLAMA = process.env.OLLAMA_HOST || "http://localhost:11434";
 
 // ── Durable group-chat history — saved to the vault so it survives browser clears
 // and shows on any device (localStorage in the browser is only a fast cache). ──
-const CONVOS_DIR = AGENTIC_DIR ? path.join(AGENTIC_DIR, "Agent Room", "conversations") : "";
+const CONVOS_DIR = workspacePath("conversations", "agent-room");
 export interface RoomMsg { key: number; who: string; name?: string; color?: string; text: string; kind?: string }
 export interface RoomConvo { id: string; title: string; ts: number; msgs: RoomMsg[] }
 const safeConvoId = (id: string) => String(id).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
@@ -219,13 +219,12 @@ export async function roomContext(query: string): Promise<{ text: string; source
 export interface RoomAction { kind: "note" | "pipeline"; label: string; ok: boolean; path?: string; }
 
 async function saveRoomNote(title: string, body: string): Promise<string | null> {
-  if (!AGENTIC_DIR) return null;
-  const dir = path.join(AGENTIC_DIR, "Room Notes");
+  const dir = workspacePath("agent-room", "notes");
   await mkdir(dir, { recursive: true });
   const slug = (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48)) || "room-note";
   const date = new Date().toISOString().slice(0, 10);
   await writeFile(path.join(dir, `${slug}.md`), `# ${title}\n\n${body}\n\n---\n_Saved from the Agent Room · ${date}_\n`, "utf8");
-  return `Agent OS/Room Notes/${slug}.md`;
+  return `agent-room/notes/${slug}.md`;
 }
 
 // Parse + run NOTE:: / PIPELINE:: directives from an agent's reply. Returns the

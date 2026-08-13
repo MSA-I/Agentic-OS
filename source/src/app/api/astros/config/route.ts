@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Astros watchlist: tracked competitor channels + keyword watchlist, editable from the UI.
 // Also reports which YouTube engine is active (google-oauth / api-key / rss+scrape).
 
-const ASTROS_DIR = path.join(os.homedir(), ".agentic-os", "astros");
+const ASTROS_DIR = workspacePath("astros");
 const CONFIG = path.join(ASTROS_DIR, "config.json");
 const YT_TOKEN = path.join(ASTROS_DIR, "youtube-token.json");
 

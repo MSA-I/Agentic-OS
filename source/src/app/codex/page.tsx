@@ -1,9 +1,10 @@
-import CodexView from "@/components/CodexView";
+import { Suspense } from "react";
+import CodexDesktop from "@/components/CodexDesktop";
 
 export default function CodexRoute() {
   return (
-    <div className="flex min-h-[calc(100vh-180px)] flex-col lg:h-[calc(100vh-180px)]">
-      <CodexView />
-    </div>
+    <Suspense fallback={<div className="workbench-route-loading" role="status">Loading Codex workspace</div>}>
+      <CodexDesktop />
+    </Suspense>
   );
 }

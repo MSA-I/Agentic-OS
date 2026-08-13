@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // The OmniRoute workspace lives on disk so builds + conversations survive
 // restarts — same idea as the other Agent OS agents that persist to the vault.
-const ROOT = path.join(os.homedir(), ".agentic-os", "omniroute-workspace");
+const ROOT = workspacePath("omniroute-workspace");
 const BUILDS = path.join(ROOT, "builds");
 const SESSIONS = path.join(ROOT, "sessions");
 

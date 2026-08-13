@@ -6,22 +6,20 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
-import { VAULT_ROOT } from "./vault";
+import { workspacePath } from "./workspaceRoot";
 
-const STATE_DIR = path.join(os.homedir(), ".agentic-os");
+const STATE_DIR = workspacePath("apollo", "memory");
 const MEM_FILE = path.join(STATE_DIR, "apollo-memory.jsonl");
 
 export interface ApolloMemory { id: string; ts: number; text: string; }
 
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
-async function appendToVault(text: string, ts: number): Promise<void> {
-  if (!VAULT_ROOT) return;
+async function appendReadableMemory(text: string, ts: number): Promise<void> {
   try {
     const d = new Date(ts);
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const dir = path.join(VAULT_ROOT, "Agentic OS", "Apollo");
+    const dir = STATE_DIR;
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
     const file = path.join(dir, "Memory.md");
     const header = existsSync(file) ? "" : `# Apollo — Memory\n\nThings you've asked Apollo to remember.\n`;
@@ -36,7 +34,7 @@ export async function appendMemory(text: string): Promise<ApolloMemory> {
     if (!existsSync(STATE_DIR)) await mkdir(STATE_DIR, { recursive: true });
     await appendFile(MEM_FILE, JSON.stringify(row) + "\n", "utf8");
   } catch { /* */ }
-  await appendToVault(row.text, ts);
+  await appendReadableMemory(row.text, ts);
   return row;
 }
 

@@ -10,12 +10,13 @@ import { hermesHome } from "@/lib/config";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 const HOME = os.homedir();
 const STATE_DIR = path.join(HOME, ".agentic-os");
 const STATE_FILE = path.join(STATE_DIR, "hermes-goals.json");
-export const GOAL_LOGS_DIR = path.join(STATE_DIR, "hermes-goal-logs");
-export const HERMES_SCRATCH_ROOT = path.join(hermesHome(), "goals");
+export const GOAL_LOGS_DIR = workspacePath("hermes-goals", "logs");
+export const HERMES_SCRATCH_ROOT = workspacePath("hermes-goals");
 
 export type GoalStatus = "queued" | "running" | "completed" | "failed" | "stopped";
 

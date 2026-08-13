@@ -1,5 +1,5 @@
-import AntigravityView from "@/components/AntigravityView";
+import AntigravityOfficialView from "@/components/official-agent-ui/AntigravityOfficialView";
 
 export default function AntigravityRoute() {
-  return <AntigravityView />;
+  return <AntigravityOfficialView />;
 }

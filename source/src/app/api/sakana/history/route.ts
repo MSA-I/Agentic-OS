@@ -1,11 +1,11 @@
 import fs from "node:fs";
-import { hermesHome } from "@/lib/config";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FILE = path.join(hermesHome(), "profiles", "sakana-fugu", "chat-history.json");
+const FILE = path.join(workspacePath("conversations", "sakana"), "chat-history.json");
 
 interface Msg { role: "user" | "assistant"; text: string; }
 

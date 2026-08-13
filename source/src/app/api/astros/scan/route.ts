@@ -2,8 +2,8 @@ import { run } from "@/lib/runner";
 import { mkdir, writeFile, readFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { config } from "@/lib/config";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // fallback (channel RSS feeds + YouTube search-page scrape). The scan itself never
 // needs a key to work.
 
-const ASTROS_DIR = path.join(os.homedir(), ".agentic-os", "astros");
+const ASTROS_DIR = workspacePath("astros");
 const HISTORY_DIR = path.join(ASTROS_DIR, "history");
 const LATEST = path.join(ASTROS_DIR, "latest.json");
 const STATUS = path.join(ASTROS_DIR, "status.json");
@@ -309,7 +309,7 @@ async function runSweep(): Promise<void> {
     // nous/openrouter, whose models lack a tool-use endpoint → 404 → empty synthesis.
     const RADAR_PROVIDER = process.env.RADAR_PROVIDER || "xai-oauth";
     const RADAR_MODEL = process.env.RADAR_MODEL || "grok-4";
-    const res = await run("hermes", ["-z", synthesisPrompt(videos, cfg, new Date()), "--provider", RADAR_PROVIDER, "--model", RADAR_MODEL], { cwd: os.homedir(), timeoutMs: 420_000 });
+    const res = await run("hermes", ["-z", synthesisPrompt(videos, cfg, new Date()), "--provider", RADAR_PROVIDER, "--model", RADAR_MODEL], { cwd: ASTROS_DIR, timeoutMs: 420_000 });
     const obj = extractObj(res.stdout || "");
     const topics = normalize((obj.topics as unknown[]) || []);
     if (!topics.length) {

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ROOT = path.join(os.homedir(), ".agentic-os", "glm-code", "builds");
+const ROOT = workspacePath("glm-code", "builds");
 const SKIP = new Set([".claude-flow", ".claude", "node_modules", ".git"]);
 
 interface FileRec { rel: string; bytes: number }

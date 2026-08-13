@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
-import path from "node:path";
-import { CLAUDE_MODEL, config, hermesHome } from "@/lib/config";
+import { CLAUDE_MODEL, config } from "@/lib/config";
 import { run } from "@/lib/runner";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -98,7 +98,7 @@ async function authorWithGrok(system: string, topic: string): Promise<string | n
   try {
     const prompt = `${system}\n\nTOPIC: ${topic}\n\nOutput ONLY the JSON object, nothing before or after it.`;
     const res = await run("hermes", ["-p", "grok-4-5", "-z", prompt, "--yolo", "--accept-hooks"], {
-      cwd: path.join(hermesHome(), "profiles", "grok-4-5", "workspace"),
+      cwd: workspacePath("video-script-workspace"),
       timeoutMs: 300_000,
     });
     return (res.stdout || "").trim() || null;

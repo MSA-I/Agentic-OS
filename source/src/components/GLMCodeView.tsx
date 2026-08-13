@@ -190,7 +190,7 @@ export default function GLMCodeView() {
           {/* title bar */}
           <div className="flex items-center gap-2 px-3.5 py-2 border-b shrink-0" style={{ borderColor: "#221a2c", background: "#120e18" }}>
             <span className="flex gap-1.5"><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#ff5f57" }} /><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#febc2e" }} /><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#28c840" }} /></span>
-            <span className="text-[11px] text-[var(--cream-mute)] mono ml-1">code — {model === "gpt56" ? "codex" : model === "qoder" ? "qoder" : "claude"} — ~/.agentic-os/glm-code</span>
+            <span className="text-[11px] text-[var(--cream-mute)] mono ml-1">code — {model === "gpt56" ? "codex" : model === "qoder" ? "qoder" : "claude"} — AGENT-OS-FOLDERS/glm-code</span>
             {lines.length > 0 && <button onClick={clearTerm} className="ml-auto mono text-[10px] text-[var(--cream-mute)] hover:text-[var(--cream)]">clear</button>}
           </div>
 
@@ -201,7 +201,7 @@ export default function GLMCodeView() {
               <div style={{ color: CLAUDE }}>✻ Welcome back!</div>
               <div className="mt-2 whitespace-pre" style={{ color: "#8a7e90" }}>{`   ▝▘  `}<span style={{ color: CLAUDE }}>{model === "gpt56" ? "Codex" : model === "qoder" ? "Qoder" : "Claude Code"}</span>{`  ·  one workspace`}</div>
               <div className="mt-2" style={{ color: "#8a7e90" }}>  model: <span style={{ color: MODELS[model].accent }}>{MODELS[model].badge}</span> · <span style={{ color: "var(--cream)" }}>{MODELS[model].ready}</span></div>
-              <div style={{ color: "#8a7e90" }}>  cwd:   ~/.agentic-os/glm-code</div>
+              <div style={{ color: "#8a7e90" }}>  cwd:   AGENT-OS-FOLDERS/glm-code</div>
               {obsidian && <div style={{ color: "#8a7e90" }}>  log:   <span style={{ color: EMERALD }}>↪ Obsidian</span> · {obsidian.replace(/^.*\/Obsidian Vault\//, "")}</div>}
               <div style={{ color: "#6f6577" }}>  history saved — your session + every build persist here</div>
             </div>

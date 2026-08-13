@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Past radar sweeps, one entry per day (newest first). Each carries its full signals
 // so the UI can load a previous day instantly when you click it.
 
-const HISTORY_DIR = path.join(os.homedir(), ".agentic-os", "radar", "history");
+const HISTORY_DIR = workspacePath("radar", "history");
 
 export async function GET() {
   try {

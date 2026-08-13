@@ -10,12 +10,11 @@
 import { readFile, writeFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import type { SunoClip } from "./suno";
 import { downloadAsset } from "./suno";
+import { workspacePath } from "./workspaceRoot";
 
-const HOME = os.homedir();
-export const MUSIC_ROOT = path.join(HOME, ".agentic-os", "music");
+export const MUSIC_ROOT = workspacePath("music-studio");
 
 export function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-|-$/g, "") || "track";

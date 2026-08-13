@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { config } from "@/lib/config";
+import { AGENT_OS_FOLDERS_ROOT, workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,8 @@ export const dynamic = "force-dynamic";
 // Hermes for a ranked JSON array of "signals", cache the latest, save a per-day history
 // file, and auto-log each sweep to your Obsidian "AI News" folder.
 
-const HERMES_WORKSPACE = os.homedir(); // cwd for the hermes run — output comes back on stdout
-const RADAR_DIR = path.join(os.homedir(), ".agentic-os", "radar");
+const HERMES_WORKSPACE = AGENT_OS_FOLDERS_ROOT;
+const RADAR_DIR = workspacePath("radar");
 const HISTORY_DIR = path.join(RADAR_DIR, "history");
 const LATEST = path.join(RADAR_DIR, "latest.json");
 const STATUS = path.join(RADAR_DIR, "status.json");

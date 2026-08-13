@@ -3,6 +3,7 @@ import { run } from "@/lib/runner";
 import { config } from "@/lib/config";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { AGENT_OS_FOLDERS_ROOT } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,8 +58,10 @@ export async function POST(req: Request) {
   if (sessionKey) args.push("--session-key", sessionKey);
   else if (sessionId) args.push("--session-id", sessionId);
   args.push("-m", fullPrompt, "--json", "--timeout", "120");
-  const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : undefined;
-  const out = await run("openclaw", args, { timeoutMs: 150_000, cwd: runCwd });
+  const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd)
+    ? cwd
+    : AGENT_OS_FOLDERS_ROOT;
+  const out = await run("openclaw", args, { timeoutMs: 150_000, cwd: runCwd, signal: req.signal });
 
   // Try to parse JSON payload from stdout (may include leading non-JSON log lines)
   let text = "";

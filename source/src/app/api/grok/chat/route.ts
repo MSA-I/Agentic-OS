@@ -1,8 +1,8 @@
 import { spawnStream } from "@/lib/runner";
-import { hermesHome } from "@/lib/config";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 // the Workspace tab + preview route serve, so a chat build shows up as a build.
 //   {"t":"d","c":"chunk"}  · {"t":"done"}  · {"t":"error","m":"…"}
 
-const GROK_WORKSPACE = path.join(hermesHome(), "profiles", "grok-build", "workspace");
+const GROK_WORKSPACE = workspacePath("grok-build");
 
 interface ChatMsg { role: "user" | "assistant" | "system"; text: string; }
 

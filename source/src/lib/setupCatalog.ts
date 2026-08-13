@@ -1,3 +1,5 @@
+import { workspacePath } from "@/lib/workspaceRoot";
+
 export type SetupCategory = "setup-required" | "broken" | "optional";
 export type SetupGroup = "agents" | "models" | "orchestration" | "create" | "operations";
 export type SetupActionKind = "connect" | "test" | "start" | "install" | "manual";
@@ -442,9 +444,9 @@ export const SETUP_CATALOG = [
     actions: [
       testAction(),
       manualAction("init-kanban", "אתחול Kanban database", "install", "יוצר kanban.db אם הוא חסר; הפקודה idempotent ואינה מוחקת board קיים.", "hermes kanban init"),
-      manualAction("create-games-workspace", "יצירת Games workspace", "install", "יוצר את התיקייה המדויקת שה-gallery וה-commission route קוראים ב-Windows.", 'New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\freeclaude-scratch\\games"'),
+      manualAction("create-games-workspace", "יצירת Games workspace", "install", "יוצר את התיקייה המדויקת שה-gallery וה-commission route קוראים ב-Windows.", `New-Item -ItemType Directory -Force -LiteralPath "${workspacePath("games")}"`),
       manualAction("create-game-profile", "יצירת פרופיל game-dev", "install", "מריץ רק אם hermes profile list אינו מציג game-dev. הפרופיל משוכפל מהפרופיל הפעיל כדי לשמור provider/skills, ומקבל תיאור המשמש את ה-Kanban router.", 'hermes profile create game-dev --clone --description "Build complete self-contained browser games in the assigned workspace."'),
-      manualAction("create-game-board", "יצירת board בשם game-studio", "install", "מריץ רק אם hermes kanban boards list אינו מציג game-studio. שם ה-board חייב להתאים בדיוק ל-route של Game Studio.", 'hermes kanban boards create game-studio --name "Game Studio" --default-workdir "$env:USERPROFILE\\freeclaude-scratch\\games"'),
+      manualAction("create-game-board", "יצירת board בשם game-studio", "install", "מריץ רק אם hermes kanban boards list אינו מציג game-studio. שם ה-board חייב להתאים בדיוק ל-route של Game Studio.", `hermes kanban boards create game-studio --name "Game Studio" --default-workdir "${workspacePath("games")}"`),
     ],
   },
   {
@@ -455,11 +457,11 @@ export const SETUP_CATALOG = [
       testAction(),
       openRouterAction("north-mini"),
       automaticSystemAction("install-python", "התקנת Python ל-App Lab", "install", "מתקין Python 3.12 באמצעות winget בפקודה קבועה ומאושרת; נדרש לפני יצירת ה-venvs.", "winget install --id Python.Python.3.12 --exact --accept-package-agreements --accept-source-agreements --disable-interactivity"),
-      manualAction("clone-upstream", "שכפול awesome-llm-apps", "install", "משכפל את upstream repository לנתיב המדויק שה-App Lab קורא. ה-clone לבדו אינו כולל את שלושת קובצי ה-adaptation של Agent OS.", 'git clone https://github.com/Shubhamsaboo/awesome-llm-apps "$env:USERPROFILE\\Developer\\awesome-llm-apps"'),
+      manualAction("clone-upstream", "שכפול awesome-llm-apps", "install", "משכפל את upstream repository לנתיב המדויק שה-App Lab קורא. ה-clone לבדו אינו כולל את שלושת קובצי ה-adaptation של Agent OS.", `git clone https://github.com/Shubhamsaboo/awesome-llm-apps "${workspacePath("app-lab", "awesome-llm-apps")}"`),
       manualAction("missing-adaptations", "שלושה adaptation files חסרים", "manual", "ה-runtime דורש free_mixture_of_agents.py, free_web_chat.py ו-free_travel_agent.py בנתיבים המוגדרים ב-appslab.ts. הם אינם קיימים בריפו הזה ואינם חלק מ-upstream; אין מקור מאומת להורדה ולכן אין פקודת התקנה."),
-      manualAction("create-moa-venv", "יצירת venv ל-Mixture of Agents", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; יש להריץ רק לאחר שה-repository קיים.", 'py -m venv "$env:USERPROFILE\\Developer\\awesome-llm-apps\\starter_ai_agents\\mixture_of_agents\\.venv"'),
-      manualAction("create-web-chat-venv", "יצירת venv ל-Web Chat", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; dependencies מדויקים תלויים בקובץ ה-adaptation החסר.", 'py -m venv "$env:USERPROFILE\\Developer\\awesome-llm-apps\\rag_tutorials\\llama3.1_local_rag\\.venv"'),
-      manualAction("create-travel-venv", "יצירת venv ל-Travel Planner", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; dependencies מדויקים תלויים בקובץ ה-adaptation החסר.", 'py -m venv "$env:USERPROFILE\\Developer\\awesome-llm-apps\\starter_ai_agents\\ai_travel_agent\\.venv"'),
+      manualAction("create-moa-venv", "יצירת venv ל-Mixture of Agents", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; יש להריץ רק לאחר שה-repository קיים.", `py -m venv "${workspacePath("app-lab", "awesome-llm-apps", "starter_ai_agents", "mixture_of_agents", ".venv")}"`),
+      manualAction("create-web-chat-venv", "יצירת venv ל-Web Chat", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; dependencies מדויקים תלויים בקובץ ה-adaptation החסר.", `py -m venv "${workspacePath("app-lab", "awesome-llm-apps", "rag_tutorials", "llama3.1_local_rag", ".venv")}"`),
+      manualAction("create-travel-venv", "יצירת venv ל-Travel Planner", "install", "יוצר את Windows venv שה-diagnostic מצפה לו; dependencies מדויקים תלויים בקובץ ה-adaptation החסר.", `py -m venv "${workspacePath("app-lab", "awesome-llm-apps", "starter_ai_agents", "ai_travel_agent", ".venv")}"`),
     ],
   },
   {

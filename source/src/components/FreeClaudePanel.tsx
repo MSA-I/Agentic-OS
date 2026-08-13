@@ -417,7 +417,7 @@ export default function FreeClaudePanel({ activeTab = "chat" }: { activeTab?: Ta
                       </div>
                     )}
                     <ul className="mt-3 text-xs text-[var(--fg-dimmer)] space-y-1">
-                      <li>• Working directory: <code className="text-[var(--fg-dim)]">~/freeclaude-scratch/{activeProject}/</code></li>
+                      <li>• Working directory: <code className="text-[var(--fg-dim)]">AGENT-OS-FOLDERS/{activeProject}/</code></li>
                       <li>• Anything claude writes lands there → preview it in the <strong>Workspace</strong> tab</li>
                       <li>• HTML pages render live, images / videos / audio play inline, PDFs embed</li>
                       <li>• HyperFrames renders (.mp4 / .webm) play in the browser</li>
@@ -509,7 +509,7 @@ export default function FreeClaudePanel({ activeTab = "chat" }: { activeTab?: Ta
                 </button>
               </div>
               <div className="text-[10.5px] leading-relaxed mb-2" style={{ color: "var(--cream-mute)" }}>
-                Anything claude writes during a chat lands in <code className="mono">~/freeclaude-scratch/&lt;project&gt;/</code>.
+                Anything claude writes during a chat lands in <code className="mono">AGENT-OS-FOLDERS/&lt;project&gt;/</code>.
                 Click a file → preview inline.
               </div>
 

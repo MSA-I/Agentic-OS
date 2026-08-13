@@ -1,11 +1,11 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const HISTORY_DIR = path.join(os.homedir(), ".agentic-os", "astros", "history");
+const HISTORY_DIR = workspacePath("astros", "history");
 
 export async function GET() {
   try {

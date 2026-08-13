@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Daily todo lists — one JSON per day at ~/.agentic-os/todos/YYYY-MM-DD.json,
 // so history is just the directory listing.
-const ROOT = path.join(os.homedir(), ".agentic-os", "todos");
+const ROOT = workspacePath("todos");
 
 type Status = "todo" | "doing" | "done";
 // kind "heading" = a Google-Doc-style section title row (no checkbox, excluded

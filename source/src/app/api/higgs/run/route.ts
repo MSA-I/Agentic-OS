@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
 import { hermesCliArgs } from "@/lib/hermesProfile";
 import { resolveHiggsfieldProfile } from "@/lib/higgsfieldProfile";
 import { run } from "@/lib/runner";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 // it produces into the gallery dir, so the OS gallery is a byproduct of the run rather
 // than a separate sync step that can drift.
 // Profile resolution is shared with status and navigation availability.
-const ROOT = path.join(os.homedir(), ".agentic-os", "higgsfield");
+const ROOT = workspacePath("higgsfield");
 const GALLERY = path.join(ROOT, "gallery");
 const SESSIONS = path.join(ROOT, "sessions");
 const ANSI = /\[[0-9;]*m/g;

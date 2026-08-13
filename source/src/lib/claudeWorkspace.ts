@@ -14,10 +14,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
+import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
 
 const HOME = os.homedir();
 export const CLAUDE_SCRATCH_ROOT = process.env.AGENTIC_OS_CLAUDE_SCRATCH
-  ?? path.join(HOME, ".agentic-os", "claude-projects");
+  ?? AGENT_OS_FOLDERS_ROOT;
 
 export interface ClaudeProject { name: string; root: string; mtime: number; fileCount: number; }
 export type ClaudeFileKind = "text" | "image" | "video" | "audio" | "pdf" | "binary";

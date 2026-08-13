@@ -10,9 +10,10 @@ import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { hermesHome } from "@/lib/config";
+import { workspacePath } from "@/lib/workspaceRoot";
 
-export const APPS_REPO = path.join(os.homedir(), "Developer", "awesome-llm-apps");
-export const APPLAB_STATE = path.join(os.homedir(), ".agentic-os", "app-lab");
+export const APPS_REPO = workspacePath("app-lab", "awesome-llm-apps");
+export const APPLAB_STATE = workspacePath("app-lab", "state");
 
 const BIN_PATH = [
   ...(process.platform === "win32"

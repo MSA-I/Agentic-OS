@@ -11,10 +11,9 @@
 import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
-const HOME = os.homedir();
-export const STUDIO_ROOT = path.join(HOME, ".openclaw", "studio");
+export const STUDIO_ROOT = workspacePath("openclaw-studio");
 export const SEARCHES_DIR = path.join(STUDIO_ROOT, "searches");
 export const TALKS_DIR = path.join(STUDIO_ROOT, "talks");
 

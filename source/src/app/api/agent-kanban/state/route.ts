@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // browser's localStorage. Before this, a board assembled in one browser was
 // invisible everywhere else — every other browser saw an empty board — because
 // the columns were per-browser while the Workspace was server-side.
-const FILE = path.join(os.homedir(), ".agentic-os", "agent-kanban", "board.json");
+const FILE = path.join(workspacePath("agent-kanban"), "board.json");
 
 async function read(): Promise<unknown | null> {
   try { return JSON.parse(await fs.readFile(FILE, "utf8")); } catch { return null; }

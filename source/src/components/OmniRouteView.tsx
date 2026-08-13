@@ -330,7 +330,7 @@ export default function OmniRouteView() {
           )}
         </div>
       </div>
-      <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5"><Save size={11} /> Saved to <span className="mono">~/.agentic-os/omniroute-workspace/</span> — builds as HTML, chats as JSON + readable transcript.</div>
+      <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5"><Save size={11} /> Saved to <span className="mono">AGENT-OS-FOLDERS/omniroute-workspace/</span> — builds as HTML, chats as JSON + readable transcript.</div>
 
       {/* Centralized setup */}
       <div className="flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center" style={{ borderColor: "var(--panel-border)", background: "rgba(255,255,255,0.02)" }}>

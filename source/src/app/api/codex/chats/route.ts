@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Codex chat history — persisted to disk so conversations survive refreshes and
 // restarts (same pattern as the OmniRoute workspace). One JSON per session plus
 // a readable .md transcript alongside.
-const ROOT = path.join(os.homedir(), ".agentic-os", "codex-workspace", "chats");
+const ROOT = workspacePath("codex-workspace", "chats");
 
 async function ensure() { await fs.mkdir(ROOT, { recursive: true }); }
 // Encode the id as one portable filename segment. `path.basename()` alone

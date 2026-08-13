@@ -252,7 +252,7 @@ export default function OpenCodeView() {
         <div className="flex flex-col min-h-0 flex-1 rounded-xl overflow-hidden border" style={{ borderColor: "var(--line-soft)", background: "#0a0f14" }}>
           <div className="flex items-center gap-2 px-3.5 py-2 border-b shrink-0" style={{ borderColor: "#152029", background: "#0c1218" }}>
             <span className="flex gap-1.5"><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#ff5f57" }} /><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#febc2e" }} /><i className="w-3 h-3 rounded-full inline-block" style={{ background: "#28c840" }} /></span>
-            <span className="text-[11px] text-[var(--cream-mute)] mono ml-1">opencode — run — ~/.agentic-os/opencode</span>
+            <span className="text-[11px] text-[var(--cream-mute)] mono ml-1">opencode — run — AGENT-OS-FOLDERS/opencode</span>
             {lines.length > 0 && <button onClick={clearTerm} className="ml-auto mono text-[10px] text-[var(--cream-mute)] hover:text-[var(--cream)]">clear</button>}
           </div>
 
@@ -261,7 +261,7 @@ export default function OpenCodeView() {
               <div style={{ color: SKY }}>◇ opencode — open source, in your Agent OS</div>
               <div className="mt-2 whitespace-pre" style={{ color: "#7c8b95" }}>{`   ▝▘  `}<span style={{ color: SKY }}>opencode.ai</span>{`  ·  75+ providers  ·  free tier built in`}</div>
               <div className="mt-2" style={{ color: "#7c8b95" }}>  model: <span style={{ color: SKY }}>{model}</span> · <span style={{ color: "var(--cream)" }}>no API key · cost $0</span></div>
-              <div style={{ color: "#7c8b95" }}>  cwd:   ~/.agentic-os/opencode/builds</div>
+              <div style={{ color: "#7c8b95" }}>  cwd:   AGENT-OS-FOLDERS/opencode/builds</div>
               {obsidian && <div style={{ color: "#7c8b95" }}>  log:   <span style={{ color: EMERALD }}>↪ Obsidian</span> · {obsidian.replace(/^.*\/Obsidian Vault\//, "")}</div>}
               <div style={{ color: "#5f6d76" }}>  history saved — your session + every build persist here</div>
             </div>

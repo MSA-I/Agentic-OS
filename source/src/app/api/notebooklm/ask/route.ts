@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 import { writeFile, readFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VAULT = path.join(os.homedir(), "Documents", "Obsidian Vault", "Agentic OS", "Notebooks");
+const VAULT = workspacePath("notebooklm", "chats");
 
 async function logChat(notebookName: string | undefined, question: string, answer: string): Promise<void> {
   try {

@@ -8,12 +8,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
+import { CLAUDE_SCRATCH_ROOT } from "./claudeWorkspace";
+import { workspacePath } from "./workspaceRoot";
 
 const HOME = os.homedir();
-export const PUBLISHED_DIR = path.join(HOME, ".agentic-os", "published");
+export const PUBLISHED_DIR = workspacePath("published");
 const MANIFEST = path.join(PUBLISHED_DIR, "manifest.json");
-const LOOP_BUILDS = path.join(HOME, ".agentic-os", "loop-builds");
-const CLAUDE_PROJECTS = path.join(HOME, ".agentic-os", "claude-projects");
+const LOOP_BUILDS = workspacePath("loop-builds");
+const CLAUDE_PROJECTS = CLAUDE_SCRATCH_ROOT;
 
 // netlify CLI needs a real PATH when the dev server was launched detached.
 const DEPLOY_PATH = ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", path.join(HOME, ".local/bin"), process.env.PATH || ""].filter(Boolean).join(":");

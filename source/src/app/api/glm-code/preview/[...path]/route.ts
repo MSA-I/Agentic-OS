@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ROOT = path.join(os.homedir(), ".agentic-os", "glm-code", "builds");
+const ROOT = workspacePath("glm-code", "builds");
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",

@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Returns the last cached Furnace scan (plus the history day-list) so the page paints
 // instantly. The 06:20 launchd cron keeps it fresh; the UI can also POST /api/furnace/scan.
 
-const FURNACE_DIR = path.join(os.homedir(), ".agentic-os", "furnace");
+const FURNACE_DIR = workspacePath("furnace");
 const HISTORY_DIR = path.join(FURNACE_DIR, "history");
 const LATEST = path.join(FURNACE_DIR, "latest.json");
 

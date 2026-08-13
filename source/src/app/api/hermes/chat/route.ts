@@ -142,7 +142,7 @@ export async function POST(req: Request) {
   if (sessionId) args.push("--resume", sessionId);
   args.push("-q", fullPrompt, "--source", "agent-os", "--yolo", "--accept-hooks");
   const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : undefined;
-  const out = await run("hermes", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd });
+  const out = await run("hermes", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd, signal: req.signal });
 
   const text = out.stdout.replace(ANSI_STRIP, "").trim();
   const stderrClean = out.stderr.replace(ANSI_STRIP, "").trim();

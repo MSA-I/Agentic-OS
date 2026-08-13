@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { hermesHome } from "@/lib/config";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 const PYTHON = process.env.AGENTIC_OS_PY_BIN || (process.platform === "win32" ? "py" : "python3");
 
@@ -17,13 +18,15 @@ export async function POST(req: Request) {
   const n = Math.max(2, Math.min(Number(shots) || (isMovie ? 2 : 6), isMovie ? 4 : 10));
   const jobId = "om-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-  const ws = path.join(hermesHome(), "profiles", "openmontage", "workspace");
+  const sourceWs = path.join(hermesHome(), "profiles", "openmontage", "workspace");
+  const ws = workspacePath("openmontage");
   // movie_om.py  = Veo 3.1 motion clips → CinematicRenderer (real movie, costs ~$2-3, ~8 min)
   // cinematic_om.py = gpt-image-2 stills → CinematicRenderer (film trailer, ~$0.30, ~5 min)
-  const script = path.join(ws, "scripts", isMovie ? "movie_om.py" : "cinematic_om.py");
+  const script = path.join(sourceWs, "scripts", isMovie ? "movie_om.py" : "cinematic_om.py");
   const countFlag = isMovie ? "--clips" : "--shots";
   const jobsDir = path.join(ws, "jobs");
-  const outDir = path.join(process.cwd(), "public", "openmontage", "generated");
+  const outDir = path.join(ws, "generated");
+  mkdirSync(ws, { recursive: true });
   mkdirSync(jobsDir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
 

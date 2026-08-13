@@ -13,10 +13,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
+import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
 
 const HOME = os.homedir();
 export const FCC_SCRATCH_ROOT = process.env.AGENTIC_OS_FCC_SCRATCH
-  ?? path.join(HOME, "freeclaude-scratch");
+  ?? AGENT_OS_FOLDERS_ROOT;
 
 export interface FccProject { name: string; root: string; mtime: number; fileCount: number; }
 export type FccFileKind = "text" | "image" | "video" | "audio" | "pdf" | "binary";

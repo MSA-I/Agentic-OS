@@ -333,7 +333,7 @@ export default function Hy3CoderView() {
           )}
         </div>
       </div>
-      <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5"><Save size={11} /> Saved to <span className="mono">~/.agentic-os/hy3-coder-workspace/</span> — builds as HTML, chats as JSON + readable transcript.</div>
+      <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5"><Save size={11} /> Saved to <span className="mono">AGENT-OS-FOLDERS/hy3-coder-workspace/</span> — builds as HTML, chats as JSON + readable transcript.</div>
 
       {/* about */}
       <div className="rounded-2xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ borderColor: "var(--panel-border)", background: "rgba(255,255,255,0.02)" }}>

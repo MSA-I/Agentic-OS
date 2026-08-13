@@ -871,7 +871,7 @@ export default function CodexView() {
                 <div className="p-8 text-[var(--cream-soft)] text-sm leading-relaxed max-w-prose">
                   <div className="action-title mb-2">Goal Mode</div>
                   <p className="mb-3">Hand Codex a long-horizon objective. It runs <code className="mono text-[var(--cream)]">codex exec</code> auto-approved (sandboxed to a dedicated scratch dir) until the goal is met — or until you stop it.</p>
-                  <p className="mb-3">Each goal has its own working directory under <code className="mono">~/codex-scratch/&lt;id&gt;/</code> so artefacts don&apos;t collide.</p>
+                  <p className="mb-3">Each goal has its own working directory under <code className="mono">AGENT-OS-FOLDERS/codex-goals/&lt;id&gt;/</code> so artefacts don&apos;t collide.</p>
                   <p className="text-[var(--cream-mute)]">Pick or start a goal on the left.</p>
                 </div>
               )}
@@ -1125,7 +1125,7 @@ export default function CodexView() {
                 <button onClick={refreshProjects} className="text-[var(--cream-mute)] hover:text-[var(--cream-dim)]"><RefreshCw size={11} /></button>
               </div>
               <div className="text-[10.5px] leading-relaxed mb-2" style={{ color: "var(--cream-mute)" }}>
-                Anything Codex writes during a chat or Goal Mode run lands in <code className="mono">~/codex-scratch/&lt;project&gt;/</code>. Click a file → preview inline.
+                Anything Codex writes during a chat lands in <code className="mono">AGENT-OS-FOLDERS/&lt;project&gt;/</code>. Goal Mode uses <code className="mono">AGENT-OS-FOLDERS/codex-goals/</code>. Click a file → preview inline.
               </div>
 
               {/* Create new project */}

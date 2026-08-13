@@ -17,13 +17,14 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
+import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
 
 const HOME = os.homedir();
 export const CODEX_HOME = path.join(HOME, ".codex");
 export const CODEX_SESSION_INDEX = path.join(CODEX_HOME, "session_index.jsonl");
 export const CODEX_SESSIONS_ROOT = path.join(CODEX_HOME, "sessions");
 export const CODEX_SCRATCH_ROOT = process.env.AGENTIC_OS_CODEX_SCRATCH
-  ?? path.join(HOME, "codex-scratch");
+  ?? AGENT_OS_FOLDERS_ROOT;
 
 // ── Codex approval modes ─────────────────────────────────────────────────────
 // Agent OS runs Codex non-interactively (`codex exec --json`), so Codex's
@@ -248,7 +249,7 @@ export async function readSession(id: string): Promise<SessionDetail | null> {
 }
 
 // Serve any file under HOME for session preview. Strictly path-traversal guarded.
-// Used by the iframe / <img> / <video> tags in the session detail panel.
+// Used by the iframe, image, and video elements in the session detail panel.
 export function isPathUnderHome(absPath: string): boolean {
   const resolved = path.resolve(absPath);
   return resolved === HOME || resolved.startsWith(HOME + path.sep);

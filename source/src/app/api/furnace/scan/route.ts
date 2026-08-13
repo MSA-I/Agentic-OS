@@ -3,6 +3,7 @@ import { config } from "@/lib/config";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 // from the proven winners. Cached like the Radar; wire a daily cron/launchd job to
 // POST here each morning if you want it fresh without opening the tab.
 
-const FURNACE_DIR = path.join(os.homedir(), ".agentic-os", "furnace");
+const FURNACE_DIR = workspacePath("furnace");
 const HISTORY_DIR = path.join(FURNACE_DIR, "history");
 const LATEST = path.join(FURNACE_DIR, "latest.json");
 const STATUS = path.join(FURNACE_DIR, "status.json");
@@ -201,11 +202,11 @@ async function runScan(): Promise<void> {
     await writeStatus({ running: true, startedAt, phase: "Winners found — forging new ideas…" });
     const PROVIDER = process.env.FURNACE_PROVIDER || "xai-oauth";
     const MODEL = process.env.FURNACE_MODEL || "grok-4";
-    let res = await run("hermes", ["-z", forgePrompt(top, rising), "--provider", PROVIDER, "--model", MODEL], { cwd: os.homedir(), timeoutMs: 300_000 });
+    let res = await run("hermes", ["-z", forgePrompt(top, rising), "--provider", PROVIDER, "--model", MODEL], { cwd: FURNACE_DIR, timeoutMs: 300_000 });
     let ideas = extractIdeas(res.stdout || "");
     if (!ideas.length) {
       await writeStatus({ running: true, startedAt, phase: "Reheating — asking the forge once more…" });
-      res = await run("hermes", ["-z", forgePrompt(top, rising), "--provider", PROVIDER, "--model", MODEL], { cwd: os.homedir(), timeoutMs: 300_000 });
+      res = await run("hermes", ["-z", forgePrompt(top, rising), "--provider", PROVIDER, "--model", MODEL], { cwd: FURNACE_DIR, timeoutMs: 300_000 });
       ideas = extractIdeas(res.stdout || "");
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { hermesHome } from "@/lib/config";
 import { run } from "@/lib/runner";
+import { workspacePath } from "@/lib/workspaceRoot";
 import path from "node:path";
 import { mkdir, readdir, stat } from "node:fs/promises";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const ANSI_STRIP = /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\]\d+;[^\x07\x1b]*(\x07|\x1b\\)/g;
 const TIMEOUT_MS = 6 * 60 * 1000;
-const WORKSPACE = path.join(hermesHome(), "profiles", "local", "workspace");
+const WORKSPACE = workspacePath("local-hermes");
 
 // Run the offline "local" Hermes agent (llama3.1:8b) with its cwd pinned to the
 // profile workspace, so everything it builds lands where the Engine's preview can

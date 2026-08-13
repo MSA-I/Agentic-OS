@@ -1,15 +1,15 @@
 import { stat } from "node:fs/promises";
-import { hermesHome } from "@/lib/config";
 import { existsSync, createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Serve files the Local Hermes Engine built, for live iframe / image preview.
-const ROOT = path.join(hermesHome(), "profiles", "local", "workspace");
+const ROOT = workspacePath("local-hermes");
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",

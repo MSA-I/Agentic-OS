@@ -19,6 +19,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { AGENT_OS_FOLDERS_ROOT, workspacePath } from "@/lib/workspaceRoot";
 
 const HOME = os.homedir();
 export const OPENCLAW_ROOT = path.join(HOME, ".openclaw");
@@ -40,7 +41,7 @@ const BUCKETS: BucketDef[] = [
   {
     id: "studio-images",
     label: "Studio · Images",
-    paths: [path.join(OPENCLAW_ROOT, "studio", "images")],
+    paths: [workspacePath("openclaw-studio", "images"), path.join(OPENCLAW_ROOT, "studio", "images")],
     description: "Grok-generated images. Created via the Studio tab.",
     kindsAllow: ["image"],
     maxDepth: 1,
@@ -48,7 +49,7 @@ const BUCKETS: BucketDef[] = [
   {
     id: "studio-videos",
     label: "Studio · Videos",
-    paths: [path.join(OPENCLAW_ROOT, "studio", "videos")],
+    paths: [workspacePath("openclaw-studio", "videos"), path.join(OPENCLAW_ROOT, "studio", "videos")],
     description: "Grok-generated videos. Created via the Studio tab.",
     kindsAllow: ["video"],
     maxDepth: 1,
@@ -56,7 +57,7 @@ const BUCKETS: BucketDef[] = [
   {
     id: "studio-audio",
     label: "Studio · Voice",
-    paths: [path.join(OPENCLAW_ROOT, "studio", "audio")],
+    paths: [workspacePath("openclaw-studio", "audio"), path.join(OPENCLAW_ROOT, "studio", "audio")],
     description: "Grok TTS clips. Created via the Studio tab.",
     kindsAllow: ["audio"],
     maxDepth: 1,
@@ -67,6 +68,7 @@ const BUCKETS: BucketDef[] = [
     // HTML the OpenClaw agents build — calculators, dashboards, mock-ups.
     // Strict ext filter so we don't pick up identity / config markdown.
     paths: [
+      AGENT_OS_FOLDERS_ROOT,
       path.join(OPENCLAW_ROOT, "workspace"),
       path.join(OPENCLAW_ROOT, "workspace-julian"),
       path.join(OPENCLAW_ROOT, "workspace-marketing"),
@@ -79,7 +81,7 @@ const BUCKETS: BucketDef[] = [
   {
     id: "workspace-main",
     label: "Main Workspace",
-    paths: [path.join(OPENCLAW_ROOT, "workspace")],
+    paths: [AGENT_OS_FOLDERS_ROOT, path.join(OPENCLAW_ROOT, "workspace")],
     description: "Scratch dir for the main agent — HTML, markdown, scripts, anything saved.",
     maxDepth: 3,
   },

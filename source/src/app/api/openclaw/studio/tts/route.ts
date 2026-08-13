@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import path from "node:path";
-import os from "node:os";
 import { mkdir } from "node:fs/promises";
-import { writeMeta } from "@/lib/studioHistory";
+import { STUDIO_ROOT, writeMeta } from "@/lib/studioHistory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +24,7 @@ export async function POST(req: Request) {
   }
 
   const v = typeof voice === "string" && XAI_VOICES.has(voice) ? voice : "eve";
-  const outDir = path.join(os.homedir(), ".openclaw", "studio", "audio");
+  const outDir = path.join(STUDIO_ROOT, "audio");
   await mkdir(outDir, { recursive: true });
   const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-|-$/g, "");
   const ts = Date.now();

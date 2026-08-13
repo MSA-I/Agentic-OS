@@ -8,6 +8,7 @@ import { hermesHome } from "@/lib/config";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { AGENT_OS_FOLDERS_ROOT, isInsideWorkspaceRoot, workspacePath } from "./workspaceRoot";
 
 export type MediaKind = "image" | "video" | "speech";
 
@@ -40,9 +41,10 @@ function fanOut(subdirs: string[]): string[] {
 // Candidate output directories Hermes (or its plugins) might save into.
 // We scan all of them, snapshot the file set, run the generation, then take a second snapshot.
 export function mediaDirsFor(kind: MediaKind): string[] {
-  if (kind === "image")   return fanOut(["images", "image_gen", "output"]);
-  if (kind === "video")   return fanOut(["videos", "video_gen", "output"]);
-  return fanOut(["audio", "audio_cache", "tts", "tts_cache", "output"]); // speech
+  const managed = workspacePath("hermes-media", kind === "speech" ? "audio" : `${kind}s`);
+  if (kind === "image")   return [managed, ...fanOut(["images", "image_gen", "output"])];
+  if (kind === "video")   return [managed, ...fanOut(["videos", "video_gen", "output"])];
+  return [managed, ...fanOut(["audio", "audio_cache", "tts", "tts_cache", "output"])]; // speech
 }
 
 // Back-compat alias kept for any older imports.
@@ -109,8 +111,8 @@ const ANY_MEDIA_EXT = /\.(png|jpg|jpeg|webp|gif|mp4|webm|mov|mp3|wav|m4a|ogg|aac
 export function isAllowedMediaPath(p: string): boolean {
   const abs = path.resolve(p);
   if (!ANY_MEDIA_EXT.test(abs)) return false;
-  // Must be inside HOME; require a separator so similarly prefixed homes cannot escape.
-  if (abs !== HOME && !abs.startsWith(HOME + path.sep)) return false;
+  // Managed Agent OS output may be on a different drive than HOME.
+  if (!isInsideWorkspaceRoot(abs) && abs !== HOME && !abs.startsWith(HOME + path.sep)) return false;
   // Refuse blocked sensitive subdirs.
   for (const blocked of BLOCKED_SUBPATHS) {
     if (abs === blocked || abs.startsWith(blocked + path.sep)) return false;
@@ -148,11 +150,11 @@ export function extractPathsFromText(text: string, kind: MediaKind): string[] {
 export function craftPrompt(kind: MediaKind, userPrompt: string): string {
   const trimmed = userPrompt.trim();
   if (kind === "image") {
-    return `Use your image_gen tool to create the following image, then save it to ~/.hermes/images/ (default).\n\nImage prompt:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved image(s). No commentary, no markdown, just the path.`;
+    return `Use your image_gen tool to create the following image, then save it under ${AGENT_OS_FOLDERS_ROOT} in hermes-media/images.\n\nImage prompt:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved image(s). No commentary, no markdown, just the path.`;
   }
   if (kind === "video") {
-    return `Use your video_gen tool to create the following short video clip, then save it locally (default output dir).\n\nVideo prompt:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved video(s). No commentary, no markdown.`;
+    return `Use your video_gen tool to create the following short video clip, then save it under ${AGENT_OS_FOLDERS_ROOT} in hermes-media/videos.\n\nVideo prompt:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved video(s). No commentary, no markdown.`;
   }
   // speech
-  return `Use your TTS tool to speak the following text and save it as an audio file (default output dir).\n\nText to speak:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved audio file. No commentary, no markdown.`;
+  return `Use your TTS tool to speak the following text and save it under ${AGENT_OS_FOLDERS_ROOT} in hermes-media/audio.\n\nText to speak:\n${trimmed}\n\nAfter saving, reply with ONLY the absolute file path(s) of the saved audio file. No commentary, no markdown.`;
 }

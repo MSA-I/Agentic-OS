@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
+import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
 
 const HOME = os.homedir();
 // Overridable like every other agent's scratch root (codex/claude/fcc/kimi),
@@ -19,7 +20,7 @@ const CURRENT_ROOT = path.join(HOME, ".gemini", "antigravity");
 const LEGACY_ROOT = path.join(HOME, ".gemini", "antigravity-cli");
 const INSTALL_ROOT = existsSync(CURRENT_ROOT) ? CURRENT_ROOT : LEGACY_ROOT;
 export const SCRATCH_ROOT = process.env.AGENTIC_OS_ANTIGRAVITY_SCRATCH
-  ?? path.join(INSTALL_ROOT, "scratch");
+  ?? AGENT_OS_FOLDERS_ROOT;
 export const BRAIN_ROOT = path.join(INSTALL_ROOT, "brain");
 
 export interface WsProject { name: string; root: string; mtime: number; fileCount: number; kind: "scratch" | "brain"; }

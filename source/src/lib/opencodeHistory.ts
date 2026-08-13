@@ -2,11 +2,11 @@
 //   1. ~/.agentic-os/opencode/history.jsonl        — durable machine history
 //   2. <vault>/Agentic OS/opencode Log.md          — a human log in your Obsidian vault
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { VAULT_ROOT, AGENTIC_DIR, todayISO, nowHM } from "@/lib/vaultWriter";
+import { workspacePath } from "@/lib/workspaceRoot";
 
-const HIST_DIR = path.join(os.homedir(), ".agentic-os", "opencode");
+const HIST_DIR = workspacePath("opencode");
 const HIST_FILE = path.join(HIST_DIR, "history.jsonl");
 
 export interface OpenCodeHistoryEntry {

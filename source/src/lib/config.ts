@@ -30,6 +30,10 @@ export interface AgenticConfig {
   // Obsidian vault root (where Agentic OS writes goals, journal, memories)
   vaultRoot: string | null;
 
+  // Root for every user-facing folder Agent OS creates. CLI-owned state such as
+  // ~/.codex, ~/.claude, ~/.hermes, and ~/.openclaw remains in its native home.
+  foldersRoot?: string | null;
+
   // Hermes home directory (profiles, .env, sessions, kanban, workspace, MCPs).
   // Defaults to ~/.hermes — matching the Hermes CLI's own ${HERMES_HOME:-$HOME/.hermes}.
   // Set HERMES_HOME (recommended — the CLI reads it too) or "hermesHome" in config.json
@@ -165,6 +169,26 @@ function loadFileConfig(): Partial<AgenticConfig> {
 }
 
 const fileCfg = loadFileConfig();
+
+// One source of truth for all user-facing folders created by Agent OS. The
+// legacy scratch variables remain supported so an existing installation keeps
+// its current location after upgrading, but new installs should set the single
+// AGENTIC_OS_FOLDERS_ROOT value (or "foldersRoot" in config.json).
+export function foldersRoot(): string {
+  const explicit = process.env.AGENTIC_OS_FOLDERS_ROOT?.trim();
+  if (explicit) return path.resolve(explicit);
+  const fromFile = typeof fileCfg.foldersRoot === "string" ? fileCfg.foldersRoot.trim() : "";
+  if (fromFile) return path.resolve(fromFile);
+  const legacy = [
+    process.env.AGENTIC_OS_CLAUDE_SCRATCH,
+    process.env.AGENTIC_OS_CODEX_SCRATCH,
+    process.env.AGENTIC_OS_FCC_SCRATCH,
+    process.env.AGENTIC_OS_KIMI_SCRATCH,
+    process.env.AGENTIC_OS_ANTIGRAVITY_SCRATCH,
+  ].find((value) => typeof value === "string" && value.trim());
+  if (legacy) return path.resolve(legacy.trim());
+  return path.join(os.homedir(), ".agentic-os", "folders");
+}
 
 // The Hermes home — every Agent OS feature that reads Hermes state (profiles, .env,
 // sessions, kanban, workspace, MCPs) resolves through here, so it can be unified with a

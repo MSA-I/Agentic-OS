@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import os from "node:os";
 import { mkdir, writeFile, unlink, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { STUDIO_ROOT } from "@/lib/studioHistory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
   }
 
   // Persist the recording. Browser sends webm/opus by default — keep that ext.
-  const tmpDir = path.join(os.homedir(), ".openclaw", "studio", "stt-tmp");
+  const tmpDir = path.join(STUDIO_ROOT, "stt-tmp");
   await mkdir(tmpDir, { recursive: true });
   const ts = Date.now();
   const rawName = (file as File).name?.toLowerCase() ?? "";

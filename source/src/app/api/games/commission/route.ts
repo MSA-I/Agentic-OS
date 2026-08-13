@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
-import os from "node:os";
-import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const BOARD = "game-studio";
-const GAMES_DIR = path.join(os.homedir(), "freeclaude-scratch", "games");
+const GAMES_DIR = workspacePath("games");
 
 // POST { prompt } → commission the game-dev agent: create a kanban card on the
 // game-studio board (workspace = the games gallery dir) and dispatch it now.

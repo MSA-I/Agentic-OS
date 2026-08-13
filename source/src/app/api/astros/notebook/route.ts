@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { AGENT_OS_FOLDERS_ROOT } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ const NLM = existsSync(path.join(os.homedir(), ".local", "bin", "nlm"))
 
 function nlm(args: string[], timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    execFile(NLM, args, { timeout: timeoutMs, cwd: os.homedir(), env: { ...process.env, NO_COLOR: "1" }, maxBuffer: 4 * 1024 * 1024 },
+    execFile(NLM, args, { timeout: timeoutMs, cwd: AGENT_OS_FOLDERS_ROOT, env: { ...process.env, NO_COLOR: "1" }, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => resolve({ code: err ? 1 : 0, stdout: String(stdout || ""), stderr: String(stderr || err?.message || "") }));
   });
 }

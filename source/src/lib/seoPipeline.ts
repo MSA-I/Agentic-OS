@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 export interface Site {
   id: string;
@@ -19,7 +20,7 @@ export const SITES: Site[] = [
   { id: "aimoneylab",            name: "aimoneylabjuliangoldie.com", url: "https://aimoneylabjuliangoldie.com", path: path.join(os.homedir(), "aimoneylab"),                  postsDir: path.join(os.homedir(), "aimoneylab", "src/blog/posts") },
 ];
 
-export const TRANSCRIPTS_DIR = path.join(os.homedir(), "AIProfitBoardroom.com", ".claude", "transcripts");
+export const TRANSCRIPTS_DIR = workspacePath("seo", "transcripts");
 export const BLOG_POST_SKILL = path.join(os.homedir(), "AIProfitBoardroom.com", ".claude", "skills", "blog-post.md");
 
 export interface SiteStats {

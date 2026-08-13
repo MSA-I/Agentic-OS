@@ -14,56 +14,79 @@ Codex, Claude Code, Hermes, OpenClaw, and specialist local tools.
 ## Product Purpose
 
 Agentic OS brings local coding agents, workflows, projects, sessions,
-artifacts, memory, and system controls into one operational workspace. The
-redesign improves visual clarity and identity without changing how that
-workspace is organized or how its capabilities behave.
+artifacts, memory, and system controls into one operational workspace. Five
+core routes reproduce the current official desktop workflow of their provider
+so daily work can stay in Agentic OS without flattening every agent into one
+generic chat product.
 
 ## Operating Context
 
 - The product is used mainly on desktop beside terminals, editors, files, and
   long-running local processes.
-- The interface remains English and left-to-right.
+- Product chrome remains English and left-to-right. User messages, artifacts,
+  file names, and generated content support Hebrew, RTL, and bidirectional text.
 - Mobile is a compact monitoring and basic-intervention surface, not a full
   editor.
 - Existing routes, data stores, APIs, query parameters, localStorage keys, and
   operational behavior are implementation truth.
 
-## Locked Layout Contract
+## Locked Layout Contract and Five-Route Exception
 
-The standard application remains a visual-skin redesign. Claude, Codex,
-Hermes, OpenClaw, GLM, Kimi, Antigravity, and Free Claude Code have a
-separately approved immersive-agent presentation.
+The standard application remains structurally locked. Only Codex, Claude,
+Hermes, OpenClaw, and Antigravity have a separately approved desktop-workbench
+presentation.
 
 - Preserve all 47 existing page routes.
 - Preserve the existing 244px application sidebar, its sections, item order,
   labels, and navigation behavior.
 - Preserve every page's current composition, section order, card order, tabs,
   controls, and content hierarchy.
-- `/claude`, `/codex`, `/hermes`, `/openclaw`, `/glm`, `/kimi`,
-  `/antigravity`, and `/freeclaude` use a full-height immersive shell with one
-  236px agent sidebar, one content surface, and a fixed composer. Their actions
-  retain the same URLs, events, projects, sessions, and persistence behavior.
-- Preserve the existing standard composition for every route outside the eight
+- `/codex`, `/claude`, `/hermes`, `/openclaw`, and `/antigravity` use
+  independent full-height desktop workbenches. They may arrange provider-native
+  sidebars, transcripts, activity, tasks, artifacts, files, review, browser,
+  and terminal panes according to the current official product.
+- Preserve the existing standard composition for every route outside the five
   approved exceptions.
 - Preserve the current Mission Control composition: header and status tiles,
   Today's List, agent sections, and the rest of the existing page in their
   current order.
 - Preserve the existing mobile bottom navigation on standard routes. Immersive
   routes instead use a compact top bar and focus-trapped agent drawer.
-- Do not introduce an activity rail, replacement context pane, inspector,
-  route registry, capability-filtered navigation, or a replacement Mission
-  Control data model.
+- Do not introduce a replacement global shell, route registry, or Mission
+  Control data model. Provider-native context and activity panes are permitted
+  only inside the five workbenches.
 - Non-structural attributes may be added only for theming, accessibility, or
   automated verification.
 
-Any proposed change that moves, groups, removes, renames, or reorders existing
-interface elements requires separate user approval.
+Any structural change outside the five listed routes requires separate user
+approval.
+
+## Workbench Product Contract
+
+- `AgentDescriptor` declares provider, runtime, and real capabilities.
+- `WorkContext` contains `agentId`, `actorId`, `projectId`, `sessionId`,
+  environment, and active panel. URL parameters are the source of truth;
+  localStorage holds drafts and backward-compatible preferences only.
+- `Run` uses `queued`, `running`, `awaiting_approval`, `succeeded`, `failed`,
+  `cancelled`, or `orphaned`. `RunEvent` records messages, reasoning, tools,
+  terminal output, diffs, artifacts, status, and errors.
+- Approval requests expose risk, a redacted operation, and only
+  `allow_once`, `allow_session`, or `deny`.
+- Missing adapter abilities are marked `unsupported`; the UI does not render a
+  control that cannot perform the named operation.
+- Each provider keeps its own native projects, actors, and sessions. Native
+  content is read through, never reset, migrated, merged, or duplicated into
+  the workbench database.
+- Hermes profile and OpenClaw agent are immutable session identity. Switching
+  actor selects a compatible session or starts a new one.
+- A compact five-agent switcher appears over every workbench. `Ctrl+Shift+A`
+  opens it; it never combines histories.
 
 ## Visual Scope
 
 - Apply the Agentic OS palette, Geist typography, compact radii, static relief
   textures, and accessible state styling through a shared visual layer.
-- Keep Agentic OS chrome consistent on standard routes. The eight primary agent
+- Keep Agentic OS chrome consistent on standard routes. The five core agent
   routes deliberately replace that chrome with provider-specific shells.
 - Remove CSS gradients, decorative glow, glass effects, shimmer, particles,
   auroras, and idle animation from the standard visual system. MEMORY is the
@@ -86,11 +109,14 @@ interface elements requires separate user approval.
 
 ## Data and Safety
 
-- The redesign adds no AI calls, sends, publishing actions, payments, or
-  destructive operations.
+- Existing native agent calls remain in scope. The new workbench layer adds no
+  publishing, payment, or destructive data-migration operation.
 - No data migration is performed and no user state is deleted.
-- Existing API routes remain intact; no overview or capability endpoint is
-  required for the visual skin.
+- Existing APIs and deep links remain as compatibility paths during cutover.
+- Shared workbench APIs provide create, message (`steer` or `queue`), SSE event
+  replay, cancellation, and approval decisions. Local SQLite stores run
+  metadata, events, approval decisions, queue entries, and drafts outside the
+  repository; native transcript bodies remain in native stores.
 - MEMORY continues to consume the existing graph endpoint; the immersive agent
   screens continue to consume the existing agent, project, session, deep-link,
   and localStorage contracts.
@@ -100,12 +126,11 @@ interface elements requires separate user approval.
 
 ## Non-goals
 
-- A new global application shell or navigation hierarchy outside the eight
+- A new global application shell or navigation hierarchy outside the five
   approved immersive-agent routes.
 - A new Mission Control workflow or aggregation backend.
-- New agent behavior, provider integration, authentication, billing, or hosted
-  account model.
-- A theme switcher, Hebrew/RTL product UI, or full mobile editing environment.
+- New provider authentication, billing, or hosted account model.
+- A theme switcher or translated product chrome.
 - Structural changes copied from a template or mock.
 
 ## Accessibility and Responsive Acceptance
@@ -126,7 +151,7 @@ Release requires:
   `musecoder` NFT trace warning.
 - All 47 page routes return successfully without unexpected page, console, or
   network errors.
-- Mission Control, MEMORY, and all eight immersive-agent routes pass visual review at
+- Mission Control, MEMORY, and all five desktop-agent routes pass visual review at
   1440x900, 1024x768, and 390x844 against their respective standard or
   immersive layout contracts.
 - Focused axe and layout-contract checks pass.

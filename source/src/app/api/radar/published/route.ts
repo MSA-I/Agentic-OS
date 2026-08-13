@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // History of everything the Oracle has published to WordPress (newest first).
-const PUBLISHED_LOG = path.join(os.homedir(), ".agentic-os", "radar", "published.json");
+const PUBLISHED_LOG = path.join(workspacePath("radar"), "published.json");
 
 export async function GET() {
   try {

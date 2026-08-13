@@ -5,9 +5,9 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
-const ROOT = process.env.AGENTIC_OS_LOCAL_BUILDS ?? path.join(os.homedir(), ".agentic-os", "local-builds");
+const ROOT = process.env.AGENTIC_OS_LOCAL_BUILDS ?? workspacePath("local-builds");
 const MANIFEST = path.join(ROOT, "manifest.json");
 
 export interface LocalBuild { id: string; title: string; prompt: string; model?: string; createdAt: number; bytes: number; }

@@ -17,11 +17,10 @@
 import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
-const HOME = os.homedir();
-const STATE_DIR = path.join(HOME, ".agentic-os");
-const HISTORY_FILE = path.join(STATE_DIR, "freeclaude-conversations.jsonl");
+const STATE_DIR = workspacePath("conversations", "freeclaude");
+const HISTORY_FILE = path.join(STATE_DIR, "history.jsonl");
 
 export interface FccConversation {
   id: string;           // ts in ms + 4-char random — sortable, near-unique

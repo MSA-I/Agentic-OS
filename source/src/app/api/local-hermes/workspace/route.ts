@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { hermesHome } from "@/lib/config";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // The Local Hermes Engine builds inside its own profile workspace.
-const ROOT = path.join(hermesHome(), "profiles", "local", "workspace");
+const ROOT = workspacePath("local-hermes");
 
 const TEXT = new Set([".md",".txt",".json",".yaml",".yml",".html",".htm",".css",".js",".ts",".tsx",".jsx",".py",".sh",".log",".csv",".xml",".svg"]);
 const IMAGE = new Set([".png",".jpg",".jpeg",".webp",".gif",".svg",".avif"]);

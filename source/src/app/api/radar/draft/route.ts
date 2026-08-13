@@ -1,6 +1,6 @@
 import { run } from "@/lib/runner";
-import os from "node:os";
 import { config } from "@/lib/config";
+import { AGENT_OS_FOLDERS_ROOT } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // the user's voice: scroll-stopping hook, beautiful line breaks, no hashtags. Designed to
 // quote-post on top of the source tweet. Uses Hermes (Grok via OAuth).
 
-const HERMES_WORKSPACE = os.homedir(); // cwd for the hermes run — output comes back on stdout
+const HERMES_WORKSPACE = AGENT_OS_FOLDERS_ROOT;
 
 // Map ASCII to Unicode "Mathematical Sans-Serif Bold" so the hook renders bold on X
 // (X has no markdown — this is how people bold text in a tweet).

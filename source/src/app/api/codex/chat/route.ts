@@ -1,24 +1,10 @@
-import { spawnStream } from "@/lib/runner";
-import { codexApprovalArgs, codexResumeApprovalArgs } from "@/lib/codexWorkspace";
+import { spawnStream, terminateChildProcessTree } from "@/lib/runner";
+import { CODEX_SCRATCH_ROOT, codexApprovalArgs, codexResumeApprovalArgs, ensureProject } from "@/lib/codexWorkspace";
 import { omnirouteCodexArgs, openrouterApiKey, openrouterCodexArgs, openrouterCodexEnv, OPENROUTER_HY3_MODEL, omnirouteCodexEnv, nativeCodexArgs, nativeCodexEnv, NATIVE_CODEX_MODEL, withSteer, probeOmniRoute } from "@/lib/omniroute";
-import { mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const CODEX_SCRATCH_ROOT = process.env.AGENTIC_OS_CODEX_SCRATCH
-  ?? path.join(os.homedir(), "codex-scratch");
-
-async function ensureCodexProject(name: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9_.-]+$/.test(name)) return null;
-  if (!existsSync(CODEX_SCRATCH_ROOT)) await mkdir(CODEX_SCRATCH_ROOT, { recursive: true });
-  const dir = path.join(CODEX_SCRATCH_ROOT, name);
-  if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-  return dir;
-}
 
 // Codex streaming chat — `codex exec --json <prompt>` emits one JSON object per
 // line on stdout for every event (assistant deltas, tool calls, results, etc).
@@ -69,11 +55,11 @@ export async function POST(req: Request) {
   // as the Free Claude Code chat endpoint.
   let cwd: string | undefined;
   if (typeof body.project === "string" && /^[A-Za-z0-9_.-]+$/.test(body.project)) {
-    cwd = (await ensureCodexProject(body.project)) ?? undefined;
+    cwd = (await ensureProject(body.project)) ?? undefined;
   } else if (typeof body.cwd === "string") {
     cwd = body.cwd;
   } else {
-    cwd = (await ensureCodexProject("codex-default")) ?? path.join(CODEX_SCRATCH_ROOT, "codex-default");
+    cwd = (await ensureProject("codex-default")) ?? path.join(CODEX_SCRATCH_ROOT, "codex-default");
   }
 
   // Engine selection:
@@ -108,6 +94,7 @@ export async function POST(req: Request) {
 
   const extraEnv = engine === "hy3" ? openrouterCodexEnv() : engine === "gpt56" ? nativeCodexEnv() : omnirouteCodexEnv();
   const child = spawnStream("codex", args, { cwd, extraEnv });
+  req.signal.addEventListener("abort", () => { void terminateChildProcessTree(child); }, { once: true });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -145,7 +132,7 @@ export async function POST(req: Request) {
         safeClose();
       });
     },
-    cancel() { try { child.kill("SIGTERM"); } catch {} },
+    cancel() { return terminateChildProcessTree(child); },
   });
 
   return new Response(stream, {

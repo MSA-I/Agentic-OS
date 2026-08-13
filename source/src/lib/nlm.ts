@@ -3,6 +3,7 @@
 // format — the older MCP server only did landscape `brief`.
 import { spawn } from "node:child_process";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 import path from "node:path";
 
 // The dev server is often launched detached (launchd) with a minimal PATH that
@@ -14,7 +15,7 @@ const BIN_PATH = [
   process.env.PATH || "",
 ].filter(Boolean).join(":");
 
-export const SHORTS_CACHE = path.join(os.homedir(), ".agentic-os", "notebooklm-shorts");
+export const SHORTS_CACHE = workspacePath("notebooklm", "shorts");
 
 export function runNlm(args: string[], timeoutMs = 60_000): Promise<{ ok: boolean; stdout: string; stderr: string; code: number }> {
   return new Promise((resolve) => {

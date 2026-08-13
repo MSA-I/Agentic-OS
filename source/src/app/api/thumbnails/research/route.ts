@@ -3,12 +3,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { tmpdir, homedir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import { config } from "@/lib/config";
 import { run } from "@/lib/runner";
 import { hermesHome } from "@/lib/config";
 import { saveThumbnailSession } from "@/lib/thumbnailLog";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 const exec = promisify(execFile);
 export const runtime = "nodejs";
@@ -206,7 +207,7 @@ export async function POST(req: Request) {
   let dbg = "";
   try {
     const res = await run("hermes", ["-p", "grok-4-5", "-z", researchPrompt(topic, faceless, comps, analysis), "--yolo", "--accept-hooks"], {
-      cwd: path.join(hermesHome(), "profiles", "grok-4-5", "workspace"),
+      cwd: workspacePath("thumbnail-research"),
       timeoutMs: 300_000,
     });
     concepts = parseConcepts(res.stdout || "");
@@ -225,7 +226,7 @@ export async function POST(req: Request) {
       ...(process.platform === "win32" ? [] : ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]),
     ].filter(Boolean).join(path.delimiter),
   };
-  const work = path.join(tmpdir(), `thumbresearch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const work = workspacePath("thumbnail-research", ".tmp", `thumbresearch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const outRoot = path.join(work, "out");
   await mkdir(outRoot, { recursive: true });
   const t0 = Date.now();

@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { hermesHome } from "@/lib/config";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const HERMES_ROOT = path.join(hermesHome());
 export const MINIMAX_BASE = "https://api.minimax.io/v1";
@@ -20,6 +20,14 @@ export function activeProfile(): string {
 }
 
 export function studioDirs() {
+  return {
+    image: workspacePath("hermes-studio", "images"),
+    voice: workspacePath("hermes-studio", "audio"),
+    video: workspacePath("hermes-studio", "videos"),
+  } as const;
+}
+
+export function legacyStudioDirs() {
   const prof = activeProfile();
   return {
     image: path.join(HERMES_ROOT, "images"),                       // → preview bucket "images"

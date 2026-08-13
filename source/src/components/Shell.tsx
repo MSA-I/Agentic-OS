@@ -7,6 +7,7 @@ import TopBar from "./TopBar";
 import OwnerBanner from "./OwnerBanner";
 import ScrollArea from "./ScrollArea";
 import SetupCenterHost from "./SetupCenterHost";
+import AgentSwitcher from "./AgentSwitcher";
 
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -15,10 +16,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     "/codex",
     "/hermes",
     "/openclaw",
-    "/glm",
-    "/kimi",
     "/antigravity",
-    "/freeclaude",
   ].includes(pathname);
 
   if (immersiveAgent) {
@@ -31,6 +29,7 @@ export default function Shell({ children }: { children: ReactNode }) {
         >
           {children}
         </main>
+        <AgentSwitcher />
         <SetupCenterHost />
       </div>
     );

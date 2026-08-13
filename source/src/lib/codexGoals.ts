@@ -15,11 +15,12 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "./workspaceRoot";
 
 const HOME = os.homedir();
 const STATE_DIR = path.join(HOME, ".agentic-os");
 const STATE_FILE = path.join(STATE_DIR, "codex-goals.json");
-export const GOAL_LOGS_DIR = path.join(STATE_DIR, "codex-goal-logs");
+export const GOAL_LOGS_DIR = workspacePath("codex-goals", "logs");
 
 export type GoalStatus = "queued" | "running" | "completed" | "failed" | "stopped";
 
@@ -79,7 +80,7 @@ export async function createGoal(title: string, prompt: string, cwd?: string): P
     prompt: prompt.trim(),
     status: "queued",
     createdAt: Date.now(),
-    cwd: cwd ?? path.join(HOME, "codex-scratch", id),
+    cwd: cwd ?? workspacePath("codex-goals", id),
     logFile: path.join(GOAL_LOGS_DIR, `${id}.log`),
   };
   if (!existsSync(goal.cwd)) await mkdir(goal.cwd, { recursive: true });

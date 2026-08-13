@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { promises as fs, createReadStream } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/higgs/gallery            → everything Higgsfield has made, newest first
 // GET /api/higgs/gallery?file=x.png → the asset itself (images + video stream)
-const GALLERY = path.join(os.homedir(), ".agentic-os", "higgsfield", "gallery");
+const GALLERY = workspacePath("higgsfield", "gallery");
 const TYPES: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
   ".gif": "image/gif", ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",

@@ -19,6 +19,7 @@ import { OMNIROUTE_BASE, OMNIROUTE_KEY, omnirouteRequestHeaders } from "@/lib/om
 import { getOpenCodeState, OMNIROUTE_OPENCODE_PROVIDER, OPENCODE_CONFIG, omniRouteProviderConfigured } from "@/lib/opencode";
 import { getPaperclipConfig, probePaperclipCompany } from "@/lib/paperclipConfig";
 import { run } from "@/lib/runner";
+import { workspacePath } from "@/lib/workspaceRoot";
 import {
   SETUP_CATALOG,
   getSetupAction,
@@ -796,7 +797,7 @@ async function diagnosticsFor(route: SetupRoute): Promise<SetupDiagnostic[]> {
         findExecutable("hermes"),
         isFile(path.join(hermesHome(), "kanban.db")),
         isDirectory(path.join(hermesHome(), "profiles", "game-dev")),
-        isDirectory(path.join(HOME, "freeclaude-scratch", "games")),
+        isDirectory(workspacePath("games")),
       ]);
       return [
         diagnostic("hermes", "Hermes CLI", Boolean(hermes), "Hermes CLI נמצא.", "Hermes CLI חסר."),
@@ -806,7 +807,7 @@ async function diagnosticsFor(route: SetupRoute): Promise<SetupDiagnostic[]> {
       ];
     }
     case "/apps": {
-      const repo = path.join(HOME, "Developer", "awesome-llm-apps");
+      const repo = workspacePath("app-lab", "awesome-llm-apps");
       const adaptations = [
         path.join(repo, "starter_ai_agents", "mixture_of_agents", "free_mixture_of_agents.py"),
         path.join(repo, "rag_tutorials", "llama3.1_local_rag", "free_web_chat.py"),

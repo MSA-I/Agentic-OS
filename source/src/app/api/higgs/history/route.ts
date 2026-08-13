@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
-import os from "os";
 import path from "path";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/higgs/history        → every Higgsfield conversation, newest first
 // GET /api/higgs/history?id=... → one full session incl. the Hermes transcript
-const SESSIONS = path.join(os.homedir(), ".agentic-os", "higgsfield", "sessions");
+const SESSIONS = workspacePath("higgsfield", "sessions");
 
 export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("id");

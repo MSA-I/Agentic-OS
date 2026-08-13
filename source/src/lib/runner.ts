@@ -1,8 +1,9 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { execFile, spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { config } from "./config";
+import { ensureWorkspaceRootSync } from "./workspaceRoot";
 
 // "fcc" is the Free Claude Code agent — it runs the same `claude` CLI but with
 // the local fcc-server proxy env vars injected, routing requests to OpenRouter
@@ -128,10 +129,24 @@ export interface RunResult {
   durationMs: number;
 }
 
+/** Stop the complete process tree. On Windows, killing the CLI shim alone can
+ * leave its node/python/tool children running after the UI says Stop. */
+export async function terminateChildProcessTree(child: ChildProcess): Promise<void> {
+  const pid = child.pid;
+  if (!pid) return;
+  if (process.platform === "win32") {
+    await new Promise<void>((resolve) => {
+      execFile("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => resolve());
+    });
+    return;
+  }
+  try { child.kill("SIGTERM"); } catch { /* already exited */ }
+}
+
 export async function run(
   agent: AgentName,
   args: readonly string[],
-  opts: { timeoutMs?: number; cwd?: string; input?: string; extraEnv?: Record<string, string> } = {}
+  opts: { timeoutMs?: number; cwd?: string; input?: string; extraEnv?: Record<string, string>; signal?: AbortSignal } = {}
 ): Promise<RunResult> {
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
   const started = Date.now();
@@ -145,24 +160,31 @@ export async function run(
   return new Promise<RunResult>((resolve) => {
     const resolved = resolveWinScript(bin, cleanArgs);
     const child = spawn(resolved.bin, resolved.args, {
-      cwd: opts.cwd ?? process.env.HOME,
+      cwd: opts.cwd ?? ensureWorkspaceRootSync(),
       env: agentEnv(agent, opts.extraEnv ?? {}),
     });
     let stdout = "";
     let stderr = "";
-    const timeout = setTimeout(() => {
-      try { child.kill("SIGKILL"); } catch {}
-    }, opts.timeoutMs ?? 15_000);
+    let settled = false;
+    const onAbort = () => { void terminateChildProcessTree(child); };
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    if (opts.signal?.aborted) onAbort();
+    const timeout = setTimeout(onAbort, opts.timeoutMs ?? 15_000);
+    const finish = (result: RunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      opts.signal?.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
 
     child.stdout.on("data", (b) => { stdout += b.toString(); });
     child.stderr.on("data", (b) => { stderr += b.toString(); });
     child.on("close", (code) => {
-      clearTimeout(timeout);
-      resolve({ ok: code === 0, code, stdout, stderr, durationMs: Date.now() - started });
+      finish({ ok: code === 0, code, stdout, stderr, durationMs: Date.now() - started });
     });
     child.on("error", (e) => {
-      clearTimeout(timeout);
-      resolve({ ok: false, code: -1, stdout, stderr: String(e), durationMs: Date.now() - started });
+      finish({ ok: false, code: -1, stdout, stderr: String(e), durationMs: Date.now() - started });
     });
 
     if (opts.input) child.stdin.write(opts.input);
@@ -179,7 +201,7 @@ export function spawnStream(
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
   const resolved = resolveWinScript(bin, cleanArgs);
   const child = spawn(resolved.bin, resolved.args, {
-    cwd: opts.cwd ?? process.env.HOME,
+    cwd: opts.cwd ?? ensureWorkspaceRootSync(),
     env: agentEnv(agent, opts.extraEnv ?? {}),
     stdio: ["pipe", "pipe", "pipe"],
   }) as ChildProcessWithoutNullStreams;
@@ -200,7 +222,7 @@ export function spawnDetached(
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
   const resolved = resolveWinScript(bin, cleanArgs);
   const child = spawn(resolved.bin, resolved.args, {
-    cwd: opts.cwd ?? process.env.HOME,
+    cwd: opts.cwd ?? ensureWorkspaceRootSync(),
     env: agentEnv(agent, opts.extraEnv ?? {}),
     detached: true,
     stdio: ["pipe", "pipe", "pipe"],

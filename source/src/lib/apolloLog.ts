@@ -9,10 +9,9 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
-import { VAULT_ROOT } from "./vault";
+import { workspacePath } from "./workspaceRoot";
 
-const STATE_DIR = path.join(os.homedir(), ".agentic-os");
+const STATE_DIR = workspacePath("conversations", "apollo");
 const HISTORY_FILE = path.join(STATE_DIR, "apollo-conversations.jsonl");
 
 export interface ApolloTurn {
@@ -25,13 +24,12 @@ export interface ApolloTurn {
 
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
-async function appendToVault(you: string, apollo: string, ts: number): Promise<void> {
-  if (!VAULT_ROOT) return;
+async function appendDailyTranscript(you: string, apollo: string, ts: number): Promise<void> {
   try {
     const d = new Date(ts);
     const ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const dir = path.join(VAULT_ROOT, "Agentic OS", "Apollo");
+    const dir = path.join(STATE_DIR, "daily");
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
     const file = path.join(dir, `${ymd}.md`);
     const header = existsSync(file) ? "" : `# Apollo — ${ymd}\n\nVoice conversations with Apollo, logged automatically.\n`;
@@ -48,7 +46,7 @@ export async function appendApolloTurn(you: string, apollo: string, kind: string
     if (!existsSync(STATE_DIR)) await mkdir(STATE_DIR, { recursive: true });
     await appendFile(HISTORY_FILE, JSON.stringify(row) + "\n", "utf8");
   } catch { /* disk write best-effort */ }
-  await appendToVault(row.you, row.apollo, ts);
+  await appendDailyTranscript(row.you, row.apollo, ts);
   return row;
 }
 

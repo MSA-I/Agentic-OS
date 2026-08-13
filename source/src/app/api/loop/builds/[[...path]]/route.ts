@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { readdir, stat, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // Loop → Builds workspace.
 //   GET /api/loop/builds            → list every HTML build the loop has made
 //   GET /api/loop/builds/<file.html> → serve that build (text/html, for iframe preview / open)
-const BUILDS_DIR = path.join(os.homedir(), ".agentic-os", "loop-builds");
+const BUILDS_DIR = workspacePath("loop-builds");
 
 function titleFrom(html: string, slug: string): string {
   const t = /<title>([^<]+)<\/title>/i.exec(html)?.[1]?.trim();

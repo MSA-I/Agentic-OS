@@ -4,41 +4,42 @@ This document is the implementation contract for the Agentic OS visual skin.
 The direction is **Index Atelier with dominant tactile relief**: solid fields,
 thin rules, precise typography, and static material texture.
 
-## Layout Lock
+## Layout Lock and Five Desktop Workbenches
 
-The existing React structure is the source of truth. The redesign must not
-replace or rearrange it.
+The existing React structure is the source of truth outside five explicitly
+approved agent routes.
 
 - Desktop keeps the existing 244px global sidebar and flexible main content.
 - The sidebar keeps its current sections, labels, item order, active state, and
   scrolling behavior.
 - Mission Control keeps its current header, live status tiles, Today's List,
   agent areas, and all following sections in their current order.
-- `/claude`, `/codex`, `/hermes`, `/openclaw`, `/glm`, `/kimi`,
-  `/antigravity`, and `/freeclaude` are the approved immersive-agent
-  exception: they own `100dvh`, omit the global shell chrome, and use one 236px
-  agent sidebar plus a flexible content surface. Their former duplicate tab
-  rails are represented by the same actions inside that sidebar.
-- Every route outside those eight keeps the existing standard shell, panels,
+- `/codex`, `/claude`, `/hermes`, `/openclaw`, and `/antigravity` are the
+  approved exception. They own `100dvh`, omit global shell chrome, and reproduce
+  their official desktop information architecture rather than sharing a
+  reskinned `UnifiedChat` or one mandatory grid.
+- Every route outside those five keeps the existing standard shell, panels,
   cards, and controls.
 - At mobile widths, the existing global bottom navigation remains in place on
-  standard routes. The eight immersive-agent routes use a compact top bar and
+  standard routes. The five desktop-agent routes use a compact top bar and
   focus-trapped agent drawer, with no global bottom navigation.
-- There is no new 56px rail, 268px context pane, 320px inspector, replacement
-  dashboard grid, or drawer-based information architecture.
+- Provider-native activity, tasks, session, artifact, diff, terminal, browser,
+  and file panes are allowed only on the five exception routes.
 - CSS may change color, type, texture, borders, radii, focus, and state
   transitions. It must not redefine the application grid or reorder content.
 - `data-agent-os-*`, `data-agent-workspace`, `data-agent-experience`, and
   `data-shell-mode` are the authoritative hooks for theming and layout tests.
 
-The authoritative visual override is
-`source/src/app/agent-os-skin.css`.
+Standard-route overrides live in `source/src/app/agent-os-skin.css`. Shared
+workbench primitives and provider workbench styles live in
+`source/src/app/agent-workbench.css`.
 
 ## Product Posture
 
-- English, left-to-right, desktop-first.
-- Agentic OS chrome stays recognizable on every route.
-- A named agent may brand only its existing central workspace.
+- English chrome, desktop-first. User content uses `dir="auto"` and
+  `unicode-bidi: plaintext` where appropriate.
+- Agentic OS chrome stays recognizable on standard routes. Workbenches use the
+  official provider hierarchy plus the compact Agentic OS switcher.
 - Mobile supports monitoring and basic intervention; dense editors remain
   desktop-oriented.
 - There is one fixed Agentic OS brand theme and no light/dark switch.
@@ -64,7 +65,9 @@ iconography, position, and time.
 
 ## Agent Workspace Themes
 
-Only the existing central agent workspace changes provider identity.
+Each workbench has provider-specific structure. Shared code is limited to
+types, URL state, streaming, Markdown, accessibility, runtime primitives, and
+the compact agent switcher.
 
 | Theme | Canvas | Ink | Accent | Rule / support |
 |---|---:|---:|---:|---:|
@@ -73,9 +76,6 @@ Only the existing central agent workspace changes provider identity.
 | Hermes immersive | `#F9FAFF` | `#273052` | `#4055FF` | `#D9DEF5` |
 | OpenClaw immersive | `#111315` | `#F6F5F3` | `#F5654A` | `#343A3D` |
 | Antigravity immersive | `#171B35` | `#F4F3FF` | `#8B7CFF` | `#3D4777` |
-| GLM immersive | `#0F1F1E` | `#EFFFF9` | `#34E5B0` | `#31504C` |
-| Kimi immersive | `#0E1830` | `#F1F8FF` | `#46C7FF` | `#324A76` |
-| Free Claude Code immersive | `#101B18` | `#F1FBF7` | `#34D399` | `#325048` |
 
 Wrappers inherit their provider identity. Tools without a verified provider
 identity remain on the neutral Agentic OS theme. Provider accent communicates
@@ -93,8 +93,8 @@ identity, not warning or error semantics.
 - There is no decorative idle motion.
 - `prefers-reduced-motion: reduce` removes non-essential animation and
   transitions.
-- Existing component dimensions and spacing are retained unless a narrow,
-  non-structural correction is required to prevent viewport clipping.
+- Workbench body text is 14-16px, navigation 12-14px, metadata at least 12px,
+  and headings 16/20/28-32px. No operational copy is rendered below 12px.
 
 ## Relief System
 
@@ -159,16 +159,32 @@ logos, marks, devices, or embedded brand color.
 > Orthographic flat texture capture, uniform illumination, no perspective.
 > Generate at 2048x2048 or larger.
 
+## Provider Desktop Contracts
+
+- Codex is task and review first: projects/worktrees, task list, transcript,
+  activity, review/diff, terminal, browser/files, and permission cards.
+- Claude is session and pane first: filters, split panes, transcript modes,
+  tasks/subagents, plan, diff, browser, terminal, and files.
+- Hermes is chat and profile first: agents/projects, skills, messaging,
+  artifacts, queue, preview/files/review/terminal, and a persistent status bar.
+  Profiles, Skills, MCPs, and Settings are native screens, not an iframe.
+- OpenClaw is identity and thread first: agent identity, pinned/threads/groups/
+  coding, place picker, session/workspace/tasks rails, terminal/browser, and
+  explicit attention approvals.
+- Antigravity is artifact and subagent first: projects/conversations,
+  Local/worktree, scheduled tasks, subagent cards, artifacts, review milestones,
+  and editable permission cards.
+
 ## Component and Interaction Contract
 
-- Existing navigation, tabs, URLs, deep links, keyboard behavior, and
-  localStorage behavior remain unchanged.
-- The immersive sidebars dispatch the existing `agent-workspace-nav` events;
-  no agent API, query parameter, project/session identity, or persistence key
-  is replaced.
-- Every immersive sidebar exposes a persistent `Agentic OS` return action.
-- Existing command palette behavior remains available; the redesign does not
-  add new global shortcuts.
+- Existing routes, native data, old deep links, and APIs remain compatible.
+- The URL is authoritative for agent, actor, project, session, environment,
+  and panel. Back/forward navigation restores the complete context.
+- `Ctrl+Shift+A` opens the compact agent switcher on desktop and mobile.
+- Every conversation has one canonical list location; no duplicate sidebar,
+  history widget, or Sessions screen represents the same rows.
+- Pin is visible. Search covers title, content, status, and time. Long histories
+  use pagination or virtualization and are never silently truncated.
 - Existing agent actions and forms retain their current behavior.
 - Every interactive component keeps visible hover, focus, active, disabled,
   loading, and error states where those states already apply.
@@ -197,7 +213,7 @@ logos, marks, devices, or embedded brand color.
 - Keyboard order and focus remain visible and logical.
 - Status does not rely on color alone.
 - Target WCAG 2.2 AA for contrast, semantics, keyboard behavior, and reflow.
-- Mission Control, MEMORY, and all eight immersive agents are visually reviewed at
+- Mission Control, MEMORY, and all five desktop agents are visually reviewed at
   1440x900, 1024x768, and 390x844 against the locked layout.
 
 ## Template Provenance

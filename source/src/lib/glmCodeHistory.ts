@@ -3,11 +3,11 @@
 //   1. ~/.agentic-os/glm-code/history.jsonl  — durable machine history
 //   2. <vault>/Agentic OS/GLM Code Log.md    — a human log inside your Obsidian vault
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { VAULT_ROOT, AGENTIC_DIR, todayISO, nowHM } from "@/lib/vaultWriter";
+import { workspacePath } from "@/lib/workspaceRoot";
 
-const HIST_DIR = path.join(os.homedir(), ".agentic-os", "glm-code");
+const HIST_DIR = workspacePath("glm-code");
 const HIST_FILE = path.join(HIST_DIR, "history.jsonl");
 
 export interface GlmHistoryEntry {

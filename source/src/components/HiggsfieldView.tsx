@@ -275,7 +275,7 @@ export default function HiggsfieldView() {
       )}
 
       <div className="text-[11px] text-[var(--cream-mute)] px-1 flex items-center gap-1.5">
-        <FolderOpen size={11} /> Saved to <span className="mono">~/.agentic-os/higgsfield/</span> — assets in <span className="mono">gallery/</span>, conversations in <span className="mono">sessions/</span>.
+        <FolderOpen size={11} /> Saved to <span className="mono">AGENT-OS-FOLDERS/higgsfield/</span> — assets in <span className="mono">gallery/</span>, conversations in <span className="mono">sessions/</span>.
         <a href={SITE} target="_blank" rel="noopener" className="ml-auto flex items-center gap-1" style={{ color: ACCENT }}><ExternalLink size={11} /> higgsfield.ai/mcp</a>
       </div>
 

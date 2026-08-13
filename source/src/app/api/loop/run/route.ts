@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
+import { workspacePath } from "@/lib/workspaceRoot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
       const slug = (goal.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 46)) || "loop";
       // VAULT — always log the run (the loop's memory), pass or fail.
       try {
-        const dir = path.join(os.homedir(), "Documents", "Obsidian Vault", "Agentic OS", "Loops");
+        const dir = workspacePath("loops", "logs");
         await mkdir(dir, { recursive: true });
         await writeFile(path.join(dir, `${slug}.md`), `# Loop · ${goal}\n\n**Result:** ${reason}\n**Passed:** ${passed}\n**Builder:** ${worker} · **Judge:** ${jName}\n\n---\n\n${cur}\n`, "utf8");
       } catch { /* vault optional */ }
@@ -188,7 +189,7 @@ export async function POST(req: Request) {
         try {
           const html = extractHtml(cur);
           if (html) {
-            const bdir = path.join(os.homedir(), ".agentic-os", "loop-builds");
+            const bdir = workspacePath("loop-builds");
             await mkdir(bdir, { recursive: true });
             await writeFile(path.join(bdir, `${slug}.html`), html, "utf8");
             send({ t: "saved", slug });

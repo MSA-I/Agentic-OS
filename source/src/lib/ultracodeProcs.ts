@@ -11,6 +11,7 @@
 // file-write race between the two requests.
 
 import type { ChildProcess } from "node:child_process";
+import { terminateChildProcessTree } from "./runner";
 
 interface Entry { child: ChildProcess; stopped: boolean; }
 const procs = new Map<string, Entry>();
@@ -27,14 +28,12 @@ export function isStopped(runId: string): boolean {
   return procs.get(runId)?.stopped ?? false;
 }
 
-// Returns true if a live process was found + signalled. SIGTERM first, then a
-// SIGKILL backstop in case the agent ignores the polite signal.
+// Returns true if a live process tree was found and termination started.
 export function killProc(runId: string): boolean {
   const e = procs.get(runId);
   if (!e) return false;
   e.stopped = true;
-  try { e.child.kill("SIGTERM"); } catch { /* already gone */ }
-  setTimeout(() => { try { e.child.kill("SIGKILL"); } catch { /* gone */ } }, 2500);
+  void terminateChildProcessTree(e.child);
   return true;
 }
 
