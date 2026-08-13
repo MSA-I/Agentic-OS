@@ -2,15 +2,17 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, Check, ChevronUp, Command, X } from "lucide-react";
+import { Bot, Check, ChevronUp, Command, Home, X } from "lucide-react";
 
 const agents = [
-  { id: "codex", label: "Codex", detail: "Tasks and review" },
+  { id: "codex", label: "Codex", detail: "Sessions and review" },
   { id: "claude", label: "Claude", detail: "Sessions and panes" },
   { id: "hermes", label: "Hermes", detail: "Profiles and skills" },
-  { id: "openclaw", label: "OpenClaw", detail: "Agents and threads" },
+  { id: "openclaw", label: "OpenClaw", detail: "Actors and conversations" },
   { id: "antigravity", label: "Antigravity", detail: "Artifacts and subagents" },
 ] as const;
+
+const missionControl = { id: "home", label: "Mission Control", detail: "Home and system overview" } as const;
 
 export type CoreAgentId = (typeof agents)[number]["id"];
 
@@ -21,7 +23,7 @@ export default function AgentSwitcher() {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
-  const current = agents.find((agent) => pathname === `/${agent.id}`) ?? agents[0];
+  const current = agents.find((agent) => pathname === `/${agent.id}`) ?? missionControl;
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -72,6 +74,11 @@ export default function AgentSwitcher() {
     if (agentId !== current.id) router.push(`/${agentId}`);
   }
 
+  function chooseHome() {
+    setOpen(false);
+    if (pathname !== "/") router.push("/");
+  }
+
   return (
     <div data-agent-switcher data-open={open ? "true" : "false"}>
       {open && (
@@ -98,6 +105,20 @@ export default function AgentSwitcher() {
                 <X size={16} />
               </button>
             </div>
+            <button
+              className="agent-switcher-home"
+              type="button"
+              data-selected={current.id === missionControl.id ? "true" : "false"}
+              aria-current={current.id === missionControl.id ? "page" : undefined}
+              onClick={chooseHome}
+            >
+              <span className="agent-switcher-home-mark" aria-hidden="true"><Home size={15} /></span>
+              <span className="agent-switcher-copy">
+                <strong>Home</strong>
+                <span>Mission Control and system overview</span>
+              </span>
+              {current.id === missionControl.id && <Check size={15} aria-label="Current page" />}
+            </button>
             <div className="agent-switcher-options">
               {agents.map((agent) => {
                 const selected = agent.id === current.id;
@@ -106,6 +127,7 @@ export default function AgentSwitcher() {
                     key={agent.id}
                     type="button"
                     data-selected={selected ? "true" : "false"}
+                    aria-current={selected ? "page" : undefined}
                     onClick={() => choose(agent.id)}
                   >
                     <span className="agent-switcher-mark" aria-hidden="true">{agent.label.slice(0, 1)}</span>
@@ -122,6 +144,16 @@ export default function AgentSwitcher() {
           </div>
         </>
       )}
+      <a
+        className="agent-switcher-home-control"
+        href="/"
+        aria-label="Mission Control"
+        aria-current={current.id === missionControl.id ? "page" : undefined}
+        title="Mission Control"
+        onClick={() => setOpen(false)}
+      >
+        <Home size={16} aria-hidden="true" />
+      </a>
       <button
         ref={triggerRef}
         className="agent-switcher-trigger"
@@ -132,7 +164,7 @@ export default function AgentSwitcher() {
         title={`Switch agent · ${current.label} · Ctrl+Shift+A`}
         onClick={() => setOpen((value) => !value)}
       >
-        <Bot size={16} aria-hidden="true" />
+        {current.id === missionControl.id ? <Home size={16} aria-hidden="true" /> : <Bot size={16} aria-hidden="true" />}
         <span><small>Agent</small><strong>{current.label}</strong></span>
         <ChevronUp size={14} aria-hidden="true" />
       </button>

@@ -11,6 +11,19 @@ type NativeSession = {
   metadata?: Record<string, unknown>;
 };
 
+type NativeHistorySession = {
+  id: string;
+  nativeId?: string;
+  sessionKey?: string;
+  aliases?: string[];
+  channelSource?: string;
+};
+
+type NativeHistoryGroup = {
+  scope?: string;
+  sessions: NativeHistorySession[];
+};
+
 test.describe("Workbench native read-through adapters", () => {
   for (const provider of PROVIDERS) {
     test(`${provider} lists and loads its native sessions without Workbench writes`, async ({ request }) => {
@@ -66,6 +79,45 @@ test.describe("Workbench native read-through adapters", () => {
       const filtered = await filteredResponse.json() as { sessions: NativeSession[] };
       expect(filtered.sessions.every((session) => session.actorId === actorId)).toBe(true);
     }
+  });
+
+  test("native indexes expose one canonical row per provider identity", async ({ request }) => {
+    for (const provider of PROVIDERS) {
+      const response = await request.get(`/api/agent-history?agent=${provider}`);
+      expect(response.status()).toBe(200);
+      const index = await response.json() as { groups: NativeHistoryGroup[] };
+      const identities = index.groups.flatMap((group) => group.sessions.map((session) =>
+        `${provider}:${provider === "hermes" || provider === "openclaw" ? group.scope ?? "" : ""}:${session.nativeId ?? session.id}`,
+      ));
+      expect(new Set(identities).size).toBe(identities.length);
+    }
+  });
+
+  test("Hermes hides internal runs and resolves canonical aliases within the same profile", async ({ request }) => {
+    const response = await request.get("/api/agent-history?agent=hermes");
+    expect(response.status()).toBe(200);
+    const index = await response.json() as { groups: NativeHistoryGroup[] };
+    const rows = index.groups.flatMap((group) => group.sessions.map((session) => ({ group, session })));
+    expect(rows.every(({ session }) => !["cron", "subagent", "tool"].includes(session.channelSource ?? ""))).toBe(true);
+
+    const aliased = rows.find(({ session }) => session.aliases?.length);
+    if (!aliased) return;
+    const alias = aliased.session.aliases![0];
+    const params = new URLSearchParams({ sessionId: alias });
+    if (aliased.group.scope) params.set("actorId", aliased.group.scope);
+    const loadedResponse = await request.get(`/api/workbench/agents/hermes/sessions?${params}`);
+    expect(loadedResponse.status()).toBe(200);
+    const loaded = await loadedResponse.json() as { session: NativeSession };
+    expect(loaded.session.id).toBe(aliased.session.nativeId ?? aliased.session.id);
+    expect(loaded.session.actorId).toBe(aliased.group.scope ?? null);
+  });
+
+  test("OpenClaw omits Agent OS probe sessions", async ({ request }) => {
+    const response = await request.get("/api/agent-history?agent=openclaw");
+    expect(response.status()).toBe(200);
+    const index = await response.json() as { groups: NativeHistoryGroup[] };
+    const keys = index.groups.flatMap((group) => group.sessions.map((session) => session.sessionKey ?? ""));
+    expect(keys.every((key) => !/(^|:)agent-os-(?:e2e-)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(key))).toBe(true);
   });
 
   test("native session lookup rejects arbitrary path-shaped ids", async ({ request }) => {

@@ -29,7 +29,9 @@ export default function Shell({ children }: { children: ReactNode }) {
         >
           {children}
         </main>
-        <AgentSwitcher />
+        <div className="agent-system-dock" aria-label="Agent OS system navigation">
+          <AgentSwitcher />
+        </div>
         <SetupCenterHost />
       </div>
     );

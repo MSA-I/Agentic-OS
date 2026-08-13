@@ -8,8 +8,8 @@ const IMMERSIVE_SURFACES = [
     route: "/codex",
     root: '[data-agent-desktop="codex"]',
     composer: 'textarea[aria-label="Message Codex"]',
-    mobileTrigger: "Open tasks",
-    mobileDrawer: 'aside[aria-label="Codex projects and tasks"]',
+    mobileTrigger: "Open sessions",
+    mobileDrawer: 'aside[aria-label="Codex projects and sessions"]',
     modalDrawer: true,
   },
   {
@@ -27,7 +27,7 @@ const IMMERSIVE_SURFACES = [
     root: '[data-agent-page="hermes"][data-agent-experience="immersive"]',
     composer: 'textarea[aria-label="Message Hermes"]',
     mobileTrigger: "Open Hermes navigation",
-    mobileDrawer: 'aside[aria-label="Hermes navigation"]',
+    mobileDrawer: 'aside[aria-label="Hermes profiles and conversations"]',
     modalDrawer: true,
   },
   {
@@ -127,9 +127,14 @@ test.describe("Agentic OS layout contract", () => {
       await expect(page.locator("[data-agent-workspace]")).toHaveCount(0);
       await expect(page.locator("[data-unified-chat]")).toHaveCount(0);
 
+      const mainBox = await main.boundingBox();
+      const dockBox = await shell.locator(".agent-system-dock").boundingBox();
       const workspaceBox = await workspace.boundingBox();
       expect(workspaceBox?.width).toBe(1440);
-      expect(workspaceBox?.height).toBe(900);
+      expect(workspaceBox?.height).toBe(mainBox?.height);
+      expect(mainBox?.height).toBe(848);
+      expect(dockBox?.height).toBe(52);
+      expect((workspaceBox?.y ?? 0) + (workspaceBox?.height ?? 0)).toBeLessThanOrEqual(dockBox?.y ?? 0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
       expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900);
       expectNoClientErrors(diagnostics);

@@ -11,7 +11,12 @@ export interface HermesSession {
   bytes: number;
   preview?: string;
   resumable?: boolean;
-  source?: "native" | "local";
+  /** Transport identity remains in `source`; platform metadata is presentation-only. */
+  source?: string;
+  platform?: string;
+  channelSource?: string;
+  channel?: string;
+  chatType?: string;
   nativeStarted?: boolean;
 }
 

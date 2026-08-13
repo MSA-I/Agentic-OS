@@ -47,7 +47,37 @@ import {
 
 type HermesView = "messages" | "profiles" | "projects" | "skills" | "mcps" | "artifacts" | "settings";
 type HermesPane = "preview" | "files" | "review" | "terminal";
-type HistoryFilter = "all" | "today" | "week" | "pinned";
+type HistoryFilter = "all" | "today" | "week" | "pinned" | "discord";
+
+function discordSession(session: HermesSession): boolean {
+  return [session.platform, session.channelSource, session.source, session.channel, session.chatType].some((value) => /discord/i.test(value ?? ""));
+}
+
+function channelLabel(session: HermesSession): string {
+  const channel = session.channel?.trim();
+  const type = session.chatType?.trim();
+  if (channel) {
+    if (/\bdm\b|direct/i.test(type ?? "") || channel.startsWith("#") || channel.includes("/#") || channel.includes("/ #")) return channel;
+    return `#${channel}`;
+  }
+  return type && !/discord/i.test(type) ? type : "Direct message";
+}
+
+function sessionSearchText(session: HermesSession, group: HermesSessionGroup): string {
+  return [
+    session.name,
+    session.preview,
+    session.source,
+    session.platform,
+    session.channelSource,
+    session.channel,
+    session.chatType,
+    group.label,
+    group.root,
+    group.scope,
+    session.resumable === false ? "read only" : "resumable",
+  ].filter(Boolean).join(" ").toLocaleLowerCase();
+}
 
 function ago(ms: number): string {
   if (!ms) return "never";
@@ -162,14 +192,17 @@ export default function HermesDesktop() {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
   }, [data.messages, data.sending]);
 
+  const profileGroups = useMemo(() => data.groups.filter((group) => (group.scope || "default") === data.selectedProfile), [data.groups, data.selectedProfile]);
+
   const filteredGroups = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const now = Date.now();
     let remaining = visibleLimit;
-    return data.groups.flatMap((group) => {
+    return profileGroups.flatMap((group) => {
       const sessions = group.sessions.filter((session) => {
-        if (normalized && !`${session.name} ${session.preview ?? ""} ${group.label} ${group.root} ${group.scope ?? ""} ${session.resumable === false ? "read only" : "resumable"}`.toLowerCase().includes(normalized)) return false;
+        if (normalized && !sessionSearchText(session, group).includes(normalized)) return false;
         if (historyFilter === "pinned") return data.pins.includes(session.path);
+        if (historyFilter === "discord") return discordSession(session);
         if (historyFilter === "today") return now - session.mtime < 86_400_000;
         if (historyFilter === "week") return now - session.mtime < 604_800_000;
         return true;
@@ -179,19 +212,20 @@ export default function HermesDesktop() {
       remaining -= visible.length;
       return [{ ...group, sessions: visible }];
     });
-  }, [data.groups, data.pins, historyFilter, query, visibleLimit]);
+  }, [data.pins, historyFilter, profileGroups, query, visibleLimit]);
 
   const filteredTotal = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const now = Date.now();
-    return data.groups.reduce((count, group) => count + group.sessions.filter((session) => {
-      if (normalized && !`${session.name} ${session.preview ?? ""} ${group.label} ${group.root} ${group.scope ?? ""} ${session.resumable === false ? "read only" : "resumable"}`.toLowerCase().includes(normalized)) return false;
+    return profileGroups.reduce((count, group) => count + group.sessions.filter((session) => {
+      if (normalized && !sessionSearchText(session, group).includes(normalized)) return false;
       if (historyFilter === "pinned") return data.pins.includes(session.path);
+      if (historyFilter === "discord") return discordSession(session);
       if (historyFilter === "today") return now - session.mtime < 86_400_000;
       if (historyFilter === "week") return now - session.mtime < 604_800_000;
       return true;
     }).length, 0);
-  }, [data.groups, data.pins, historyFilter, query]);
+  }, [data.pins, historyFilter, profileGroups, query]);
 
   function chooseView(next: HermesView) {
     setView(next);
@@ -254,7 +288,7 @@ export default function HermesDesktop() {
       </header>
 
       {drawerOpen && <button type="button" aria-label="Close navigation" className={styles.backdrop} onClick={() => setDrawerOpen(false)} />}
-      <aside ref={drawerRef} className={`${styles.sidebar} ${drawerOpen ? styles.sidebarOpen : ""}`} aria-label="Hermes navigation" aria-modal={drawerOpen || undefined} role={drawerOpen ? "dialog" : undefined} tabIndex={-1}>
+      <aside ref={drawerRef} className={`${styles.sidebar} ${drawerOpen ? styles.sidebarOpen : ""}`} aria-label="Hermes profiles and conversations" aria-modal={drawerOpen || undefined} role={drawerOpen ? "dialog" : undefined} tabIndex={-1}>
         <div className={styles.sidebarHead}>
           <div className={styles.brand}><span className={styles.hermesMark}>H</span><div><strong>Hermes</strong><span>Desktop agent</span></div></div>
           <button type="button" className={styles.closeDrawer} aria-label="Close navigation" onClick={() => setDrawerOpen(false)}><X size={18} /></button>
@@ -284,9 +318,9 @@ export default function HermesDesktop() {
         {view === "messages" && <>
           <div className={styles.historyTools}>
             <label><Search size={15} /><input value={query} onChange={(event) => { setQuery(event.target.value); setVisibleLimit(80); }} placeholder="Search conversations" aria-label="Search conversations" /></label>
-            <select value={historyFilter} onChange={(event) => { setHistoryFilter(event.target.value as HistoryFilter); setVisibleLimit(80); }} aria-label="Filter conversations"><option value="all">All</option><option value="today">Today</option><option value="week">7 days</option><option value="pinned">Pinned</option></select>
+            <select value={historyFilter} onChange={(event) => { setHistoryFilter(event.target.value as HistoryFilter); setVisibleLimit(80); }} aria-label="Filter conversations"><option value="all">All</option><option value="today">Today</option><option value="week">7 days</option><option value="pinned">Pinned</option><option value="discord">Discord</option></select>
           </div>
-          <div className={styles.historyLabel}><span>Conversations</span><span>{filteredTotal} / {data.totalSessions}</span></div>
+          <div className={styles.historyLabel}><span>Profile conversations</span><span>{filteredTotal} / {profileGroups.reduce((count, group) => count + group.sessions.length, 0)}</span></div>
           <div className={styles.historyList}>
             <StatusBlock state={data.historyState} title="Sessions" error={data.historyError} onRetry={() => void data.loadHistory()} />
             {filteredGroups.map((group) => {
@@ -296,11 +330,12 @@ export default function HermesDesktop() {
                   const next = new Set(current);
                   if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
                   return next;
-                })}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}<span className={styles.profileMini}>{profileInitial(group.scope || "default")}</span><span title={group.root}>{group.label}</span><small>{group.sessions.length}</small></button>
+                })} aria-expanded={expanded} aria-label={`${group.label}: ${group.sessions.length} conversations`}>{expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}<span className={styles.profileMini}>{profileInitial(group.scope || "default")}</span><span title={group.root}>{group.label}</span><small>{group.sessions.length}</small></button>
                 {expanded && <div className={styles.sessions}>{group.sessions.map((session) => {
                   const pinned = data.pins.includes(session.path);
-                  return <div key={session.path} className={styles.session} data-active={data.activeSession?.path === session.path}>
-                    <button type="button" onClick={() => chooseSession(session, group)}><span>{session.name}</span><small>{ago(session.mtime)} · {session.resumable === false ? "Read only" : "Resume"}</small></button>
+                  const isDiscord = discordSession(session);
+                  return <div key={session.path} className={styles.session} data-active={data.activeSession?.path === session.path} data-source={isDiscord ? "discord" : undefined}>
+                    <button type="button" onClick={() => chooseSession(session, group)}><span className={styles.sessionTitle}>{session.name}</span>{isDiscord && <span className={styles.discordSource}><strong>Discord</strong><span>{channelLabel(session)}</span></span>}<small>{ago(session.mtime)} · {session.resumable === false ? "Read only" : "Resume"}</small></button>
                     <button type="button" className={styles.pin} data-pinned={pinned} aria-label={pinned ? `Unpin ${session.name}` : `Pin ${session.name}`} onClick={() => data.togglePin(session.path)}><Pin size={14} fill={pinned ? "currentColor" : "none"} /></button>
                   </div>;
                 })}</div>}

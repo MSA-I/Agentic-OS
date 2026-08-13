@@ -198,7 +198,7 @@ export default function CodexDesktop() {
     const onShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        startTask();
+        startConversation();
       }
     };
     window.addEventListener("keydown", onShortcut);
@@ -292,7 +292,7 @@ export default function CodexDesktop() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, events]);
 
-  const allSessions = useMemo(() => groups.flatMap((group) => group.sessions.map((session) => ({ ...session, projectId: group.id }))), [groups]);
+  const allSessions = useMemo(() => activeProject?.sessions.map((session) => ({ ...session, projectId: activeProject.id })) ?? [], [activeProject]);
   const visibleSessions = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return allSessions
@@ -306,7 +306,7 @@ export default function CodexDesktop() {
     writeContextUrl({ project: session.projectId, session: session.path, panel: "chat" });
   }
 
-  function startTask() {
+  function startConversation() {
     if (!activeProject) return;
     setDrawerOpen(false);
     setDetail(null);
@@ -412,38 +412,38 @@ export default function CodexDesktop() {
     controllerRef.current?.abort();
   }
 
-  const activeTitle = activeSession?.name || "New task";
+  const activeTitle = activeSession?.name || "New conversation";
   const modelLabel = engine === "gpt56" ? "GPT-5.6" : engine === "hy3" ? "HY3" : "OmniRoute";
   const changeTools = detail?.toolCalls?.filter((tool) => isChangeTool(tool.name)) ?? [];
   const terminalTools = detail?.toolCalls?.filter((tool) => isTerminalTool(tool.name)) ?? [];
 
   return (
     <div className="codex-desktop" data-agent-desktop="codex" dir="ltr">
-      <button ref={drawerTriggerRef} className="workbench-mobile-menu" type="button" aria-label="Open tasks" onClick={() => setDrawerOpen(true)}>
+      <button ref={drawerTriggerRef} className="workbench-mobile-menu" type="button" aria-label="Open sessions" onClick={() => setDrawerOpen(true)}>
         <Menu size={18} />
       </button>
-      {drawerOpen && <button className="workbench-drawer-backdrop" type="button" aria-label="Close tasks" onClick={() => setDrawerOpen(false)} />}
+      {drawerOpen && <button className="workbench-drawer-backdrop" type="button" aria-label="Close sessions" onClick={() => setDrawerOpen(false)} />}
 
       <aside
         ref={drawerRef}
         className="codex-sidebar"
         data-open={drawerOpen ? "true" : "false"}
-        aria-label="Codex projects and tasks"
+        aria-label="Codex projects and sessions"
         role={drawerOpen ? "dialog" : undefined}
         aria-modal={drawerOpen ? "true" : undefined}
       >
         <div className="codex-product-row">
           <span className="codex-product-mark" aria-hidden="true"><Code2 size={15} /></span>
           <strong>Codex</strong>
-          <button type="button" aria-label="Close tasks" className="workbench-mobile-close" onClick={() => setDrawerOpen(false)}><X size={16} /></button>
+          <button type="button" aria-label="Close sessions" className="workbench-mobile-close" onClick={() => setDrawerOpen(false)}><X size={16} /></button>
         </div>
-        <button className="codex-new-task" type="button" onClick={startTask} disabled={!activeProject}>
-          <Plus size={15} /> New task <span>Ctrl N</span>
+        <button className="codex-new-task" type="button" onClick={startConversation} disabled={!activeProject}>
+          <Plus size={15} /> New conversation <span>Ctrl N</span>
         </button>
         <label className="codex-search">
           <Search size={14} aria-hidden="true" />
-          <span className="sr-only">Search tasks</span>
-          <input value={query} onChange={(event) => { setQuery(event.target.value); setLimit(PAGE_SIZE); }} placeholder="Search tasks" />
+          <span className="sr-only">Search sessions</span>
+          <input value={query} onChange={(event) => { setQuery(event.target.value); setLimit(PAGE_SIZE); }} placeholder="Search sessions" aria-label="Search Codex sessions" />
         </label>
         <div className="codex-project-picker">
           <FolderGit2 size={14} />
@@ -456,14 +456,14 @@ export default function CodexDesktop() {
           </select>
           <ChevronDown size={13} aria-hidden="true" />
         </div>
-        <div className="codex-task-heading">
-          <span>Tasks</span><span>{allSessions.length}</span>
+        <div className="codex-task-heading" aria-label={`${activeProject?.label || "Selected project"}: ${allSessions.length} sessions`}>
+          <span>Sessions</span><span>{allSessions.length}</span>
         </div>
         <div className="codex-task-list" role="list">
           {historyState === "loading" && <div className="workbench-state"><LoaderCircle className="spin" size={17} /> Loading native history</div>}
           {historyState === "offline" && <div className="workbench-state"><CircleDot size={16} /> Offline. Native history remains unchanged.</div>}
           {historyState === "error" && <div className="workbench-state"><CircleDot size={16} /> History unavailable. <button onClick={() => void loadHistory()}>Retry</button></div>}
-          {historyState === "ready" && visibleSessions.length === 0 && <div className="workbench-state"><Archive size={16} /> No matching tasks</div>}
+          {historyState === "ready" && visibleSessions.length === 0 && <div className="workbench-state"><Archive size={16} /> No matching sessions</div>}
           {visibleSessions.map((session) => {
             const selected = activeSession?.path === session.path;
             const pinned = pins.includes(session.path) || session.pinned;
@@ -502,7 +502,7 @@ export default function CodexDesktop() {
           </div>
         </header>
 
-        <nav className="codex-panel-tabs" aria-label="Task workspace">
+        <nav className="codex-panel-tabs" aria-label="Session workspace">
           <button type="button" data-active={panel === "chat"} onClick={() => choosePanel("chat")}><MessageSquareText size={14} /> Chat</button>
           <button type="button" data-active={panel === "review"} onClick={() => choosePanel("review")}><FileDiff size={14} /> Review</button>
           <button type="button" data-active={panel === "terminal"} onClick={() => choosePanel("terminal")}><TerminalSquare size={14} /> Terminal</button>
@@ -512,12 +512,12 @@ export default function CodexDesktop() {
 
         {panel === "chat" && (
           <div className="codex-chat-layout">
-            <section ref={scrollRef} className="codex-transcript" aria-label="Task transcript">
+            <section ref={scrollRef} className="codex-transcript" aria-label="Codex conversation transcript">
               {turns.length === 0 && (
                 <div className="codex-empty">
                   <span className="codex-empty-mark"><Code2 size={24} /></span>
                   <h1>What should Codex work on?</h1>
-                  <p>Start a task in <strong>{activeProject?.label || "a local project"}</strong>. Changes, commands, and review stay attached to this task.</p>
+                  <p>Start a conversation in <strong>{activeProject?.label || "a local project"}</strong>. Changes, commands, and review stay attached to this session.</p>
                 </div>
               )}
               {turns.map((turn, index) => (
@@ -529,7 +529,7 @@ export default function CodexDesktop() {
                 </article>
               ))}
             </section>
-            <aside className="codex-activity" aria-label="Task activity">
+            <aside className="codex-activity" aria-label="Session activity">
               <div className="codex-activity-title"><PanelRightOpen size={14} /> Activity</div>
               {events.length === 0 && <p>Commands, reasoning, and approvals appear here while Codex works.</p>}
               {events.map((event) => (
@@ -544,7 +544,7 @@ export default function CodexDesktop() {
 
         {panel === "review" && (
           <section className="codex-work-panel" aria-label="Review changes">
-            <div className="work-panel-heading"><div><span>Review</span><h1>Task changes</h1></div><span>{changeTools.length} file operations</span></div>
+            <div className="work-panel-heading"><div><span>Review</span><h1>Session changes</h1></div><span>{changeTools.length} file operations</span></div>
             {changeTools.length ? changeTools.map((tool, index) => (
               <details className="codex-review-item" key={`${tool.name}-${index}`}>
                 <summary><FileDiff size={15} /><strong>{tool.name}</strong><span>Inspect</span></summary>
@@ -557,24 +557,24 @@ export default function CodexDesktop() {
         {panel === "terminal" && (
           <section className="codex-work-panel codex-terminal" aria-label="Integrated terminal output">
             <div className="work-panel-heading"><div><span>Terminal</span><h1>{detail?.cwd || activeProject?.root || "Project shell"}</h1></div><span>Read-only transcript</span></div>
-            <pre>{terminalTools.map((tool) => `$ ${tool.name}\n${tool.args}${tool.output ? `\n${tool.output}` : ""}`).join("\n\n") || "$ No terminal commands were recorded for this task"}</pre>
+            <pre>{terminalTools.map((tool) => `$ ${tool.name}\n${tool.args}${tool.output ? `\n${tool.output}` : ""}`).join("\n\n") || "$ No terminal commands were recorded for this session"}</pre>
           </section>
         )}
 
         {panel === "browser" && (
           <section className="codex-work-panel" aria-label="Browser preview">
-            <div className="work-panel-heading"><div><span>Browser</span><h1>Task browser</h1></div><span>Unsupported by current Codex CLI bridge</span></div>
+            <div className="work-panel-heading"><div><span>Browser</span><h1>Session browser</h1></div><span>Unsupported by current Codex CLI bridge</span></div>
             <div className="workbench-empty-panel"><Globe2 size={22} /><strong>Browser preview unavailable</strong><span>This runtime does not expose a browser session. No inactive browser control is simulated.</span></div>
           </section>
         )}
 
         {panel === "files" && (
-          <section className="codex-work-panel" aria-label="Task files">
-            <div className="work-panel-heading"><div><span>Files</span><h1>Referenced by this task</h1></div><span>{(detail?.cwdFiles?.length ?? 0) + (detail?.referencedFiles?.length ?? 0)} files</span></div>
+          <section className="codex-work-panel" aria-label="Session files">
+            <div className="work-panel-heading"><div><span>Files</span><h1>Referenced by this session</h1></div><span>{(detail?.cwdFiles?.length ?? 0) + (detail?.referencedFiles?.length ?? 0)} files</span></div>
             <div className="codex-file-list">
               {detail?.cwdFiles?.map((file) => <div key={file.relPath}><FileText size={15} /><span dir="auto">{file.relPath}</span><small>{Math.ceil(file.bytes / 1024)} KB</small></div>)}
               {detail?.referencedFiles?.map((file) => <div key={file}><FileCode2 size={15} /><span dir="auto">{file}</span><small>Referenced</small></div>)}
-              {!detail?.cwdFiles?.length && !detail?.referencedFiles?.length && <div className="workbench-empty-panel"><FileCode2 size={22} /><strong>No task files</strong><span>Select a completed native task to inspect its files.</span></div>}
+              {!detail?.cwdFiles?.length && !detail?.referencedFiles?.length && <div className="workbench-empty-panel"><FileCode2 size={22} /><strong>No session files</strong><span>Select a completed native session to inspect its files.</span></div>}
             </div>
           </section>
         )}

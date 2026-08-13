@@ -1,14 +1,15 @@
 .app {
-  --oc-ink: #171717;
-  --oc-muted: #5f5c56;
-  --oc-line: #dedbd4;
-  --oc-soft-line: #ebe8e1;
-  --oc-paper: #f7f5f0;
-  --oc-white: #fffefa;
-  --oc-side: #222321;
-  --oc-side-muted: #a5a59f;
-  --oc-accent: #b54226;
-  --oc-accent-soft: #fce5dd;
+  --oc-ink: #f4f4f5;
+  --oc-muted: #a7a7ad;
+  --oc-line: #242424;
+  --oc-soft-line: #202020;
+  --oc-paper: #0d0d0d;
+  --oc-white: #111111;
+  --oc-side: #080808;
+  --oc-side-muted: #a4a4aa;
+  --oc-accent: #ea1413;
+  --oc-accent-text: #ff756e;
+  --oc-accent-soft: #2d1010;
   direction: ltr;
   display: grid;
   grid-template-columns: 224px 276px minmax(0, 1fr);
@@ -37,7 +38,7 @@
 .app button:focus-visible,
 .app textarea:focus-visible,
 .app a:focus-visible {
-  outline: 2px solid var(--oc-accent);
+  outline: 2px solid var(--oc-accent-text);
   outline-offset: 2px;
 }
 
@@ -47,9 +48,9 @@
   flex-direction: column;
   min-width: 0;
   padding: 16px 12px 14px;
-  color: #f5f4ef;
+  color: #f4f4f5;
   background: var(--oc-side);
-  border-inline-end: 1px solid #333431;
+  border-inline-end: 1px solid #2c2c30;
 }
 
 .identityRow {
@@ -98,8 +99,8 @@
   gap: 8px;
   width: 100%;
   min-height: 42px;
-  color: #211d1b;
-  background: #fff;
+  color: #f4f4f5;
+  background: #202024;
   border: 0;
   border-radius: 9px;
   font-size: 13px;
@@ -108,7 +109,7 @@
 }
 
 .newThread:hover {
-  background: #f8ebe6;
+  background: #29292e;
 }
 
 .navGroups {
@@ -129,7 +130,7 @@
 
 .navGroups p {
   margin: 0 8px 5px;
-  color: #b7b8b2;
+  color: #b4b4bc;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -143,7 +144,7 @@
   gap: 8px;
   min-height: 38px;
   padding: 7px 9px;
-  color: #c7c7c1;
+  color: #d4d4d8;
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -154,8 +155,8 @@
 .navGroups button > span {
   min-width: 24px;
   padding: 2px 7px;
-  color: #a7a7a2;
-  background: #30312e;
+  color: #b4b4bc;
+  background: #242428;
   border-radius: 99px;
   font-size: 12px;
   text-align: center;
@@ -163,13 +164,13 @@
 
 .navGroups button:hover {
   color: #fff;
-  background: #2d2e2b;
+  background: #1f1f23;
 }
 
 .navGroups .activeNav {
   color: #fff;
-  background: #363632;
-  box-shadow: inset 0 0 0 1px rgba(240, 100, 69, 0.48);
+  background: #292326;
+  box-shadow: inset 0 0 0 1px rgba(234, 20, 19, 0.78);
 }
 
 .gatewayBadge {
@@ -181,9 +182,9 @@
   margin-top: auto;
   flex: 0 0 auto;
   padding: 10px;
-  color: #ecebe6;
-  background: #2b2c29;
-  border: 1px solid #3a3b37;
+  color: #ededf0;
+  background: #171719;
+  border: 1px solid #303034;
   border-radius: 9px;
   text-align: start;
 }
@@ -222,8 +223,8 @@
 }
 
 .offline {
-  background: #e3655b;
-  box-shadow: 0 0 0 4px rgba(227, 101, 91, 0.13);
+  background: #d45454;
+  box-shadow: 0 0 0 4px rgba(212, 84, 84, 0.14);
 }
 
 .threadRail {
@@ -231,7 +232,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  background: #eeece6;
+  background: #121214;
   border-inline-end: 1px solid var(--oc-line);
 }
 
@@ -279,7 +280,7 @@
 .railHeader button:hover,
 .previewHeader button:hover {
   color: var(--oc-ink);
-  background: rgba(23, 23, 23, 0.06);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .threadList {
@@ -301,14 +302,14 @@
   padding: 0 10px;
   min-height: 38px;
   color: var(--oc-muted);
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 8px;
 }
 
 .threadSearch:focus-within {
-  border-color: #d89b8c;
-  box-shadow: 0 0 0 3px rgba(240, 100, 69, 0.09);
+  border-color: #d94b44;
+  box-shadow: 0 0 0 3px rgba(234, 20, 19, 0.18);
 }
 
 .threadSearch input {
@@ -322,7 +323,7 @@
 }
 
 .threadSearch input::placeholder {
-  color: #8d8982;
+  color: #92929a;
 }
 
 .threadRow {
@@ -348,11 +349,11 @@
 .threadRow:hover,
 .threadRow.activeThread {
   background: var(--oc-white);
-  box-shadow: 0 1px 2px rgba(24, 22, 19, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 .threadRow.activeThread {
-  box-shadow: inset 0 0 0 1px rgba(240, 100, 69, 0.42), 0 1px 2px rgba(24, 22, 19, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(234, 20, 19, 0.72), 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 .threadOpen span,
@@ -374,7 +375,7 @@
 }
 
 .threadOpen em {
-  color: #8b8882;
+  color: #a6a6ad;
   font-size: 12px;
   font-style: normal;
 }
@@ -384,7 +385,7 @@
   width: 30px;
   height: 30px;
   place-items: center;
-  color: #8c8880;
+  color: #a1a1aa;
   background: transparent;
   border: 0;
   border-radius: 7px;
@@ -393,7 +394,7 @@
 
 .pinButton:hover,
 .pinButton[data-pinned="true"] {
-  color: var(--oc-accent);
+  color: var(--oc-accent-text);
   background: var(--oc-accent-soft);
   opacity: 1;
 }
@@ -402,9 +403,9 @@
   width: calc(100% - 8px);
   min-height: 36px;
   margin: 6px 4px 2px;
-  color: #6f4b41;
-  background: #fff8f5;
-  border: 1px solid #efcfc5;
+  color: #f08a84;
+  background: #18181b;
+  border: 1px solid #5a2b28;
   border-radius: 8px;
   font-size: 12px;
   font-weight: 700;
@@ -457,7 +458,7 @@
   justify-content: space-between;
   gap: 20px;
   padding: 12px 22px;
-  background: rgba(255, 254, 250, 0.93);
+  background: rgba(24, 24, 27, 0.96);
   border-bottom: 1px solid var(--oc-soft-line);
 }
 
@@ -477,7 +478,7 @@
 }
 
 .eyebrow {
-  color: var(--oc-accent);
+  color: var(--oc-accent-text);
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: 12px;
   font-weight: 750;
@@ -493,7 +494,7 @@
   min-height: 38px;
   padding: 7px 11px;
   color: var(--oc-ink);
-  background: #fff;
+  background: #222226;
   border: 1px solid var(--oc-line);
   border-radius: 8px;
   font-size: 13px;
@@ -528,9 +529,9 @@
   width: 58px;
   height: 58px;
   place-items: center;
-  color: var(--oc-accent);
+  color: var(--oc-accent-text);
   background: var(--oc-accent-soft);
-  border: 1px solid #f4c3b4;
+  border: 1px solid #6a302d;
   border-radius: 18px;
 }
 
@@ -564,14 +565,14 @@
   height: 34px;
   place-items: center;
   color: #fff;
-  background: #292a27;
+  background: #2a2a2f;
   border-radius: 9px;
   font-size: 12px;
   font-weight: 750;
 }
 
 .user .messageAvatar {
-  color: #6c2d1f;
+  color: #ff8b84;
   background: var(--oc-accent-soft);
 }
 
@@ -603,7 +604,7 @@
   unicode-bidi: plaintext;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  color: #34332f;
+  color: #e4e4e7;
   font-size: 14px;
   line-height: 1.67;
 }
@@ -612,7 +613,7 @@
   width: fit-content;
   max-width: 100%;
   padding: 10px 13px;
-  background: #f3f0e9;
+  background: #222226;
   border: 1px solid var(--oc-soft-line);
   border-radius: 4px 14px 14px;
 }
@@ -621,8 +622,8 @@
 .tool .messageText,
 .runCard {
   padding: 10px 12px;
-  color: #5f5c56;
-  background: #f4f2ed;
+  color: #c4c4ca;
+  background: #1f1f23;
   border: 1px solid var(--oc-soft-line);
   border-radius: 8px;
   font-family: ui-monospace, "Cascadia Code", monospace;
@@ -648,16 +649,16 @@
 .composer {
   width: min(calc(100% - 36px), 820px);
   margin: 0 auto 22px;
-  background: #fff;
-  border: 1px solid #cbc7be;
+  background: #1b1b1f;
+  border: 1px solid #3e3e44;
   border-radius: 14px;
-  box-shadow: 0 9px 28px rgba(39, 34, 27, 0.11);
+  box-shadow: 0 9px 28px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
 
 .composer:focus-within {
-  border-color: #aaa69d;
-  box-shadow: 0 0 0 3px rgba(240, 100, 69, 0.11), 0 9px 28px rgba(39, 34, 27, 0.11);
+  border-color: #b5453f;
+  box-shadow: 0 0 0 3px rgba(234, 20, 19, 0.18), 0 9px 28px rgba(0, 0, 0, 0.32);
 }
 
 .composer textarea {
@@ -677,7 +678,7 @@
 }
 
 .composer textarea::placeholder {
-  color: #97938b;
+  color: #92929a;
 }
 
 .composerBar {
@@ -705,8 +706,8 @@
   align-items: center;
   gap: 7px;
   padding: 7px 11px;
-  color: #fff;
-  background: var(--oc-ink);
+  color: #111113;
+  background: #f0f0f2;
   border: 0;
   border-radius: 8px;
   font-size: 12px;
@@ -719,16 +720,16 @@
 }
 
 .stopButton {
-  color: #7f2e25;
+  color: #ff9b95;
   background: var(--oc-accent-soft);
 }
 
 .error {
   margin: 10px 12px 0;
   padding: 9px 10px;
-  color: #842c24;
-  background: #fff0ed;
-  border: 1px solid #f1c1b9;
+  color: #ffb0aa;
+  background: #341819;
+  border: 1px solid #6e2c2d;
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.45;
@@ -764,7 +765,7 @@
 }
 
 .pageHeading > svg {
-  color: var(--oc-accent);
+  color: var(--oc-accent-text);
 }
 
 .groupGrid {
@@ -782,7 +783,7 @@
   min-height: 76px;
   padding: 12px;
   color: var(--oc-ink);
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
   text-align: start;
@@ -790,8 +791,8 @@
 
 .groupGrid button:hover,
 .groupGrid .activeGroup {
-  border-color: #e59b88;
-  box-shadow: 0 8px 20px rgba(47, 38, 30, 0.08);
+  border-color: #8c3732;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
 .agentAvatar {
@@ -799,7 +800,7 @@
   width: 42px;
   height: 42px;
   place-items: center;
-  color: #823522;
+  color: #ff8f88;
   background: var(--oc-accent-soft);
   border-radius: 12px;
   font-size: 12px;
@@ -836,7 +837,7 @@
   align-content: start;
   min-height: 150px;
   padding: 16px;
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
 }
@@ -878,15 +879,15 @@
   gap: 13px;
   margin-top: 24px;
   padding: 15px 16px;
-  color: #3f3d38;
-  background: #fff;
+  color: #d4d4d8;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
 }
 
 .operatorNotice > svg,
 .operatorIcon {
-  color: var(--oc-accent);
+  color: var(--oc-accent-text);
 }
 
 .operatorNotice > div,
@@ -927,7 +928,7 @@
   gap: 11px;
   min-height: 108px;
   padding: 14px;
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
 }
@@ -938,7 +939,7 @@
   height: 38px;
   place-items: center;
   background: var(--oc-accent-soft);
-  border: 1px solid #e7b8aa;
+  border: 1px solid #6a302d;
   border-radius: 10px;
 }
 
@@ -949,9 +950,9 @@
   align-items: center;
   justify-content: center;
   padding: 4px 8px;
-  color: #655f58;
-  background: #f0eee8;
-  border: 1px solid #d6d2c9;
+  color: #c4c4ca;
+  background: #252529;
+  border: 1px solid #424248;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -959,21 +960,21 @@
 }
 
 .supported {
-  color: #245c3a;
-  background: #eaf5ee;
-  border-color: #bedac8;
+  color: #9addb2;
+  background: #14251a;
+  border-color: #315e40;
 }
 
 .degradedStatus {
-  color: #7e3528;
-  background: #fbece8;
-  border-color: #e8c1b7;
+  color: #ffaaa5;
+  background: #341819;
+  border-color: #6e2c2d;
 }
 
 .activityLedger {
   display: grid;
   margin-top: 20px;
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
   overflow: hidden;
@@ -1037,7 +1038,7 @@
 
 .settingsStack > section {
   padding: 14px 15px;
-  background: #fff;
+  background: #1b1b1f;
   border: 1px solid var(--oc-line);
   border-radius: 11px;
 }
@@ -1050,7 +1051,7 @@
 }
 
 .settingsHeading > svg {
-  color: #403e39;
+  color: #d4d4d8;
 }
 
 .settingsStack dl {
@@ -1114,7 +1115,7 @@
 
 .bucketList {
   padding: 10px;
-  background: #f0eee8;
+  background: #111113;
   border-inline-end: 1px solid var(--oc-line);
 }
 
@@ -1137,8 +1138,8 @@
 .bucketList .activeBucket,
 .fileList > button:hover,
 .fileList .activeFile {
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(24, 22, 19, 0.08);
+  background: #232327;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
 }
 
 .bucketList span,
@@ -1174,7 +1175,7 @@
 
 .fileList {
   padding: 10px;
-  background: #fff;
+  background: #18181b;
 }
 
 .fileList > button {
@@ -1186,7 +1187,7 @@
 .previewPane {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  background: #f8f7f3;
+  background: #121214;
   border-inline-start: 1px solid var(--oc-line);
   overflow: hidden;
 }
@@ -1226,7 +1227,7 @@
   margin: 0;
   padding: 16px;
   overflow: auto;
-  color: #292824;
+  color: #e4e4e7;
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: 12px;
   line-height: 1.65;
@@ -1324,7 +1325,7 @@
     padding: 8px 12px;
     color: #fff;
     background: var(--oc-side);
-    border-bottom: 1px solid #3b3c38;
+    border-bottom: 1px solid #242424;
   }
 
   .mobileHeader > button {
@@ -1332,7 +1333,7 @@
     width: 38px;
     height: 38px;
     place-items: center;
-    color: #e9e8e3;
+    color: #f4f4f5;
     background: transparent;
     border: 0;
     border-radius: 8px;
@@ -1368,7 +1369,7 @@
     inset-inline-start: auto;
     inset-inline-end: 0;
     transform: translateX(105%);
-    background: #f0eee8;
+    background: #0d0d0d;
     box-shadow: -20px 0 50px rgba(0, 0, 0, 0.2);
   }
 
@@ -1383,7 +1384,7 @@
   }
 
   .navigation .mobileClose {
-    color: #c9c8c2;
+    color: #d4d4d8;
   }
 
   .backdrop {
@@ -1394,7 +1395,7 @@
     width: 100%;
     height: 100%;
     padding: 0;
-    background: rgba(13, 13, 12, 0.54);
+    background: rgba(0, 0, 0, 0.64);
     border: 0;
   }
 

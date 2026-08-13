@@ -51,7 +51,7 @@ const PANE_LABELS: Record<ClaudePane, string> = {
   terminal: "Terminal",
   browser: "Browser",
   files: "Files",
-  tasks: "Tasks",
+  tasks: "Runs",
   artifacts: "Artifacts",
 };
 
@@ -89,8 +89,8 @@ function StatusSurface({
 }) {
   if (state === "ready") return null;
   const icon = state === "loading" ? <Loader2 className={styles.spin} size={18} /> : state === "error" ? <AlertTriangle size={18} /> : state === "offline" ? <Archive size={18} /> : <Folder size={18} />;
-  const title = state === "loading" ? "Loading Claude data" : state === "error" ? "Claude data could not be loaded" : state === "offline" ? "Agent OS is offline" : "Claude is ready for its first task";
-  const detail = state === "error" ? (error || "The local API returned an error.") : state === "offline" ? "Reconnect to this local Agent OS server, then retry." : state === "empty" ? "Create a task to start a native Claude Code session." : "Reading native projects and sessions…";
+  const title = state === "loading" ? "Loading Claude data" : state === "error" ? "Claude data could not be loaded" : state === "offline" ? "Agent OS is offline" : "Claude is ready for its first conversation";
+  const detail = state === "error" ? (error || "The local API returned an error.") : state === "offline" ? "Reconnect to this local Agent OS server, then retry." : state === "empty" ? "Start a conversation to create a native Claude Code session." : "Reading native projects and sessions…";
   return (
     <div className={styles.statusSurface} role={state === "error" ? "alert" : "status"}>
       <span className={styles.statusIcon}>{icon}</span>
@@ -264,7 +264,7 @@ export default function ClaudeDesktop() {
       <header className={styles.mobileHeader}>
         <button ref={drawerTriggerRef} type="button" aria-label="Open sessions" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}><Menu size={20} /></button>
         <div className={styles.mobileIdentity}><span className={styles.claudeMark}>AI</span><strong>Claude Code</strong></div>
-        <button type="button" aria-label="New Claude task" onClick={() => data.createSession()}><Plus size={20} /></button>
+        <button type="button" aria-label="New Claude conversation" onClick={() => data.createSession()}><Plus size={20} /></button>
       </header>
 
       {drawerOpen && <button type="button" aria-label="Close sessions" className={styles.backdrop} onClick={() => setDrawerOpen(false)} />}
@@ -274,11 +274,11 @@ export default function ClaudeDesktop() {
           <button type="button" className={styles.iconButton} aria-label="Close sessions" onClick={() => setDrawerOpen(false)}><X size={18} /></button>
         </div>
 
-        <button type="button" className={styles.newTask} onClick={() => data.createSession()}><Plus size={17} />New task</button>
+        <button type="button" className={styles.newTask} onClick={() => data.createSession()}><Plus size={17} />New conversation</button>
 
         <nav className={styles.primaryNav} aria-label="Claude workspace">
           <button type="button" data-active={view === "code"} onClick={() => chooseView("code")}><MessageSquare size={17} />Code</button>
-          <button type="button" data-active={view === "tasks"} onClick={() => chooseView("tasks")}><ListTodo size={17} />Tasks<span>{data.runs.filter((run) => run.status === "running").length}</span></button>
+          <button type="button" data-active={view === "tasks"} onClick={() => chooseView("tasks")}><ListTodo size={17} />Runs<span>{data.runs.filter((run) => run.status === "running").length}</span></button>
           <button type="button" data-active={view === "files"} onClick={() => chooseView("files")}><Files size={17} />Files</button>
           <button type="button" data-active={view === "artifacts"} onClick={() => chooseView("artifacts")}><Package size={17} />Artifacts</button>
         </nav>
@@ -293,7 +293,7 @@ export default function ClaudeDesktop() {
           </select>
         </div>
 
-        <div className={styles.sessionHeading}><span>Projects</span><span>{filteredTotal} / {data.totalSessions}</span></div>
+        <div className={styles.sessionHeading}><span>Projects · sessions</span><span>{filteredTotal} / {data.totalSessions}</span></div>
         <div className={styles.sessionList}>
           <StatusSurface state={data.historyState} error={data.historyError} onRetry={() => void data.loadHistory()} />
           {filteredGroups.map((group) => {
@@ -304,7 +304,7 @@ export default function ClaudeDesktop() {
                   const next = new Set(current);
                   if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
                   return next;
-                })}>
+                })} aria-expanded={expanded} aria-label={`${group.label}: ${group.sessions.length} sessions`}>
                   {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                   <Folder size={15} />
                   <span title={group.root}>{group.label}</span>
@@ -343,7 +343,7 @@ export default function ClaudeDesktop() {
           <div className={styles.contextTitle}>
             <span>{data.activeGroup?.label ?? data.workspaceProject?.name ?? "Claude Code"}</span>
             <ChevronRight size={14} />
-            <strong>{data.activeSession?.name ?? (view === "code" ? "New task" : PANE_LABELS[(view === "files" ? "files" : view === "tasks" ? "tasks" : "artifacts")])}</strong>
+            <strong>{data.activeSession?.name ?? (view === "code" ? "New conversation" : PANE_LABELS[(view === "files" ? "files" : view === "tasks" ? "tasks" : "artifacts")])}</strong>
           </div>
           <div className={styles.contextBadges}>
             <span title="Model is controlled by the Claude CLI"><Bot size={14} />{data.model || "Claude CLI model"}</span>
@@ -364,8 +364,8 @@ export default function ClaudeDesktop() {
               {!data.activeSession && <div className={styles.welcome}>
                 <span className={styles.largeMark}>AI</span>
                 <h1>What are we building?</h1>
-                <p>Choose a native session, or start a task in one of your Claude projects.</p>
-                <button type="button" onClick={() => data.createSession()}><Plus size={17} />Start a Claude Code task</button>
+                <p>Choose a native session, or start a conversation in one of your Claude projects.</p>
+                <button type="button" onClick={() => data.createSession()}><Plus size={17} />Start a Claude Code conversation</button>
               </div>}
               {data.activeSession && <StatusSurface state={data.transcriptState} error={data.transcriptError} />}
               {data.activeSession && transcriptMode === "conversation" && <div className={styles.turns}>
@@ -390,7 +390,7 @@ export default function ClaudeDesktop() {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={composerKeyDown}
-                  placeholder={!data.activeSession ? "Start or select a task first" : data.activeSession.resumable === false ? "This native transcript is read only" : "Ask Claude to work in this project…"}
+                  placeholder={!data.activeSession ? "Start or select a conversation first" : data.activeSession.resumable === false ? "This native transcript is read only" : "Ask Claude to work in this project…"}
                   disabled={!data.activeSession || data.activeSession.resumable === false || data.sending}
                   rows={2}
                   dir="auto"
@@ -408,9 +408,9 @@ export default function ClaudeDesktop() {
           <div className={styles.workspaceLanding}>
             <div>
               {view === "tasks" ? <ListTodo size={24} /> : view === "files" ? <Files size={24} /> : <Package size={24} />}
-              <h1>{view === "tasks" ? "Tasks and subagents" : view === "files" ? "Project files" : "Artifacts"}</h1>
+              <h1>{view === "tasks" ? "Runs and subagents" : view === "files" ? "Project files" : "Artifacts"}</h1>
               <p>{view === "tasks" ? "Real Ultracode runs captured by Claude Code." : view === "files" ? "Files from Claude scratch projects, rendered through the local workspace API." : "Publishable and published builds reported by Claude’s artifact service."}</p>
-              <button type="button" onClick={() => setPane(view === "tasks" ? "tasks" : view === "files" ? "files" : "artifacts")}><PanelRightClose size={17} />Open {view} pane</button>
+              <button type="button" onClick={() => setPane(view === "tasks" ? "tasks" : view === "files" ? "files" : "artifacts")}><PanelRightClose size={17} />Open {PANE_LABELS[view === "tasks" ? "tasks" : view === "files" ? "files" : "artifacts"]} pane</button>
             </div>
           </div>
         )}

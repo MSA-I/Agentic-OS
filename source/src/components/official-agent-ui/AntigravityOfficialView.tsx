@@ -432,14 +432,14 @@ export default function AntigravityOfficialView() {
         </div>
         <label className={styles.projectSearch}>
           <Search size={15} aria-hidden="true" />
-          <span className={styles.srOnly}>Search projects and conversations</span>
-          <input value={projectQuery} onChange={(event) => { setProjectQuery(event.target.value); setProjectLimit(PROJECT_PAGE_SIZE); }} placeholder="Search name, path, type or activity" aria-label="Search Antigravity projects and conversations" />
+          <span className={styles.srOnly}>Search projects and conversation sessions</span>
+          <input value={projectQuery} onChange={(event) => { setProjectQuery(event.target.value); setProjectLimit(PROJECT_PAGE_SIZE); }} placeholder="Search name, path, type or activity" aria-label="Search Antigravity projects and conversation sessions" />
         </label>
         <div className={styles.projectList}>
           {projectList("scratch", "Projects")}
-          {projectList("brain", "Conversations")}
+          {projectList("brain", "Conversation sessions")}
           {!loadingProjects && projects.length === 0 && <p className={styles.emptyPanel}>No Antigravity projects found yet.</p>}
-          {!loadingProjects && projects.length > 0 && filteredProjects.length === 0 && <p className={styles.emptyPanel}>No projects or conversations match “{projectQuery}”.</p>}
+          {!loadingProjects && projects.length > 0 && filteredProjects.length === 0 && <p className={styles.emptyPanel}>No projects or conversation sessions match “{projectQuery}”.</p>}
           {visibleProjects.length < filteredProjects.length && <button type="button" className={styles.loadMore} onClick={() => setProjectLimit((current) => current + PROJECT_PAGE_SIZE)}>Load {Math.min(PROJECT_PAGE_SIZE, filteredProjects.length - visibleProjects.length)} more</button>}
         </div>
       </aside>

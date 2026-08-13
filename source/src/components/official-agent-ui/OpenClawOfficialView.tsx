@@ -522,8 +522,8 @@ export default function OpenClawOfficialView() {
           </section>
           <section>
             <p>Workspace</p>
-            <button type="button" className={page === "threads" ? styles.activeNav : ""} onClick={() => choosePage("threads")}><MessageCircle size={17} /> Threads <span>{sessions.length}</span></button>
-            <button type="button" className={page === "groups" ? styles.activeNav : ""} onClick={() => choosePage("groups")}><Users size={17} /> Groups <span>{agents.length}</span></button>
+            <button type="button" className={page === "threads" ? styles.activeNav : ""} onClick={() => choosePage("threads")} aria-label="Conversations for selected actor"><MessageCircle size={17} /> Conversations <span>{sessions.length}</span></button>
+            <button type="button" className={page === "groups" ? styles.activeNav : ""} onClick={() => choosePage("groups")} aria-label="Actors"><Users size={17} /> Actors <span>{agents.length}</span></button>
           </section>
           <section>
             <p>Operate</p>
@@ -540,20 +540,20 @@ export default function OpenClawOfficialView() {
         </button>
       </aside>
 
-      <aside ref={threadsRef} tabIndex={-1} className={`${styles.threadRail} ${threadsOpen ? styles.sheetOpen : ""}`} aria-label="OpenClaw threads">
+      <aside ref={threadsRef} tabIndex={-1} className={`${styles.threadRail} ${threadsOpen ? styles.sheetOpen : ""}`} aria-label="OpenClaw actor conversations">
         <div className={styles.railHeader}>
-          <div><strong>Threads</strong><span>{activeAgent}</span></div>
-          <button type="button" onClick={() => void refreshHistory()} aria-label="Refresh threads"><RefreshCw size={17} className={historyLoading ? styles.spinning : ""} /></button>
-          <button type="button" className={styles.mobileClose} onClick={closeMobilePanels} aria-label="Close threads"><X size={18} /></button>
+          <div><strong>Conversations</strong><span>{activeAgent}</span></div>
+          <button type="button" onClick={() => void refreshHistory()} aria-label="Refresh conversations"><RefreshCw size={17} className={historyLoading ? styles.spinning : ""} /></button>
+          <button type="button" className={styles.mobileClose} onClick={closeMobilePanels} aria-label="Close conversations"><X size={18} /></button>
         </div>
         <label className={styles.threadSearch}>
           <Search size={15} aria-hidden="true" />
-          <span className={styles.srOnly}>Search threads</span>
-          <input value={threadQuery} onChange={(event) => { setThreadQuery(event.target.value); setThreadLimit(THREAD_PAGE_SIZE); }} placeholder="Search title, preview, agent or time" aria-label="Search OpenClaw threads" />
+          <span className={styles.srOnly}>Search conversations</span>
+          <input value={threadQuery} onChange={(event) => { setThreadQuery(event.target.value); setThreadLimit(THREAD_PAGE_SIZE); }} placeholder="Search title, preview, actor or time" aria-label="Search OpenClaw conversations" />
         </label>
         <div className={styles.threadList}>
-          {historyLoading && sessions.length === 0 && <p className={styles.emptyRail}>Loading threads…</p>}
-          {!historyLoading && sessions.length === 0 && <p className={styles.emptyRail}>No local threads for this agent.</p>}
+          {historyLoading && sessions.length === 0 && <p className={styles.emptyRail}>Loading conversations…</p>}
+          {!historyLoading && sessions.length === 0 && <p className={styles.emptyRail}>No local conversations for this actor.</p>}
           {visibleSessions.map(({ session, group }) => (
             <article key={`${group.id}-${session.path}`} className={`${styles.threadRow} ${activeSession?.path && activeSession.path === session.path ? styles.activeThread : ""}`}>
               <button type="button" className={styles.threadOpen} onClick={() => void openThread(session, group)}>
@@ -567,7 +567,7 @@ export default function OpenClawOfficialView() {
             </article>
           ))}
           {visibleSessions.length < sessions.length && <button type="button" className={styles.loadMore} onClick={() => setThreadLimit((current) => current + THREAD_PAGE_SIZE)}>Load {Math.min(THREAD_PAGE_SIZE, sessions.length - visibleSessions.length)} more</button>}
-          {!historyLoading && sessions.length === 0 && threadQuery && <p className={styles.emptyRail}>No threads match “{threadQuery}”.</p>}
+          {!historyLoading && sessions.length === 0 && threadQuery && <p className={styles.emptyRail}>No conversations match “{threadQuery}”.</p>}
         </div>
       </aside>
 
@@ -579,7 +579,7 @@ export default function OpenClawOfficialView() {
                 <span className={styles.eyebrow}>{activeAgent}</span>
                 <h1 dir="auto">{activeSession?.name ?? "New thread"}</h1>
               </div>
-              <button type="button" className={styles.threadToggle} onClick={() => setThreadsOpen(true)}><MessageCircle size={17} /> Threads</button>
+              <button type="button" className={styles.threadToggle} onClick={() => setThreadsOpen(true)} aria-label="Open conversations"><MessageCircle size={17} /> Conversations</button>
             </div>
 
             <div className={styles.messages} aria-live="polite">
@@ -620,15 +620,15 @@ export default function OpenClawOfficialView() {
         ) : null}
 
         {page === "groups" && (
-          <section className={styles.contentPage}>
-            <div className={styles.pageHeading}><div><span className={styles.eyebrow}>OpenClaw workspace</span><h1>Groups</h1><p>Each local agent keeps its own thread list and workspace context.</p></div><Users size={28} /></div>
+          <section className={styles.contentPage} tabIndex={0}>
+            <div className={styles.pageHeading}><div><span className={styles.eyebrow}>OpenClaw workspace</span><h1>Actors</h1><p>Each local actor keeps its own conversation list and workspace context.</p></div><Users size={28} /></div>
             <div className={styles.groupGrid}>
               {agents.map((agent) => {
                 const group = groups.find((item) => (item.scope ?? item.label) === agent);
                 const count = group?.sessions.length ?? 0;
                 return <button type="button" key={agent} className={activeAgent === agent ? styles.activeGroup : ""} onClick={() => { setActiveAgent(agent); setPage("chat"); setActiveSession(null); setMessages([]); writeOpenClawUrl({ view: "chat", actor: agent, session: null }); }}>
                   <span className={styles.agentAvatar}>{agent.slice(0, 2).toUpperCase()}</span>
-                  <span><strong>{agent}</strong><small>{count} thread{count === 1 ? "" : "s"}</small></span>
+                  <span><strong>{agent}</strong><small>{count} conversation{count === 1 ? "" : "s"}</small></span>
                   <ChevronRight size={18} />
                 </button>;
               })}
@@ -637,7 +637,7 @@ export default function OpenClawOfficialView() {
         )}
 
         {page === "gateway" && (
-          <section className={styles.contentPage}>
+          <section className={styles.contentPage} tabIndex={0}>
             <div className={styles.pageHeading}><div><span className={styles.eyebrow}>Local runtime</span><h1>Gateway</h1><p>Live health from the installed OpenClaw gateway.</p></div><button type="button" className={styles.secondaryButton} onClick={() => void refreshVitals()}><RefreshCw size={16} /> Refresh</button></div>
             <div className={styles.metricGrid}>
               <article><span>Status</span><strong>{vitals?.ok ? "Online" : "Unavailable"}</strong><small>{vitals?.busy ? "Busy" : vitals?.degraded ? "Degraded" : vitals?.gateway ?? "Checking"}</small></article>
@@ -649,7 +649,7 @@ export default function OpenClawOfficialView() {
         )}
 
         {page === "automations" && (
-          <section className={styles.contentPage}>
+          <section className={styles.contentPage} tabIndex={0}>
             <div className={styles.pageHeading}><div><span className={styles.eyebrow}>OpenClaw scheduler</span><h1>Automations</h1><p>Scheduled work belongs here when the local gateway exposes a task ledger.</p></div><Clock size={28} /></div>
             <div className={styles.operatorNotice}><ListTodo size={20} /><div><strong>No automation bridge detected</strong><p>Agentic OS will not invent schedules or mutate OpenClaw configuration. Native task discovery and controls stay unavailable until a real backend exists.</p></div>{unsupported("Automation task ledger")}</div>
             <div className={styles.operatorGrid}>
@@ -661,7 +661,7 @@ export default function OpenClawOfficialView() {
         )}
 
         {page === "activity" && (
-          <section className={styles.contentPage}>
+          <section className={styles.contentPage} tabIndex={0}>
             <div className={styles.pageHeading}><div><span className={styles.eyebrow}>Local evidence</span><h1>Activity</h1><p>Read-only activity derived from native OpenClaw threads already visible to this app.</p></div><Activity size={28} /></div>
             <div className={styles.activityLedger}>
               {sessions.slice(0, 24).map(({ session, group }) => <article key={`${group.id}-${session.path}`}><span className={styles.ledgerDot} /><div><strong dir="auto">{session.name}</strong><p dir="auto">{session.preview || `Thread in ${group.label}`}</p></div><time>{timeAgo(session.mtime)}</time></article>)}
@@ -671,7 +671,7 @@ export default function OpenClawOfficialView() {
         )}
 
         {page === "extensions" && (
-          <section className={styles.contentPage}>
+          <section className={styles.contentPage} tabIndex={0}>
             <div className={styles.pageHeading}><div><span className={styles.eyebrow}>Runtime capabilities</span><h1>Extensions</h1><p>Provider-native inventory for OpenClaw integrations. Missing bridges are shown honestly.</p></div><Package size={28} /></div>
             <div className={styles.operatorGrid}>
               <article><div className={styles.operatorIcon}><Package size={18} /></div><div><strong>Plugins</strong><p>Installed extension packages and runtime state.</p></div>{unsupported("Plugins")}</article>
@@ -683,7 +683,7 @@ export default function OpenClawOfficialView() {
         )}
 
         {page === "settings" && (
-          <section className={styles.contentPage}>
+          <section className={styles.contentPage} tabIndex={0}>
             <div className={styles.pageHeading}><div><span className={styles.eyebrow}>Operator settings</span><h1>Settings</h1><p>Connection and policy state from the local runtime. Unsupported controls remain inactive.</p></div><Settings size={28} /></div>
             <div className={styles.settingsStack}>
               <section><div className={styles.settingsHeading}><ServerCog size={19} /><div><strong>Connection</strong><p>Local gateway status and active actor inventory.</p></div><span className={`${styles.supported} ${!vitals?.ok ? styles.degradedStatus : ""}`}>{vitals?.ok ? "Connected" : "Unavailable"}</span></div><dl><div><dt>Gateway</dt><dd>{vitals?.gateway ?? "Not reported"}</dd></div><div><dt>Actors</dt><dd>{agents.join(", ") || "None"}</dd></div></dl></section>

@@ -13,7 +13,7 @@
   grid-template-columns: 274px minmax(0, 1fr) 54px;
   grid-template-rows: minmax(0, 1fr) 30px;
   width: 100%;
-  height: 100dvh;
+  height: 100%;
   min-width: 0;
   overflow: hidden;
   color: var(--hm-text);
@@ -243,7 +243,7 @@
 
 .historyTools {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 71px;
+  grid-template-columns: minmax(0, 1fr) 90px;
   gap: 6px;
   padding: 11px 9px 7px;
 }
@@ -396,12 +396,39 @@
   cursor: pointer;
 }
 
-.session > button:first-child > span {
+.sessionTitle {
   overflow: hidden;
   color: #d7dad1;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+
+.discordSource {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: #aeb5de;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.discordSource strong {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 1px solid #59659e;
+  border-radius: 4px;
+  color: #d2d8ff;
+  background: #252b4a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.discordSource span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session > button:first-child small {

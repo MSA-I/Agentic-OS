@@ -8,7 +8,30 @@ import { readSession as readCodexSession } from "@/lib/codexWorkspace";
 
 export type NativeHistoryAgent = "codex" | "claude" | "hermes" | "openclaw" | "antigravity";
 
-export interface NativeSessionRow { id: string; name: string; path: string; mtime: number; bytes: number; nativeId?: string; sessionKey?: string; resumable?: boolean; source?: "native" | "local"; pinned?: boolean; preview?: string; }
+export interface NativeSessionRow {
+  id: string;
+  name: string;
+  path: string;
+  mtime: number;
+  bytes: number;
+  nativeId?: string;
+  sessionKey?: string;
+  resumable?: boolean;
+  /** Storage provenance. Keep this native/local contract stable for resume. */
+  source?: "native" | "local";
+  /** Runtime/channel provenance, kept separate from storage provenance. */
+  channelSource?: string;
+  platform?: string;
+  channel?: string;
+  chatType?: string;
+  chatId?: string;
+  threadId?: string;
+  /** Hidden native ids/keys represented by this canonical conversation row. */
+  aliases?: string[];
+  lineageRootId?: string;
+  pinned?: boolean;
+  preview?: string;
+}
 export interface NativeHistoryGroup { id: string; label: string; root: string; scope?: string; sessions: NativeSessionRow[]; }
 export interface NativeTranscriptTurn { role: "user" | "assistant" | "system" | "tool" | "reasoning"; text: string; }
 export interface NativeHistoryDetail {
@@ -19,6 +42,14 @@ export interface NativeHistoryDetail {
   truncated: boolean;
   cwd?: string;
   model?: string | null;
+  source?: "native" | "local";
+  channelSource?: string;
+  platform?: string;
+  channel?: string;
+  chatType?: string;
+  chatId?: string;
+  threadId?: string;
+  sessionKey?: string;
   toolCalls?: unknown[];
   referencedFiles?: string[];
   cwdFiles?: unknown[];
@@ -241,6 +272,208 @@ function timeMs(value: unknown): number {
   return n > 0 && n < 10_000_000_000 ? n * 1000 : n;
 }
 
+function canonicalFsPath(value: string): string {
+  return value
+    .replace(/^\\\\\?\\/, "")
+    .replace(/[\\/]+$/, "")
+    .toLocaleLowerCase();
+}
+
+function isPathInside(candidate: string, root: string): boolean {
+  const normalizedCandidate = canonicalFsPath(candidate);
+  const normalizedRoot = canonicalFsPath(root);
+  return Boolean(normalizedCandidate && normalizedRoot)
+    && (normalizedCandidate === normalizedRoot
+      || normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)
+      || normalizedCandidate.startsWith(`${normalizedRoot}/`));
+}
+
+function canonicalizeSessionGroups(
+  agent: NativeHistoryAgent,
+  groups: NativeHistoryGroup[],
+): NativeHistoryGroup[] {
+  const actorScoped = agent === "hermes" || agent === "openclaw";
+  const winners = new Map<string, { groupId: string; session: NativeSessionRow }>();
+  for (const group of groups) {
+    for (const session of group.sessions) {
+      const nativeId = session.nativeId || session.id;
+      const identity = `${actorScoped ? group.scope ?? group.id : agent}:${nativeId}`;
+      const existing = winners.get(identity);
+      if (!existing || session.mtime > existing.session.mtime) {
+        session.aliases = [...new Set([...(existing?.session.aliases ?? []), ...(session.aliases ?? [])])];
+        winners.set(identity, { groupId: group.id, session });
+      } else {
+        existing.session.aliases = [...new Set([...(existing.session.aliases ?? []), ...(session.aliases ?? [])])];
+      }
+    }
+  }
+  return groups.map((group) => ({
+    ...group,
+    sessions: group.sessions
+      .filter((session) => {
+        const nativeId = session.nativeId || session.id;
+        const identity = `${actorScoped ? group.scope ?? group.id : agent}:${nativeId}`;
+        const winner = winners.get(identity);
+        return winner?.groupId === group.id && winner.session === session;
+      })
+      .sort((a, b) => b.mtime - a.mtime),
+  }));
+}
+
+interface HermesRoutingMetadata {
+  sessionId: string;
+  sessionKey: string;
+  platform: string;
+  chatType: string;
+  displayName: string;
+  chatName: string;
+  chatId: string;
+  threadId: string;
+}
+
+interface HermesRoutingIndex {
+  bySessionId: Map<string, HermesRoutingMetadata>;
+  bySessionKey: Map<string, HermesRoutingMetadata>;
+}
+
+function routingText(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+}
+
+async function hermesRoutingIndex(home: string): Promise<HermesRoutingIndex> {
+  const bySessionId = new Map<string, HermesRoutingMetadata>();
+  const bySessionKey = new Map<string, HermesRoutingMetadata>();
+  const localAppData = process.env.LOCALAPPDATA?.trim() || path.join(home, "AppData", "Local");
+  const sessionsFile = path.join(localAppData, "hermes", "sessions", "sessions.json");
+  let raw: unknown;
+  try { raw = JSON.parse(await readFile(sessionsFile, "utf8")); }
+  catch { return { bySessionId, bySessionKey }; }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { bySessionId, bySessionKey };
+
+  for (const [indexKey, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (indexKey === "_README" || !value || typeof value !== "object" || Array.isArray(value)) continue;
+    const row = value as Record<string, unknown>;
+    const origin = row.origin && typeof row.origin === "object" && !Array.isArray(row.origin)
+      ? row.origin as Record<string, unknown>
+      : {};
+    const sessionId = routingText(row.session_id);
+    const sessionKey = routingText(row.session_key) || indexKey;
+    const metadata: HermesRoutingMetadata = {
+      sessionId,
+      sessionKey,
+      platform: (routingText(row.platform) || routingText(origin.platform)).toLowerCase(),
+      chatType: (routingText(row.chat_type) || routingText(origin.chat_type)).toLowerCase(),
+      displayName: routingText(row.display_name),
+      chatName: routingText(origin.chat_name) || routingText(origin.user_name),
+      chatId: routingText(origin.chat_id) || routingText(row.chat_id),
+      threadId: routingText(origin.thread_id) || routingText(row.thread_id),
+    };
+    if (sessionId) bySessionId.set(sessionId, metadata);
+    if (sessionKey) bySessionKey.set(sessionKey, metadata);
+  }
+  return { bySessionId, bySessionKey };
+}
+
+function hermesRoutingFor(
+  index: HermesRoutingIndex,
+  sessionId: string,
+  sessionKey: string,
+): HermesRoutingMetadata | null {
+  return index.bySessionId.get(sessionId) ?? (sessionKey ? index.bySessionKey.get(sessionKey) : null) ?? null;
+}
+
+function hermesSessionSelect(dbFile: string): Record<string, unknown>[] {
+  const available = hermesSessionColumns(dbFile);
+  const optional = (column: string) => available.has(column) ? `s.${column}` : `NULL AS ${column}`;
+  const archivedWhere = available.has("archived") ? "COALESCE(s.archived, 0) = 0" : "1 = 1";
+  return sqliteAll(dbFile, `
+    SELECT s.id, s.title, s.cwd, s.started_at, s.ended_at, s.message_count, s.model,
+      ${optional("source")}, ${optional("session_key")}, ${optional("chat_id")},
+      ${optional("chat_type")}, ${optional("thread_id")}, ${optional("parent_session_id")},
+      ${optional("model_config")}, ${optional("end_reason")},
+      (SELECT content FROM messages m WHERE m.session_id = s.id AND m.role = 'user' AND m.active = 1 ORDER BY m.timestamp ASC LIMIT 1) AS preview
+    FROM sessions s WHERE ${archivedWhere}
+    ORDER BY COALESCE(s.ended_at, s.started_at) DESC
+  `);
+}
+
+function hermesSessionColumns(dbFile: string): Set<string> {
+  return new Set(sqliteAll(dbFile, "PRAGMA table_info(sessions)").map((row) => String(row.name)));
+}
+
+function hermesModelConfig(row: Record<string, unknown>): Record<string, unknown> {
+  if (row.model_config && typeof row.model_config === "object" && !Array.isArray(row.model_config)) {
+    return row.model_config as Record<string, unknown>;
+  }
+  if (typeof row.model_config !== "string" || !row.model_config.trim()) return {};
+  try {
+    const value = JSON.parse(row.model_config) as unknown;
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  } catch { return {}; }
+}
+
+function hermesActivity(row: Record<string, unknown>): number {
+  return timeMs(row.ended_at ?? row.started_at);
+}
+
+/** Mirror Hermes Desktop's native picker contract: roots + real branches. */
+function canonicalHermesSessions(rows: Record<string, unknown>[]): Array<{
+  row: Record<string, unknown>;
+  lineageRootId: string | null;
+  aliases: string[];
+}> {
+  const byId = new Map(rows.map((row) => [String(row.id), row]));
+  const children = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const parentId = routingText(row.parent_session_id);
+    if (!parentId) continue;
+    const siblings = children.get(parentId) ?? [];
+    siblings.push(row);
+    children.set(parentId, siblings);
+  }
+
+  const isBranch = (row: Record<string, unknown>) => {
+    const config = hermesModelConfig(row);
+    if (routingText(config._branched_from)) return true;
+    const parent = byId.get(routingText(row.parent_session_id));
+    return Boolean(parent
+      && routingText(parent.end_reason) === "branched"
+      && Number(row.started_at ?? 0) >= Number(parent.ended_at ?? Number.POSITIVE_INFINITY));
+  };
+  const isDelegate = (row: Record<string, unknown>) => Boolean(routingText(hermesModelConfig(row)._delegate_from));
+  const isConversation = (row: Record<string, unknown>) => {
+    const source = routingText(row.source).toLowerCase();
+    return Number(row.message_count ?? 0) > 0 && source !== "cron" && source !== "subagent" && source !== "tool";
+  };
+
+  const tipFor = (root: Record<string, unknown>) => {
+    let current = root;
+    const aliases = [String(root.id)];
+    const seen = new Set(aliases);
+    for (let depth = 0; depth < 100 && routingText(current.end_reason) === "compression"; depth++) {
+      const candidates = (children.get(String(current.id)) ?? [])
+        .filter((child) => !isBranch(child) && !isDelegate(child) && routingText(child.source) !== "tool")
+        .sort((left, right) => {
+          const rank = (row: Record<string, unknown>) => routingText(row.end_reason) === "compression" ? 0 : row.ended_at == null ? 1 : 2;
+          return rank(left) - rank(right)
+            || hermesActivity(right) - hermesActivity(left)
+            || Number(right.started_at ?? 0) - Number(left.started_at ?? 0)
+            || String(right.id).localeCompare(String(left.id));
+        });
+      const next = candidates[0];
+      if (!next || seen.has(String(next.id))) break;
+      current = next;
+      aliases.push(String(next.id));
+      seen.add(String(next.id));
+    }
+    return { row: current, lineageRootId: current === root ? null : String(root.id), aliases };
+  };
+
+  return rows
+    .filter((row) => (!routingText(row.parent_session_id) || isBranch(row)) && !isDelegate(row) && isConversation(row))
+    .map(tipFor);
+}
+
 async function hermesGroups(home: string): Promise<NativeHistoryGroup[]> {
   const root = hermesHome();
   const profiles: { name: string; dir: string; db: string }[] = [{ name: "default", dir: root, db: path.join(root, "state.db") }];
@@ -250,49 +483,106 @@ async function hermesGroups(home: string): Promise<NativeHistoryGroup[]> {
     }
   } catch { /* profiles optional */ }
 
+  const routingIndex = await hermesRoutingIndex(home);
   const groups = new Map<string, NativeHistoryGroup>();
   for (const profile of profiles) {
-    const sessions = sqliteAll(profile.db, `
-      SELECT s.id, s.title, s.cwd, s.started_at, s.ended_at, s.message_count, s.model,
-        (SELECT content FROM messages m WHERE m.session_id = s.id AND m.role = 'user' AND m.active = 1 ORDER BY m.timestamp ASC LIMIT 1) AS preview
-      FROM sessions s WHERE COALESCE(s.archived, 0) = 0
-      ORDER BY COALESCE(s.ended_at, s.started_at) DESC LIMIT 300
-    `);
-    for (const row of sessions) {
+    const candidates = canonicalHermesSessions(hermesSessionSelect(profile.db));
+    const conversations = new Map<string, (typeof candidates)[number] & { routing: HermesRoutingMetadata | null }>();
+    for (const candidate of candidates) {
+      const row = candidate.row;
+      const id = String(row.id);
+      const sessionKey = routingText(row.session_key);
+      // Messaging routing belongs to the default Hermes actor only. Never use
+      // the global sessions.json index to relabel another profile's session.
+      const routing = profile.name === "default" ? hermesRoutingFor(routingIndex, id, sessionKey) : null;
+      const platform = (routing?.platform || routingText(row.source)).toLowerCase();
+      const effectiveSessionKey = routing?.sessionKey || sessionKey;
+      // Gateway restarts and context resets can create many storage rows for
+      // one native channel. Only the routing ledger's exact session key is a
+      // safe conversation identity; unkeyed Discord rows may be distinct DMs,
+      // groups or threads and must remain separate.
+      const canonicalKey = effectiveSessionKey
+        ? `${platform || "session"}:${effectiveSessionKey}`
+        : id;
+      const existing = conversations.get(canonicalKey);
+      if (!existing || hermesActivity(row) > hermesActivity(existing.row)) {
+        conversations.set(canonicalKey, {
+          ...candidate,
+          aliases: [...new Set([...(existing?.aliases ?? []), ...candidate.aliases])],
+          routing,
+        });
+      } else {
+        existing.aliases = [...new Set([...existing.aliases, ...candidate.aliases])];
+      }
+    }
+
+    for (const candidate of conversations.values()) {
+      const row = candidate.row;
+      const id = String(row.id);
+      const sessionKey = routingText(row.session_key);
+      const routing = candidate.routing;
+      const nativeSource = routingText(row.source).toLowerCase();
+      const platform = (routing?.platform || nativeSource).toLowerCase();
+      const chatType = (routing?.chatType || routingText(row.chat_type)).toLowerCase();
+      const chatId = routing?.chatId || routingText(row.chat_id);
+      const threadId = routing?.threadId || routingText(row.thread_id);
+      const isDiscord = platform === "discord";
+      const channel = isDiscord ? (routing?.displayName || routing?.chatName || "history") : "";
       const cwd = typeof row.cwd === "string" && row.cwd ? row.cwd : "";
-      const groupId = `${profile.name}:${cwd || "no-project"}`;
+      const groupId = isDiscord
+        ? `${profile.name}:discord:${chatId || routing?.sessionKey || "history"}`
+        : `${profile.name}:${cwd || "no-project"}`;
       if (!groups.has(groupId)) groups.set(groupId, {
         id: groupId,
-        label: cwd ? `${profile.name} · ${path.basename(cwd)}` : profile.name,
+        label: isDiscord ? `Discord · ${channel}` : cwd ? `${profile.name} · ${path.basename(cwd)}` : profile.name,
         root: cwd || profile.dir,
         scope: profile.name,
         sessions: [],
       });
-      const id = String(row.id);
       const preview = typeof row.preview === "string" ? row.preview.replace(/\s+/g, " ").trim() : "";
       const title = typeof row.title === "string" && row.title.trim() ? row.title.trim() : preview || `Session ${id.slice(0, 8)}`;
       groups.get(groupId)!.sessions.push({
-        id, nativeId: id, name: title.slice(0, 120), path: `hermesdb:${profile.name}:${id}`,
+        id, nativeId: id, sessionKey: routing?.sessionKey || sessionKey || undefined,
+        name: title.slice(0, 120), path: `hermesdb:${profile.name}:${id}`,
         mtime: timeMs(row.ended_at ?? row.started_at), bytes: Number(row.message_count ?? 0),
-        resumable: true, source: "native", preview: preview.slice(0, 220),
+        resumable: true,
+        aliases: candidate.aliases.filter((alias) => alias !== id),
+        lineageRootId: candidate.lineageRootId ?? undefined,
+        source: "native",
+        channelSource: platform || undefined,
+        platform: platform || undefined,
+        channel: channel || undefined,
+        chatType: chatType || undefined,
+        chatId: chatId || undefined,
+        threadId: threadId || undefined,
+        preview: preview.slice(0, 220),
       });
     }
   }
-  return [...groups.values()].sort((a, b) => {
+  return [...groups.values()].map((group) => ({
+    ...group,
+    sessions: group.sessions.sort((a, b) => b.mtime - a.mtime),
+  })).sort((a, b) => {
     if (a.scope === "default" && b.scope !== "default") return -1;
     if (b.scope === "default" && a.scope !== "default") return 1;
     return (b.sessions[0]?.mtime ?? 0) - (a.sessions[0]?.mtime ?? 0);
   });
 }
 
-function hermesDetail(token: string) {
+async function hermesDetail(token: string) {
   const match = /^hermesdb:([^:]+):(.+)$/.exec(token);
   if (!match) return null;
   const [, profile, id] = match;
   if (!/^[A-Za-z0-9_.-]+$/.test(profile) || !/^[A-Za-z0-9_.:-]+$/.test(id)) return null;
   const root = hermesHome();
   const dbFile = profile === "default" ? path.join(root, "state.db") : path.join(root, "profiles", profile, "state.db");
-  const session = sqliteAll(dbFile, "SELECT id, cwd, model, message_count FROM sessions WHERE id = ? LIMIT 1", id)[0];
+  const available = hermesSessionColumns(dbFile);
+  const optional = (column: string) => available.has(column) ? column : `NULL AS ${column}`;
+  const session = sqliteAll(dbFile, `
+    SELECT id, cwd, model, message_count, ${optional("source")}, ${optional("session_key")},
+      ${optional("chat_id")}, ${optional("chat_type")}, ${optional("thread_id")}
+    FROM sessions WHERE id = ? LIMIT 1
+  `, id)[0];
   if (!session) return null;
   const rows = sqliteAll(dbFile, "SELECT role, content, reasoning FROM messages WHERE session_id = ? AND active = 1 ORDER BY timestamp ASC", id);
   const turns = rows.flatMap((row): NativeTranscriptTurn[] => {
@@ -301,7 +591,33 @@ function hermesDetail(token: string) {
     const text = String(row.content ?? row.reasoning ?? "").trim();
     return role && text ? [{ role, text: text.slice(0, 80_000) }] : [];
   });
-  return { path: token, turns, raw: "", bytes: Number(session.message_count ?? rows.length), truncated: false, cwd: String(session.cwd ?? ""), model: session.model ? String(session.model) : null };
+  const sessionKey = routingText(session.session_key);
+  const routing = profile === "default"
+    ? hermesRoutingFor(await hermesRoutingIndex(os.homedir()), id, sessionKey)
+    : null;
+  const nativeSource = routingText(session.source).toLowerCase();
+  const platform = (routing?.platform || nativeSource).toLowerCase();
+  const chatType = (routing?.chatType || routingText(session.chat_type)).toLowerCase();
+  const chatId = routing?.chatId || routingText(session.chat_id);
+  const threadId = routing?.threadId || routingText(session.thread_id);
+  const channel = platform === "discord" ? (routing?.displayName || routing?.chatName || "history") : "";
+  return {
+    path: token,
+    turns,
+    raw: "",
+    bytes: Number(session.message_count ?? rows.length),
+    truncated: false,
+    cwd: String(session.cwd ?? ""),
+    model: session.model ? String(session.model) : null,
+    source: "native" as const,
+    channelSource: platform || undefined,
+    platform: platform || undefined,
+    channel: channel || undefined,
+    chatType: chatType || undefined,
+    chatId: chatId || undefined,
+    threadId: threadId || undefined,
+    sessionKey: routing?.sessionKey || sessionKey || undefined,
+  };
 }
 
 async function openClawGroups(home: string): Promise<NativeHistoryGroup[]> {
@@ -315,9 +631,10 @@ async function openClawGroups(home: string): Promise<NativeHistoryGroup[]> {
     const indexFile = path.join(agentsRoot, agent.name, "sessions", "sessions.json");
     let index: Record<string, Record<string, unknown>> = {};
     try { index = JSON.parse(await readFile(indexFile, "utf8")); } catch { /* empty agent */ }
-    const sessions: NativeSessionRow[] = [];
+    const bySessionId = new Map<string, NativeSessionRow>();
     let workspace = path.join(home, ".openclaw", "workspace");
     for (const [sessionKey, value] of Object.entries(index)) {
+      if (/(^|:)agent-os-(?:e2e-)?[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(sessionKey)) continue;
       const sessionId = String(value.sessionId ?? "");
       const sessionFile = typeof value.sessionFile === "string" ? value.sessionFile : path.join(agentsRoot, agent.name, "sessions", `${sessionId}.jsonl`);
       if (!sessionId || !existsSync(sessionFile)) continue;
@@ -331,13 +648,21 @@ async function openClawGroups(home: string): Promise<NativeHistoryGroup[]> {
         for (const line of data.text.split(/\r?\n/)) { try { collectTurns(JSON.parse(line), turns); } catch { /* jsonl */ } }
         preview = turns.find((turn) => turn.role === "user")?.text.replace(/\s+/g, " ").slice(0, 180) ?? "";
       } catch { /* transcript optional */ }
-      sessions.push({
+      const session: NativeSessionRow = {
         id: sessionId, nativeId: sessionId, sessionKey, path: sessionFile,
         name: preview || sessionKey.split(":").pop() || `Thread ${sessionId.slice(0, 8)}`,
         mtime: Number(value.updatedAt ?? value.lastActivityAt ?? s?.mtimeMs ?? 0), bytes: s?.size ?? 0,
         resumable: true, source: "native", preview,
-      });
+      };
+      const previous = bySessionId.get(sessionId);
+      if (!previous || session.mtime > previous.mtime) {
+        session.aliases = previous ? [previous.sessionKey ?? previous.id, ...(previous.aliases ?? [])] : [];
+        bySessionId.set(sessionId, session);
+      } else {
+        previous.aliases = [...new Set([...(previous.aliases ?? []), sessionKey])];
+      }
     }
+    const sessions = [...bySessionId.values()].sort((a, b) => b.mtime - a.mtime);
     groups.push({ id: `agent:${agent.name}`, label: agent.name, root: workspace, scope: agent.name, sessions: sessions.sort((a, b) => b.mtime - a.mtime) });
   }
   return groups.sort((a, b) => (b.sessions[0]?.mtime ?? 0) - (a.sessions[0]?.mtime ?? 0));
@@ -357,16 +682,24 @@ async function codexGroups(home: string): Promise<NativeHistoryGroup[]> {
     if (!project) continue;
     groups.set(id, { id, label: project.name, root: project.rootPaths?.[0] ?? "", scope: id, sessions: [] });
   }
-  const rows = sqliteAll(path.join(home, ".codex", "state_5.sqlite"), `
+  const codexDb = path.join(home, ".codex", "state_5.sqlite");
+  const threadColumns = new Set(sqliteAll(codexDb, "PRAGMA table_info(threads)").map((row) => String(row.name)));
+  const rootThreadWhere = threadColumns.has("agent_path")
+    ? "AND (agent_path IS NULL OR agent_path = '' OR agent_path = '/root')"
+    : threadColumns.has("source") ? "AND source NOT LIKE '{%subagent%'" : "";
+  const rows = sqliteAll(codexDb, `
     SELECT id, title, name, preview, cwd, updated_at_ms, updated_at, recency_at_ms, is_pinned
-    FROM threads WHERE archived = 0 ORDER BY COALESCE(NULLIF(recency_at_ms, 0), NULLIF(updated_at_ms, 0), updated_at) DESC LIMIT 700
+    FROM threads WHERE archived = 0 ${rootThreadWhere}
+    ORDER BY COALESCE(NULLIF(recency_at_ms, 0), NULLIF(updated_at_ms, 0), updated_at) DESC
   `);
   for (const row of rows) {
     const id = String(row.id);
     const cwd = String(row.cwd ?? "");
     let projectId = assignments[id]?.projectId;
     if (!projectId || !groups.has(projectId)) {
-      projectId = [...groups.values()].filter((group) => group.root && cwd.toLowerCase().startsWith(group.root.toLowerCase())).sort((a, b) => b.root.length - a.root.length)[0]?.id;
+      projectId = [...groups.values()]
+        .filter((group) => group.root && isPathInside(cwd, group.root))
+        .sort((a, b) => canonicalFsPath(b.root).length - canonicalFsPath(a.root).length)[0]?.id;
     }
     if (!projectId) {
       projectId = "projectless";
@@ -374,7 +707,7 @@ async function codexGroups(home: string): Promise<NativeHistoryGroup[]> {
     }
     const title = [row.name, row.title, row.preview].find((value) => typeof value === "string" && value.trim()) as string | undefined;
     groups.get(projectId)!.sessions.push({
-      id, nativeId: id, name: title?.trim().slice(0, 120) || `Task ${id.slice(0, 8)}`,
+      id, nativeId: id, name: title?.trim().slice(0, 120) || `Session ${id.slice(0, 8)}`,
       path: `codex:${id}`, mtime: timeMs(row.recency_at_ms ?? row.updated_at_ms ?? row.updated_at), bytes: 0,
       resumable: true, source: "native", pinned: Boolean(row.is_pinned), preview: String(row.preview ?? "").slice(0, 220),
     });
@@ -390,12 +723,21 @@ async function antigravityGroups(home: string): Promise<NativeHistoryGroup[]> {
   try { files = await readdir(conversationsRoot, { withFileTypes: true }); }
   catch { return []; }
   const groups = new Map<string, NativeHistoryGroup>();
+  const canonicalFiles = new Map<string, { sourceFile: string; bytes: number; mtime: number }>();
   for (const entry of files) {
     if (!entry.isFile() || !/\.(?:db|pb)$/i.test(entry.name)) continue;
     const id = entry.name.replace(/\.(?:db|pb)$/i, "");
-    const transcript = path.join(brainRoot, id, ".system_generated", "logs", "transcript.jsonl");
     const sourceFile = path.join(conversationsRoot, entry.name);
     const s = await stat(sourceFile).catch(() => null);
+    if (!s) continue;
+    const previous = canonicalFiles.get(id);
+    if (!previous || s.mtimeMs > previous.mtime) {
+      canonicalFiles.set(id, { sourceFile, bytes: s.size, mtime: s.mtimeMs });
+    }
+  }
+  for (const [id, canonicalFile] of canonicalFiles) {
+    const transcript = path.join(brainRoot, id, ".system_generated", "logs", "transcript.jsonl");
+    const sourceFile = canonicalFile.sourceFile;
     let workspace = "";
     let title = `Mission ${id.slice(0, 8)}`;
     if (existsSync(transcript)) {
@@ -425,10 +767,13 @@ async function antigravityGroups(home: string): Promise<NativeHistoryGroup[]> {
     if (!groups.has(groupId)) groups.set(groupId, { id: groupId, label: projectRoot ? path.basename(projectRoot) : "Unassigned missions", root: projectRoot, scope: projectRoot, sessions: [] });
     groups.get(groupId)!.sessions.push({
       id, nativeId: id, name: title, path: existsSync(transcript) ? transcript : sourceFile,
-      mtime: s?.mtimeMs ?? 0, bytes: s?.size ?? 0, resumable: false, source: "native",
+      mtime: canonicalFile.mtime, bytes: canonicalFile.bytes, resumable: false, source: "native",
     });
   }
-  return [...groups.values()].sort((a, b) => (b.sessions[0]?.mtime ?? 0) - (a.sessions[0]?.mtime ?? 0));
+  return [...groups.values()].map((group) => ({
+    ...group,
+    sessions: group.sessions.sort((a, b) => b.mtime - a.mtime),
+  })).sort((a, b) => (b.sessions[0]?.mtime ?? 0) - (a.sessions[0]?.mtime ?? 0));
 }
 
 export interface NativeLoadedSession {
@@ -470,6 +815,7 @@ export async function listNativeAgentHistory(agent: NativeHistoryAgent): Promise
     source = path.join(home, ".codex", "sessions");
     groups = await codexGroups(home);
   }
+  groups = canonicalizeSessionGroups(agent, groups);
   const sessionCount = groups.reduce((n, g) => n + g.sessions.length, 0);
   return { agent, source, groups, sessionCount };
 }
@@ -513,7 +859,10 @@ export async function loadNativeAgentSession(
     if (constraints.actorId && group.scope !== constraints.actorId) continue;
     if (constraints.projectId && ![group.id, group.root, group.label].includes(constraints.projectId)) continue;
     const session = group.sessions.find((candidate) =>
-      candidate.id === sessionId || candidate.nativeId === sessionId || candidate.sessionKey === sessionId
+      candidate.id === sessionId
+      || candidate.nativeId === sessionId
+      || candidate.sessionKey === sessionId
+      || candidate.aliases?.includes(sessionId)
     );
     if (!session) continue;
     const detail = await readNativeHistoryPath(agent, session.path);
