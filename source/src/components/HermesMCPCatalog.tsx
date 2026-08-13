@@ -34,6 +34,8 @@ interface CatalogEntry {
 }
 interface InstalledEntry {
   name: string;
+  profile?: string;
+  scope?: "global" | "profile" | "inherited" | string;
   enabled: boolean;
   transport: "stdio" | "http" | "unknown";
   command?: string;
@@ -42,9 +44,27 @@ interface InstalledEntry {
   authType?: string;
 }
 
+interface HermesProfileOption {
+  name: string;
+  model?: string;
+  provider?: string;
+  active?: boolean;
+}
+
+const mcpUrl = (path: string, profile: string, params: Record<string, string> = {}) => {
+  const query = new URLSearchParams({ ...params, profile });
+  return `${path}?${query.toString()}`;
+};
+
+const profileCommandPrefix = (profile: string) => profile === "default" ? "hermes" : `hermes -p ${profile}`;
+
 export default function HermesMCPCatalog() {
+  const [profiles, setProfiles] = useState<HermesProfileOption[]>([]);
+  const [profile, setProfile] = useState("default");
+  const profileRef = useRef(profile);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null); // name being mutated
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -52,46 +72,102 @@ export default function HermesMCPCatalog() {
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [toolsEditor, setToolsEditor] = useState<string | null>(null); // name of server being edited
 
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/hermes/profiles", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { profiles?: HermesProfileOption[] }) => {
+        if (cancelled) return;
+        const received = Array.isArray(payload.profiles) ? payload.profiles : [];
+        const next = received.some((item) => item.name === "default")
+          ? received
+          : [{ name: "default", model: "(global defaults)", provider: "", active: !received.some((item) => item.active) }, ...received];
+        setProfiles(next);
+        const remembered = localStorage.getItem("agentic-os-hermes-mcp-profile");
+        const selected = remembered && next.some((item) => item.name === remembered)
+          ? remembered
+          : next.find((item) => item.active)?.name ?? "default";
+        profileRef.current = selected;
+        setProfile(selected);
+      })
+      .catch(() => setProfiles([{ name: "default", active: true }]));
+    return () => { cancelled = true; };
+  }, []);
+
   async function load() {
+    const requestedProfile = profileRef.current;
+    setLoading(true);
     try {
-      const r = await fetch("/api/hermes/mcp", { cache: "no-store" });
+      const r = await fetch(mcpUrl("/api/hermes/mcp", requestedProfile), { cache: "no-store" });
       const j = await r.json();
+      if (profileRef.current !== requestedProfile) return;
       if (j.ok === false && j.error) setError(j.error);
       else setError(null);
       setCatalog(Array.isArray(j.catalog) ? j.catalog : []);
       setInstalled(Array.isArray(j.installed) ? j.installed : []);
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      if (profileRef.current === requestedProfile) setError(String(e));
+    } finally {
+      if (profileRef.current === requestedProfile) setLoading(false);
+    }
   }
 
   // 15s poll is plenty — catalogue + installed list change manually
-  usePollWhileVisible(load, 15000);
+  usePollWhileVisible(load, 15000, [profile]);
+
+  function selectProfile(next: string) {
+    profileRef.current = next;
+    setProfile(next);
+    setCatalog([]);
+    setInstalled([]);
+    setError(null);
+    setLoading(true);
+    setInstallTarget(null);
+    setShowAddCustom(false);
+    setToolsEditor(null);
+    localStorage.setItem("agentic-os-hermes-mcp-profile", next);
+  }
+
+  function notifyUpdated() {
+    window.dispatchEvent(new CustomEvent("hermes-mcp-updated", { detail: { profile } }));
+  }
 
   async function toggle(name: string, next: boolean) {
     setBusy(name);
     try {
-      await fetch("/api/hermes/mcp", {
+      const response = await fetch("/api/hermes/mcp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "toggle", name, enabled: next }),
+        body: JSON.stringify({ action: "toggle", name, enabled: next, profile }),
       });
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
       await load();
-    } finally { setBusy(null); }
+      notifyUpdated();
+    } catch (e) { setError(String(e)); }
+    finally { setBusy(null); }
   }
   async function doUninstall(name: string) {
-    if (!confirm(`Uninstall MCP "${name}"? This runs "hermes mcp remove ${name}".`)) return;
+    if (!confirm(`Uninstall MCP "${name}" from profile "${profile}"? This runs "${profileCommandPrefix(profile)} mcp remove ${name}".`)) return;
     setBusy(name);
     try {
-      await fetch("/api/hermes/mcp", {
+      const response = await fetch("/api/hermes/mcp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "uninstall", name }),
+        body: JSON.stringify({ action: "uninstall", name, profile }),
       });
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
       await load();
-    } finally { setBusy(null); }
+      notifyUpdated();
+    } catch (e) { setError(String(e)); }
+    finally { setBusy(null); }
   }
   async function copyInstall(name: string) {
     try {
-      await navigator.clipboard.writeText(`hermes mcp install ${name}`);
+      await navigator.clipboard.writeText(`${profileCommandPrefix(profile)} mcp install ${name}`);
       setCopied(name);
       setTimeout(() => setCopied(null), 1500);
     } catch { /* clipboard blocked */ }
@@ -105,7 +181,7 @@ export default function HermesMCPCatalog() {
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-xl border p-4"
            style={{ borderColor: `${ACCENT}33`, background: `linear-gradient(135deg, ${ACCENT}10, transparent)` }}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
           <div className="flex items-start gap-3">
             <div className="grid place-items-center w-10 h-10 rounded-lg"
                  style={{ background: `${ACCENT}1a`, color: ACCENT, border: `1px solid ${ACCENT}30` }}>
@@ -125,10 +201,31 @@ export default function HermesMCPCatalog() {
               </div>
             </div>
           </div>
-          <button onClick={load} className="text-[11px] uppercase tracking-widest hover:underline flex items-center gap-1 shrink-0"
-                  style={{ color: ACCENT }} title="Refresh">
-            <RefreshCw size={12} /> Refresh
-          </button>
+          <div className="flex w-full shrink-0 items-end gap-2 sm:w-auto">
+            <label className="block min-w-0 flex-1 sm:min-w-[180px]">
+              <span className="mb-1 block text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--cream-mute)]">Configuration profile</span>
+              <select
+                value={profile}
+                onChange={(event) => selectProfile(event.target.value)}
+                className="w-full rounded-lg border bg-[var(--bg-mid)] px-2.5 py-2 text-[12px] text-[var(--cream)] outline-none"
+                style={{ borderColor: `${ACCENT}55` }}
+                aria-label="Hermes MCP profile"
+              >
+                {(profiles.length ? profiles : [{ name: "default", active: true }]).map((item) => (
+                  <option key={item.name} value={item.name}>{item.name}{item.active ? " · active" : ""}</option>
+                ))}
+              </select>
+            </label>
+            <button onClick={load} disabled={loading} className="flex h-9 items-center gap-1 rounded-lg border px-2.5 text-[10px] uppercase tracking-widest disabled:opacity-50"
+                    style={{ color: ACCENT, borderColor: `${ACCENT}40` }} title="Refresh selected profile">
+              <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px]"
+             style={{ borderColor: `${ACCENT}30`, background: "rgba(0,0,0,0.18)", color: "var(--cream-mute)" }}>
+          <Shield size={12} style={{ color: ACCENT }} />
+          <span>Viewing <strong className="text-[var(--cream)]">{profile}</strong>. Installs, toggles, tool filters and removals are scoped only to this Hermes profile.</span>
         </div>
       </div>
 
@@ -181,6 +278,7 @@ export default function HermesMCPCatalog() {
                       <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <div className="text-[13px] text-[var(--cream)] font-medium truncate">{c.name}</div>
                         <StatusPill status={c.status} alreadyInstalled={alreadyInstalled} />
+                        <ScopePill profile={profile} />
                         {c.transportType && <TransportPill transport={c.transportType as "stdio" | "http"} />}
                         {c.authType && <AuthPill type={c.authType} provider={c.authProvider} />}
                         {c.manifestVersion !== undefined && <ManifestPill version={c.manifestVersion} />}
@@ -273,6 +371,7 @@ export default function HermesMCPCatalog() {
                   <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <div className="text-[13px] text-[var(--cream)] font-medium truncate">{i.name}</div>
+                      <ScopePill profile={i.profile ?? profile} scope={i.scope} />
                       <TransportPill transport={i.transport} />
                       {i.authType && <AuthPill type={i.authType} />}
                       {i.toolCount !== undefined && (
@@ -317,24 +416,27 @@ export default function HermesMCPCatalog() {
       {installTarget && (
         <InstallModal
           name={installTarget}
+          profile={profile}
           onClose={() => setInstallTarget(null)}
-          onComplete={async () => { setInstallTarget(null); await load(); }}
+          onComplete={async () => { setInstallTarget(null); await load(); notifyUpdated(); }}
         />
       )}
 
       {showAddCustom && (
         <AddCustomModal
+          profile={profile}
           existingNames={installed.map((i) => i.name)}
           onClose={() => setShowAddCustom(false)}
-          onComplete={async () => { setShowAddCustom(false); await load(); }}
+          onComplete={async () => { setShowAddCustom(false); await load(); notifyUpdated(); }}
         />
       )}
 
       {toolsEditor && (
         <ToolsEditorModal
           name={toolsEditor}
+          profile={profile}
           onClose={() => setToolsEditor(null)}
-          onComplete={async () => { setToolsEditor(null); await load(); }}
+          onComplete={async () => { setToolsEditor(null); await load(); notifyUpdated(); }}
         />
       )}
     </div>
@@ -376,7 +478,7 @@ type LogEntry =
   | { type: "error"; text: string }
   | { type: "done"; ok: boolean; code: number };
 
-function InstallModal({ name, onClose, onComplete }: { name: string; onClose: () => void; onComplete: () => Promise<void> | void }) {
+function InstallModal({ name, profile, onClose, onComplete }: { name: string; profile: string; onClose: () => void; onComplete: () => Promise<void> | void }) {
   const [phase, setPhase] = useState<"loading" | "form" | "installing" | "done">("loading");
   const [manifest, setManifest] = useState<ManifestSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -390,7 +492,7 @@ function InstallModal({ name, onClose, onComplete }: { name: string; onClose: ()
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`/api/hermes/mcp/manifest?name=${encodeURIComponent(name)}`, { cache: "no-store" });
+        const r = await fetch(mcpUrl("/api/hermes/mcp/manifest", profile, { name }), { cache: "no-store" });
         const j = await r.json();
         if (cancelled) return;
         if (!j.ok || !j.manifest) {
@@ -410,7 +512,7 @@ function InstallModal({ name, onClose, onComplete }: { name: string; onClose: ()
       }
     })();
     return () => { cancelled = true; };
-  }, [name]);
+  }, [name, profile]);
 
   // Auto-scroll the log to the bottom on new entries.
   useEffect(() => {
@@ -428,7 +530,7 @@ function InstallModal({ name, onClose, onComplete }: { name: string; onClose: ()
       r = await fetch("/api/hermes/mcp/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, envVars: vals }),
+        body: JSON.stringify({ name, envVars: vals, profile }),
       });
     } catch (e) {
       setLog((prev) => [...prev, { type: "error", text: String(e) }, { type: "done", ok: false, code: -1 }]);
@@ -482,7 +584,7 @@ function InstallModal({ name, onClose, onComplete }: { name: string; onClose: ()
             </div>
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--cream-mute)]">Install MCP</div>
-              <div className="text-[15px] font-semibold text-[var(--cream)] truncate">{name}</div>
+              <div className="flex items-center gap-2"><div className="truncate text-[15px] font-semibold text-[var(--cream)]">{name}</div><ScopePill profile={profile} /></div>
             </div>
           </div>
           <button onClick={onClose} disabled={phase === "installing"}
@@ -586,7 +688,7 @@ function InstallModal({ name, onClose, onComplete }: { name: string; onClose: ()
                     </div>
                   ))}
                   <div className="text-[10px] text-[var(--cream-mute)] leading-snug">
-                    Saved to <code className="mono">~/.hermes/.env</code> (mode 0600). Existing keys preserved.
+                    Saved to the <strong className="text-[var(--cream)]">{profile}</strong> profile environment (mode 0600). Existing keys are preserved.
                   </div>
                 </div>
               )}
@@ -679,6 +781,20 @@ function StatusPill({ status, alreadyInstalled }: { status: string; alreadyInsta
   );
 }
 
+function ScopePill({ profile, scope }: { profile: string; scope?: string }) {
+  const label = scope === "inherited"
+    ? `inherited · ${profile}`
+    : profile === "default" || scope === "global"
+      ? "global · default"
+      : `profile · ${profile}`;
+  return (
+    <span className="shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em]"
+          style={{ color: ACCENT, borderColor: `${ACCENT}35`, background: `${ACCENT}0d` }}>
+      {label}
+    </span>
+  );
+}
+
 function TransportPill({ transport }: { transport: "stdio" | "http" | "unknown" | string }) {
   const isHttp = transport === "http";
   const Icon = isHttp ? Globe : Terminal;
@@ -733,7 +849,7 @@ export function _SourceLink({ url }: { url: string }) {
 // Filesystem, etc) or roll your own with arbitrary command/args/url. Saves env
 // vars to ~/.hermes/.env, then runs `hermes mcp add <name> ...` non-interactively.
 
-function AddCustomModal({ existingNames, onClose, onComplete }: { existingNames: string[]; onClose: () => void; onComplete: () => Promise<void> | void }) {
+function AddCustomModal({ profile, existingNames, onClose, onComplete }: { profile: string; existingNames: string[]; onClose: () => void; onComplete: () => Promise<void> | void }) {
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
   const [name, setName] = useState("");
   const [transport, setTransport] = useState<"stdio" | "http">("stdio");
@@ -801,7 +917,7 @@ function AddCustomModal({ existingNames, onClose, onComplete }: { existingNames:
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(row.name)) continue;
       envVars[row.name] = row.value;
     }
-    const spec: Record<string, unknown> = { name, transport };
+    const spec: Record<string, unknown> = { name, transport, profile };
     if (transport === "stdio") {
       spec.command = command.trim();
       const args = argsText.trim().length > 0 ? argsText.trim().split(/\s+/) : [];
@@ -855,6 +971,7 @@ function AddCustomModal({ existingNames, onClose, onComplete }: { existingNames:
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--cream-mute)]">Add custom MCP</div>
               <div className="text-[14px] font-semibold text-[var(--cream)]">Pick a preset or roll your own</div>
+              <div className="mt-0.5 text-[10px] text-[var(--cream-mute)]">Profile: <span className="mono" style={{ color: ACCENT }}>{profile}</span></div>
             </div>
           </div>
           <button onClick={onClose} disabled={submitting}
@@ -1078,7 +1195,7 @@ function AddCustomModal({ existingNames, onClose, onComplete }: { existingNames:
 // available list) is a follow-up — current scope is "I installed everything,
 // let me remove a few".
 
-function ToolsEditorModal({ name, onClose, onComplete }: { name: string; onClose: () => void; onComplete: () => Promise<void> | void }) {
+function ToolsEditorModal({ name, profile, onClose, onComplete }: { name: string; profile: string; onClose: () => void; onComplete: () => Promise<void> | void }) {
   const [tools, setTools] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1089,7 +1206,7 @@ function ToolsEditorModal({ name, onClose, onComplete }: { name: string; onClose
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`/api/hermes/mcp/tools?name=${encodeURIComponent(name)}`, { cache: "no-store" });
+        const r = await fetch(mcpUrl("/api/hermes/mcp/tools", profile, { name }), { cache: "no-store" });
         const j = await r.json();
         if (cancelled) return;
         if (!j.ok) { setError(j.error || "failed to load"); return; }
@@ -1101,7 +1218,7 @@ function ToolsEditorModal({ name, onClose, onComplete }: { name: string; onClose
       }
     })();
     return () => { cancelled = true; };
-  }, [name]);
+  }, [name, profile]);
 
   function removeTool(t: string) {
     setTools((cur) => (cur ?? []).filter((x) => x !== t));
@@ -1123,7 +1240,7 @@ function ToolsEditorModal({ name, onClose, onComplete }: { name: string; onClose
       const r = await fetch("/api/hermes/mcp/tools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, tools: tools ?? [] }),
+        body: JSON.stringify({ name, tools: tools ?? [], profile }),
       });
       const j = await r.json();
       if (!j.ok) {
@@ -1153,6 +1270,7 @@ function ToolsEditorModal({ name, onClose, onComplete }: { name: string; onClose
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--cream-mute)]">Tools · {name}</div>
               <div className="text-[14px] font-semibold text-[var(--cream)]">Prune the tools this server exposes</div>
+              <div className="mt-0.5 text-[10px] text-[var(--cream-mute)]">Profile: <span className="mono" style={{ color: ACCENT }}>{profile}</span></div>
             </div>
           </div>
           <button onClick={onClose} disabled={saving}

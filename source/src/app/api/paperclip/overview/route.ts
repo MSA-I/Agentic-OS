@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getPaperclipConfig, probePaperclipCompany } from "@/lib/paperclipConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,12 +8,9 @@ export const dynamic = "force-dynamic";
 // server-side (no CORS) from the local Paperclip API and aggregates everything
 // the dashboard needs in one call.
 
-const PAPERCLIP = process.env.PAPERCLIP_API || "http://localhost:3100/api";
-const COMPANY = process.env.PAPERCLIP_COMPANY || ""; // your OWN company id (set PAPERCLIP_COMPANY) — never ship one
-
-async function j<T>(path: string, fallback: T): Promise<T> {
+async function j<T>(apiBase: string, routePath: string, fallback: T): Promise<T> {
   try {
-    const r = await fetch(`${PAPERCLIP}${path}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+    const r = await fetch(`${apiBase}${routePath}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
     if (!r.ok) return fallback;
     return (await r.json()) as T;
   } catch {
@@ -36,15 +34,21 @@ type Issue = { id: string; title?: string; status?: string; projectId?: string; 
 type Project = { id: string; name?: string };
 
 export async function GET() {
-  const [company, agents, runs, issues, projects] = await Promise.all([
-    j<Record<string, unknown>>(`/companies/${COMPANY}`, {}),
-    j<Agent[]>(`/companies/${COMPANY}/agents`, []),
-    j<Run[]>(`/companies/${COMPANY}/heartbeat-runs?limit=40`, []),
-    j<Issue[]>(`/companies/${COMPANY}/issues`, []),
-    j<Project[]>(`/companies/${COMPANY}/projects`, []),
+  const paperclip = await getPaperclipConfig();
+  if (!paperclip.companyId) {
+    return NextResponse.json({ reachable: false, error: "Paperclip company is not configured." }, { status: 409 });
+  }
+  const companyRoute = `/companies/${encodeURIComponent(paperclip.companyId)}`;
+  const [company, agents, runs, issues, projects, probe] = await Promise.all([
+    j<Record<string, unknown>>(paperclip.apiBase, companyRoute, {}),
+    j<Agent[]>(paperclip.apiBase, `${companyRoute}/agents`, []),
+    j<Run[]>(paperclip.apiBase, `${companyRoute}/heartbeat-runs?limit=40`, []),
+    j<Issue[]>(paperclip.apiBase, `${companyRoute}/issues`, []),
+    j<Project[]>(paperclip.apiBase, `${companyRoute}/projects`, []),
+    probePaperclipCompany(),
   ]);
 
-  const reachable = Array.isArray(agents) && agents.length > 0;
+  const reachable = probe.companyReachable;
 
   // ── Agent cards (sorted by org rank) ──
   const rank: Record<string, number> = { ceo: 0, cto: 1, cmo: 1, coo: 1, "head of operations": 1, ops: 1, cfo: 1 };

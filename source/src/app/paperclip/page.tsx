@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, RotateCw, AlertTriangle, Play, ArrowUpRight, Hammer } from "lucide-react";
+import { openSetupCenter } from "@/components/SetupCenterHost";
 
 // Go STRAIGHT into the real Paperclip — plus a "Builds" gallery of everything
 // the team has shipped, auto-updating as new builds land.
-const BASE = "http://localhost:3100/GOLA";
 const VIEWS = [
   { key: "builds",    label: "Builds",    path: "" },        // custom gallery (not an iframe)
   { key: "issues",    label: "Issues",    path: "/issues" },
@@ -23,6 +23,14 @@ interface Build {
   liveUrl: string | null; previewUrl: string | null;
 }
 
+interface PaperclipConfigState {
+  configured: boolean;
+  companyId: string | null;
+  companyUrl: string | null;
+  reachable: boolean;
+  companyReachable: boolean;
+}
+
 function timeAgo(iso: string): string {
   if (!iso) return "";
   const s = (Date.now() - Date.parse(iso)) / 1000;
@@ -33,15 +41,16 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function BuildsGallery() {
+function BuildsGallery({ companyBase }: { companyBase: string }) {
   const [builds, setBuilds] = useState<Build[] | null>(null);
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState("");
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/paperclip/builds", { cache: "no-store" });
       const j = await r.json();
-      setBuilds(j.builds || []); setErr(false);
-    } catch { setErr(true); }
+      if (!r.ok) throw new Error(j.error || `Paperclip returned ${r.status}`);
+      setBuilds(j.builds || []); setErr("");
+    } catch (error) { setErr(error instanceof Error ? error.message : "Paperclip is unavailable."); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
 
@@ -61,7 +70,7 @@ function BuildsGallery() {
         <button onClick={load} title="Refresh" className="p-2 rounded-lg border border-[var(--panel-border)] hover:border-[var(--panel-border-hot)]" style={{ color: "var(--fg-dim)" }}><RotateCw size={14} /></button>
       </div>
 
-      {err && <div className="text-[13px] px-1" style={{ color: "var(--fg-dim)" }}>Couldn&apos;t reach Paperclip. Is it running on :3100?</div>}
+      {err && <div className="text-[13px] px-1" style={{ color: "var(--fg-dim)" }}>{err}</div>}
       {builds && builds.length === 0 && !err && (
         <div className="rounded-2xl p-10 text-center" style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed var(--panel-border)" }}>
           <Hammer size={26} className="mx-auto mb-3" style={{ color: "var(--fg-dim)" }} />
@@ -108,7 +117,7 @@ function BuildsGallery() {
                     <a href={build.liveUrl} target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium" style={{ background: "rgba(212,165,116,0.16)", color: "#d4a574" }}><Play size={12} /> View live</a>
                   )}
-                  <a href={`${BASE}/issues/${build.issueId}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${companyBase}/issues/${build.issueId}`} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] border border-[var(--panel-border)]" style={{ color: "var(--fg-dim)" }}>
                     {build.identifier || "Issue"} <ArrowUpRight size={12} />
                   </a>
@@ -126,11 +135,23 @@ export default function PaperclipRoute() {
   const [view, setView] = useState("builds");
   const [iframeKey, setIframeKey] = useState(0);
   const [errored, setErrored] = useState(false);
+  const [paperclip, setPaperclip] = useState<PaperclipConfigState | null>(null);
   const ref = useRef<HTMLIFrameElement>(null);
+
+  const loadConfig = useCallback(async () => {
+    try {
+      const response = await fetch("/api/paperclip/config", { cache: "no-store" });
+      setPaperclip(await response.json() as PaperclipConfigState);
+    } catch {
+      setPaperclip({ configured: false, companyId: null, companyUrl: null, reachable: false, companyReachable: false });
+    }
+  }, []);
+  useEffect(() => { void loadConfig(); }, [loadConfig]);
 
   const current = VIEWS.find((v) => v.key === view) ?? VIEWS[0];
   const isBuilds = view === "builds";
-  const src = `${BASE}${current.path}`;
+  const companyBase = paperclip?.companyUrl ?? "";
+  const src = companyBase ? `${companyBase}${current.path}` : "about:blank";
 
   return (
     <div className="flex flex-col h-[calc(100vh-92px)]">
@@ -145,7 +166,7 @@ export default function PaperclipRoute() {
             </button>
           ))}
         </div>
-        {!isBuilds && (
+        {!isBuilds && companyBase && (
           <div className="flex items-center gap-1.5">
             <button onClick={() => { setErrored(false); setIframeKey((k) => k + 1); }} title="Reload"
               className="p-2 rounded-lg border border-[var(--panel-border)] hover:border-[var(--panel-border-hot)]" style={{ color: "var(--fg-dim)" }}><RotateCw size={15} /></button>
@@ -157,14 +178,25 @@ export default function PaperclipRoute() {
 
       {/* body */}
       <div className="flex-1 min-h-0 rounded-2xl border border-[var(--panel-border)] overflow-hidden relative" style={{ background: isBuilds ? "transparent" : "rgba(0,0,0,0.3)" }}>
-        {isBuilds ? (
-          <div className="h-full p-4"><BuildsGallery /></div>
+        {!paperclip ? (
+          <div className="absolute inset-0 grid place-items-center text-[12px]" style={{ color: "var(--fg-dim)" }}>Checking Paperclip configuration…</div>
+        ) : !paperclip.configured || !companyBase ? (
+          <div className="absolute inset-0 grid place-items-center p-8 text-center">
+            <div className="max-w-[460px]">
+              <AlertTriangle size={26} className="mx-auto mb-3 text-amber-400" />
+              <div className="text-[15px] mb-2" style={{ color: "var(--fg)" }}>Choose your Paperclip company first</div>
+              <p className="text-[12px] leading-relaxed" style={{ color: "var(--fg-dim)" }}>The dashboard no longer falls back to a hardcoded company. Connect the real company id in Setup Center, then Test it against the running server.</p>
+              <button type="button" onClick={() => openSetupCenter("/paperclip")} className="mt-4 rounded-lg px-4 py-2 text-[12px] font-semibold" style={{ background: "#d4a574", color: "#1a1206" }}>Open Setup Center</button>
+            </div>
+          </div>
+        ) : isBuilds ? (
+          <div className="h-full p-4"><BuildsGallery companyBase={companyBase} /></div>
         ) : errored ? (
           <div className="absolute inset-0 grid place-items-center p-8 text-center">
             <div className="max-w-[440px]">
               <AlertTriangle size={26} className="mx-auto mb-3 text-amber-400" />
               <div className="text-[15px] mb-2" style={{ color: "var(--fg)" }}>Paperclip isn&apos;t responding on :3100</div>
-              <code className="block text-[12.5px] font-mono bg-[var(--bg-mid)] border border-[var(--panel-border)] rounded-lg px-3 py-2 mt-3" style={{ color: "var(--fg-dim)" }}>cd ~/paperclip &amp;&amp; pnpm dev:once</code>
+              <button type="button" onClick={() => { void loadConfig(); setErrored(false); setIframeKey((key) => key + 1); }} className="mt-3 rounded-lg border border-[var(--panel-border)] px-3 py-2 text-[12px]" style={{ color: "var(--fg-dim)" }}>Test again</button>
             </div>
           </div>
         ) : (

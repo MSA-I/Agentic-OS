@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MessageSquare, Target, ListChecks, Layers,
+  ListChecks,
   Send, Square, Play, Trash2, RefreshCw, FolderOpen, FileText,
-  Copy, Download, X, Eye, ExternalLink, FilePlus,
+  Copy, Download, X, Eye, ExternalLink, FilePlus, Layers, MessageSquare, Target,
 } from "lucide-react";
 import GoalLogStream from "./GoalLogStream";
-import AgentWorkspaceShell, { type WorkspaceNavDetail, type WorkspaceSection, type WorkspaceSessionRef } from "./AgentWorkspaceShell";
+import AgentWorkspaceShell, { type WorkspaceNavDetail, type WorkspaceProjectRef, type WorkspaceSection, type WorkspaceSessionRef } from "./AgentWorkspaceShell";
 
 // Codex agent surface — four tabs (same shape as Antigravity):
 //   Chat       — one-shot streaming via /api/codex/chat
@@ -106,8 +106,7 @@ export default function CodexView() {
   const ctrlRef = useRef<AbortController | null>(null);
   // Disk-backed conversation history (survives refresh + restarts)
   const sidRef = useRef<string>("");
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [, setChatSessions] = useState<ChatSession[]>([]);
   // Inline preview of files a turn just built: message-index → open relPath
   const [inlinePreview, setInlinePreview] = useState<Record<number, string | null>>({});
 
@@ -135,6 +134,8 @@ export default function CodexView() {
   const [goalPrompt, setGoalPrompt] = useState("");
   const [openGoalId, setOpenGoalId] = useState<string | null>(null);
   const [openGoalLog, setOpenGoalLog] = useState<string>("");
+  const [goalSubmitting, setGoalSubmitting] = useState(false);
+  const [goalError, setGoalError] = useState("");
 
   // ─── Sessions state ───
   const [sessions, setSessions] = useState<CodexSession[]>([]);
@@ -185,10 +186,8 @@ export default function CodexView() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-200))); } catch {}
     // Persist the conversation to disk too (debounced) so history survives anything.
     if (!msgs.length) return;
-    const title = (msgs.find((m) => m.role === "user")?.text || "Chat").slice(0, 60);
     const t = setTimeout(() => {
-      fetch("/api/codex/chats", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: sidRef.current, title, messages: msgs }) })
-        .then(refreshChatSessions).catch(() => {});
+      void persistChatSession(msgs).then(refreshChatSessions);
     }, 900);
     return () => clearTimeout(t);
   }, [msgs]);
@@ -200,23 +199,42 @@ export default function CodexView() {
       setChatSessions(Array.isArray(j.sessions) ? j.sessions : []);
     } catch {}
   }
+  async function persistChatSession(messages: Msg[], project?: WorkspaceProjectRef) {
+    const recent = messages.slice(-200);
+    const title = (recent.find((message) => message.role === "user")?.text || "Chat").slice(0, 60);
+    await fetch("/api/codex/chats", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: sidRef.current,
+        title,
+        messages: recent,
+        project: project?.id ?? activeProject,
+        root: project?.root ?? activeProjectRoot,
+      }),
+    });
+  }
   async function loadChatSession(id: string) {
     try {
       const r = await fetch(`/api/codex/chats?id=${encodeURIComponent(id)}`, { cache: "no-store" });
       const j = await r.json();
       if (Array.isArray(j.messages)) {
-        setMsgs(j.messages); sidRef.current = id; setHistoryOpen(false); setInlinePreview({});
+        setMsgs(j.messages); sidRef.current = id; setInlinePreview({});
         try { window.localStorage.setItem(STORAGE_KEY + "/sid", id); } catch {}
       }
     } catch {}
   }
-  function newChat(session?: WorkspaceSessionRef) {
+  function newChat(session?: WorkspaceSessionRef, project?: WorkspaceProjectRef) {
     if (streaming) return;
-    setMsgs([]); setPartial(""); setInlinePreview({}); setHistoryOpen(false);
+    setMsgs([]); setPartial(""); setInlinePreview({});
     setNativeResumeId(null);
     setSidebarSessionPath(session?.path ?? null);
     sidRef.current = session?.nativeId || session?.id || `c-${Date.now()}`;
     try { window.localStorage.setItem(STORAGE_KEY + "/sid", sidRef.current); window.localStorage.removeItem(STORAGE_KEY); } catch {}
+    // Persist the empty task immediately. Without this, refreshing a newly
+    // created task before its first message causes a noisy GET 404 and the
+    // project-scoped draft cannot be restored reliably.
+    void persistChatSession([], project).then(refreshChatSessions).catch(() => {});
   }
 
   async function loadNativeSession(session: WorkspaceSessionRef) {
@@ -254,9 +272,30 @@ export default function CodexView() {
       if (d.project) {
         setActiveProject(d.project.label || "codex-default");
         setActiveProjectRoot(d.project.root || "");
+      } else if (d.action === "project") {
+        setActiveProject("");
+        setActiveProjectRoot("");
       }
-      if (d.action === "new") { newChat(d.session); setTab("chat"); }
+      if (d.action === "project") {
+        // Project selection is a conversation boundary. Never let a native
+        // resume id or local draft from the previous project leak into the new
+        // cwd; the user must start or select a task in this project explicitly.
+        setSidebarSessionPath(null);
+        setNativeResumeId(null);
+        setMsgs([]);
+        setPartial("");
+        setInlinePreview({});
+        sidRef.current = "";
+        try {
+          window.localStorage.removeItem(STORAGE_KEY + "/sid");
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+        setTab("chat");
+        return;
+      }
+      if (d.action === "new") { newChat(d.session, d.project); setTab("chat"); }
       else if (d.action === "select" && d.session) { void loadSidebarSession(d.session); setTab("chat"); }
+      else if (d.target === "chat" || d.target === "goal" || d.target === "sessions" || d.target === "workspace") setTab(d.target);
       else if (d.section === "messages") setTab("chat");
       else if (d.section === "history") setTab("sessions");
       else if (d.section === "projects" || d.section === "artifacts") setTab("workspace");
@@ -350,7 +389,7 @@ export default function CodexView() {
   // ─── Chat: send ───
   async function sendChat() {
     const prompt = input.trim();
-    if (!prompt || streaming) return;
+    if (!prompt || streaming || !sidebarSessionPath || !activeProjectRoot) return;
     const history = msgs;
     if (sidebarSessionPath && !history.some((message) => message.role === "user")) {
       window.dispatchEvent(new CustomEvent("agent-conversation-renamed", { detail: {
@@ -436,7 +475,14 @@ export default function CodexView() {
     const built = after.filter((f) => !before.has(f.relPath) || (before.get(f.relPath) ?? 0) < f.mtime)
       .map((f) => ({ name: f.name, relPath: f.relPath, kind: f.kind }));
     const msgIndex = history.length + 1; // index this assistant msg will land at
-    setMsgs((m) => [...m, { role: "assistant", text: acc || "(no output)", files: built.length ? built : undefined }]);
+    const completedMessages: Msg[] = [
+      ...history,
+      { role: "user", text: prompt },
+      { role: "assistant", text: acc || "(no output)", files: built.length ? built : undefined },
+    ];
+    setMsgs(completedMessages);
+    // A refresh immediately after the response must not cancel the debounced disk write.
+    void persistChatSession(completedMessages).then(refreshChatSessions).catch(() => {});
     // Auto-open the inline preview for the first previewable HTML build.
     const firstHtml = built.find((f) => /\.html?$/i.test(f.name));
     if (firstHtml) setInlinePreview((p) => ({ ...p, [msgIndex]: firstHtml.relPath }));
@@ -455,14 +501,25 @@ export default function CodexView() {
   async function createGoal() {
     const title = goalTitle.trim() || goalPrompt.split("\n")[0].slice(0, 80);
     const prompt = goalPrompt.trim();
-    if (!prompt) return;
-    setGoalTitle(""); setGoalPrompt("");
-    await fetch("/api/codex/goals", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title, prompt, approvalMode, engine }),
-    });
-    refreshGoals();
+    if (!prompt || !activeProjectRoot || goalSubmitting) return;
+    setGoalSubmitting(true);
+    setGoalError("");
+    try {
+      const response = await fetch("/api/codex/goals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, prompt, approvalMode, engine, cwd: activeProjectRoot }),
+      });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || `Goal launch failed (${response.status})`);
+      setGoalTitle("");
+      setGoalPrompt("");
+      await refreshGoals();
+    } catch (error) {
+      setGoalError(error instanceof Error ? error.message : "Goal launch failed");
+    } finally {
+      setGoalSubmitting(false);
+    }
   }
   async function stopGoal(id: string) {
     await fetch(`/api/codex/goals?id=${encodeURIComponent(id)}&action=stop`, { method: "PATCH" });
@@ -541,42 +598,40 @@ export default function CodexView() {
     return `/api/codex/preview/${encodeURIComponent(selected.name)}/${segs}`;
   }
 
-  // ─── Tabs ───
   const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = useMemo(() => [
     { key: "chat",      label: "Chat",      icon: <MessageSquare size={12} /> },
-    { key: "goal",      label: "Goal Mode", icon: <Target size={12} />, count: goals.filter(g => g.status === "running").length || undefined },
+    { key: "goal",      label: "Goal Mode", icon: <Target size={12} />, count: goals.filter((goal) => goal.status === "running").length || undefined },
     { key: "sessions",  label: "Sessions",  icon: <ListChecks size={12} />, count: sessions.length || undefined },
     { key: "workspace", label: "Workspace", icon: <Layers size={12} />, count: projects.length || undefined },
   ], [goals, sessions, projects]);
 
   const workspaceSection: WorkspaceSection = tab === "chat" ? "messages" : tab === "sessions" ? "history" : tab === "workspace" ? "projects" : "tools";
+  const hasConversationContext = Boolean(sidebarSessionPath && activeProjectRoot);
   return (
-    <AgentWorkspaceShell agent="codex" active={workspaceSection}><div className="flex min-h-0 flex-col lg:h-full">
-      {/* Tab bar + active-project pill */}
+    <AgentWorkspaceShell agent="codex" active={workspaceSection} activeTarget={tab}><div className="flex min-h-0 flex-col lg:h-full">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3 mb-3">
         <div className="flex gap-2 scroll-rail pb-1 lg:pb-0">
-          {tabs.map((t) => (
+          {tabs.map((item) => (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
+              key={item.key}
+              onClick={() => setTab(item.key)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition text-[11px] uppercase tracking-[0.18em]"
               style={{
-                borderColor: tab === t.key ? ACCENT : "var(--line-soft)",
-                background: tab === t.key ? `${ACCENT}1e` : "transparent",
-                color: tab === t.key ? ACCENT : "var(--cream-dim)",
+                borderColor: tab === item.key ? ACCENT : "var(--line-soft)",
+                background: tab === item.key ? `${ACCENT}1e` : "transparent",
+                color: tab === item.key ? ACCENT : "var(--cream-dim)",
                 fontFamily: "'Manrope', sans-serif",
                 fontWeight: 600,
-              }}>
-              {t.icon}{t.label}
-              {t.count !== undefined && (
-                <span className="hand text-[1.05rem] ml-1" style={{ color: ACCENT }}>{t.count}</span>
-              )}
+              }}
+            >
+              {item.icon}{item.label}
+              {item.count !== undefined && <span className="hand text-[1.05rem] ml-1" style={{ color: ACCENT }}>{item.count}</span>}
             </button>
           ))}
         </div>
         <span className="pill self-start lg:self-auto" title="Active scratch project — Codex chats write files here"
               style={{ background: `${ACCENT}18`, borderColor: `${ACCENT}40`, color: ACCENT }}>
-          <FolderOpen size={10} className="inline mr-1" />{activeProject}
+          <FolderOpen size={10} className="inline mr-1" />{activeProject || "Choose workspace"}
         </span>
       </div>
 
@@ -591,35 +646,10 @@ export default function CodexView() {
                 <span className="pill" style={{ color: engine === "gpt56" ? "#cdd3f7" : engine === "hy3" ? "#9dffd8" : "var(--cream-dim)", borderColor: engine === "gpt56" ? "rgba(205,211,247,.5)" : engine === "hy3" ? "rgba(90,184,150,.5)" : "var(--line-soft)", background: "rgba(255,255,255,0.02)" }}>{engine === "gpt56" ? "via OpenAI · gpt-5.6-sol · your ChatGPT OAuth" : engine === "hy3" ? "via OpenRouter · tencent/hy3:free · 295B · free" : "via OmniRoute · oc/big-pickle · free"}</span>
               </div>
               <div className="flex items-center gap-1 relative shrink-0">
-                <button onClick={() => { setHistoryOpen((o) => !o); refreshChatSessions(); }}
-                  className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md border hover:bg-[rgba(255,255,255,0.04)]"
-                  style={{ color: historyOpen ? ACCENT : "var(--cream-mute)", borderColor: historyOpen ? `${ACCENT}44` : "var(--line-soft)" }}>
-                  History{chatSessions.length ? ` · ${chatSessions.length}` : ""}
-                </button>
-                <button onClick={() => newChat()} disabled={streaming}
-                  className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md border hover:bg-[rgba(255,255,255,0.04)]"
-                  style={{ color: "var(--cream-mute)", borderColor: "var(--line-soft)" }}>
-                  + New
-                </button>
                 {msgs.length > 0 && !streaming && (
                   <button onClick={clearChat} className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md hover:bg-[rgba(255,255,255,0.04)]" style={{ color: "var(--cream-mute)" }}>
                     <Trash2 size={11} /> clear
                   </button>
-                )}
-                {historyOpen && (
-                  <div className="absolute right-0 top-8 z-30 w-[320px] max-h-[300px] overflow-y-auto scroll rounded-xl border shadow-2xl"
-                    style={{ background: "var(--bg-elev, #201a28)", borderColor: "var(--line-soft)" }}>
-                    {chatSessions.length === 0 && <div className="px-3 py-3 text-[11.5px] text-[var(--cream-mute)]">No saved conversations yet — chats auto-save here.</div>}
-                    {chatSessions.map((s) => (
-                      <button key={s.id} onClick={() => loadChatSession(s.id)}
-                        className="w-full text-left px-3 py-2 border-b hover:bg-[rgba(255,255,255,0.04)] flex items-center gap-2"
-                        style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                        <span className="flex-1 truncate text-[12px] text-[var(--cream)]">{s.title}</span>
-                        <span className="text-[10px] mono text-[var(--cream-mute)] shrink-0">{s.count} msg</span>
-                        {s.id === sidRef.current && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: ACCENT }} />}
-                      </button>
-                    ))}
-                  </div>
                 )}
               </div>
             </div>
@@ -730,7 +760,8 @@ export default function CodexView() {
                   if (e.key === "Escape" && streaming) stopChat();
                 }}
                 rows={2}
-                placeholder="Ask Codex…  (⌘+Enter to send)"
+                disabled={!hasConversationContext}
+                placeholder={hasConversationContext ? "Ask Codex…  (⌘+Enter to send)" : "Choose a workspace and start a new task"}
                 className="flex-1 bg-transparent outline-none resize-none px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[var(--cream-mute)]" />
               {streaming ? (
                 <button onClick={stopChat}
@@ -738,7 +769,7 @@ export default function CodexView() {
                   <Square size={14} /> Stop
                 </button>
               ) : (
-                <button onClick={sendChat} disabled={!input.trim()}
+                <button onClick={sendChat} disabled={!input.trim() || !hasConversationContext}
                   className="px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed transition"
                   style={{ background: `${ACCENT}28`, border: `1px solid ${ACCENT}66`, color: ACCENT }}>
                   <Send size={14} /> Send
@@ -771,10 +802,22 @@ export default function CodexView() {
                   <option value="readonly">👀 Ask (read-only — plans but won't write)</option>
                   <option value="yolo">🚀 YOLO (no sandbox — full access)</option>
                 </select>
-                <button onClick={createGoal} disabled={!goalPrompt.trim()}
+                <select value={engine} onChange={(e) => changeEngine(e.target.value as "omniroute" | "hy3" | "gpt56")}
+                  title="The exact provider used by this goal. OmniRoute is a local gateway that can send prompts to upstream model providers."
+                  className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream-mute)] outline-none mb-2 cursor-pointer"
+                  style={{ borderColor: "var(--line-soft)" }}>
+                  <option value="omniroute">OmniRoute gateway</option>
+                  <option value="hy3">HY3 via OpenRouter</option>
+                  <option value="gpt56">GPT 5.6 via OpenAI OAuth</option>
+                </select>
+                <div className="mb-2 truncate text-[10px] text-[var(--cream-mute)]" title={activeProjectRoot || "Choose a workspace from the Codex sidebar"}>
+                  Workspace: {activeProjectRoot || "Choose a workspace first"}
+                </div>
+                {goalError && <div role="alert" className="mb-2 rounded-md border px-2.5 py-2 text-[10px] text-rose-300" style={{ borderColor: "rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)" }}>{goalError}</div>}
+                <button onClick={createGoal} disabled={!goalPrompt.trim() || !activeProjectRoot || goalSubmitting}
                   className="w-full px-3 py-2 rounded-md text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: `${ACCENT}28`, border: `1px solid ${ACCENT}66`, color: ACCENT }}>
-                  <Play size={14} /> Launch goal
+                  <Play size={14} /> {goalSubmitting ? "Launching…" : "Launch goal"}
                 </button>
               </div>
               <div className="pt-3 border-t" style={{ borderColor: "var(--line-soft)" }}>

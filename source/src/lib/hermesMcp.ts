@@ -15,6 +15,12 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { run } from "@/lib/runner";
+import {
+  hermesCliArgs,
+  hermesProfileConfigPath,
+  hermesProfileEnvPath,
+  resolveHermesProfile,
+} from "@/lib/hermesProfile";
 
 export interface CatalogEntry {
   name: string;
@@ -31,6 +37,7 @@ export interface CatalogEntry {
 
 export interface InstalledEntry {
   name: string;
+  profile: string;
   enabled: boolean;
   transport: "stdio" | "http" | "unknown";
   command?: string;
@@ -40,8 +47,6 @@ export interface InstalledEntry {
   authType?: "api_key" | "oauth" | "none" | string;
   raw: Record<string, unknown>;
 }
-
-const CONFIG_PATH = path.join(hermesHome(), "config.yaml");
 
 // Where the hermes-agent repo lives locally. The catalog manifests for every
 // Nous-approved MCP live under <repo>/optional-mcps/<name>/manifest.yaml.
@@ -93,8 +98,9 @@ function extractAuth(authField: unknown): { type?: string; provider?: string } {
 // We split on the column rule line ("------ -----...") to lock in column widths,
 // then slice each row by those widths. Robust to descriptions that contain
 // multiple spaces.
-export async function listCatalog(): Promise<CatalogEntry[]> {
-  const res = await run("hermes", ["mcp", "catalog"], { timeoutMs: 10000 });
+export async function listCatalog(requestedProfile?: string): Promise<CatalogEntry[]> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const res = await run("hermes", hermesCliArgs(profile, ["mcp", "catalog"]), { timeoutMs: 10000 });
   if (!res.ok) return [];
   const lines = res.stdout.split("\n");
   // Find the rule line (the one of dashes).
@@ -152,10 +158,12 @@ export async function listCatalog(): Promise<CatalogEntry[]> {
 // Read the mcp_servers section from config.yaml directly. The CLI's
 // `hermes mcp list` output is human-formatted; reading the YAML lets us
 // surface raw transport details (command vs url) and the enabled flag.
-export async function listInstalled(): Promise<InstalledEntry[]> {
-  if (!existsSync(CONFIG_PATH)) return [];
+export async function listInstalled(requestedProfile?: string): Promise<InstalledEntry[]> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const configPath = hermesProfileConfigPath(profile);
+  if (!existsSync(configPath)) return [];
   let raw: string;
-  try { raw = await readFile(CONFIG_PATH, "utf8"); }
+  try { raw = await readFile(configPath, "utf8"); }
   catch { return []; }
   let doc: unknown;
   try { doc = yaml.load(raw); }
@@ -189,7 +197,7 @@ export async function listInstalled(): Promise<InstalledEntry[]> {
         if (keys.some((k) => /TOKEN|API_KEY|SECRET/i.test(k))) authType = "api_key";
       }
     }
-    out.push({ name, enabled, transport, command, url, toolCount, authType, raw: c });
+    out.push({ name, profile, enabled, transport, command, url, toolCount, authType, raw: c });
   }
   return out;
 }
@@ -197,10 +205,12 @@ export async function listInstalled(): Promise<InstalledEntry[]> {
 // Toggle the `enabled` flag for a given server. The CLI doesn't expose this
 // directly, so we read+modify+atomic-rewrite config.yaml ourselves. We round-
 // trip through js-yaml which preserves all unrelated keys.
-export async function toggleEnabled(name: string, enabled: boolean): Promise<{ ok: boolean; error?: string }> {
-  if (!existsSync(CONFIG_PATH)) return { ok: false, error: "config.yaml not found" };
+export async function toggleEnabled(name: string, enabled: boolean, requestedProfile?: string): Promise<{ ok: boolean; error?: string }> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const configPath = hermesProfileConfigPath(profile);
+  if (!existsSync(configPath)) return { ok: false, error: `config.yaml not found for profile '${profile}'` };
   let raw: string;
-  try { raw = await readFile(CONFIG_PATH, "utf8"); }
+  try { raw = await readFile(configPath, "utf8"); }
   catch (e) { return { ok: false, error: String(e) }; }
   let doc: Record<string, unknown>;
   try { doc = yaml.load(raw) as Record<string, unknown>; }
@@ -214,28 +224,27 @@ export async function toggleEnabled(name: string, enabled: boolean): Promise<{ o
   (entry as Record<string, unknown>)["enabled"] = enabled;
   // Atomic write: write to temp then rename, so a half-written config can't
   // brick Hermes if we crash mid-flush.
-  const tmp = `${CONFIG_PATH}.tmp-${Date.now()}`;
+  const tmp = `${configPath}.tmp-${Date.now()}`;
   try {
     const dump = yaml.dump(doc, { lineWidth: 120, noRefs: true });
     await writeFile(tmp, dump, { mode: 0o644 });
-    await rename(tmp, CONFIG_PATH);
+    await rename(tmp, configPath);
   } catch (e) { return { ok: false, error: String(e) }; }
   return { ok: true };
 }
 
 // Uninstall via the Hermes CLI (it knows how to clean up bootstrap dirs,
 // tokens, etc — we don't want to reimplement that).
-export async function uninstall(name: string): Promise<{ ok: boolean; output: string; error?: string }> {
+export async function uninstall(name: string, requestedProfile?: string): Promise<{ ok: boolean; output: string; error?: string }> {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(name)) {
     return { ok: false, output: "", error: "invalid mcp name" };
   }
-  const res = await run("hermes", ["mcp", "remove", name], { timeoutMs: 15000 });
+  const profile = await resolveHermesProfile(requestedProfile);
+  const res = await run("hermes", hermesCliArgs(profile, ["mcp", "remove", name]), { timeoutMs: 15000 });
   return { ok: res.ok, output: res.stdout || res.stderr, error: res.ok ? undefined : (res.stderr || `exit ${res.code}`) };
 }
 
 // ─── Phase 2: install flow helpers ──────────────────────────────────────────
-
-const ENV_PATH = path.join(hermesHome(), ".env");
 
 export interface ManifestEnvVar {
   name: string;
@@ -327,7 +336,9 @@ export async function loadManifest(name: string): Promise<ManifestSummary | null
 // Append/update env vars in ~/.hermes/.env atomically. Preserves all existing
 // keys; only overwrites the ones in `vars`. Atomic = write to tempfile + rename
 // so a half-written .env can't brick Hermes config loading.
-export async function upsertEnv(vars: Record<string, string>): Promise<{ ok: boolean; error?: string; written: string[] }> {
+export async function upsertEnv(vars: Record<string, string>, requestedProfile?: string): Promise<{ ok: boolean; error?: string; written: string[] }> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const envPath = hermesProfileEnvPath(profile);
   const keys = Object.keys(vars);
   if (keys.length === 0) return { ok: true, written: [] };
   // Light sanity: env var names follow POSIX shape.
@@ -337,8 +348,8 @@ export async function upsertEnv(vars: Record<string, string>): Promise<{ ok: boo
     }
   }
   let existing = "";
-  if (existsSync(ENV_PATH)) {
-    try { existing = await readFile(ENV_PATH, "utf8"); }
+  if (existsSync(envPath)) {
+    try { existing = await readFile(envPath, "utf8"); }
     catch (e) { return { ok: false, error: String(e), written: [] }; }
   }
   // Walk existing lines, replace any whose key is in vars, leave others.
@@ -360,10 +371,10 @@ export async function upsertEnv(vars: Record<string, string>): Promise<{ ok: boo
     if (!seen.has(k)) out.push(`${k}=${escapeEnvValue(vars[k])}`);
   }
   const body = out.join("\n") + "\n";
-  const tmp = `${ENV_PATH}.tmp-${Date.now()}`;
+  const tmp = `${envPath}.tmp-${Date.now()}`;
   try {
     await writeFile(tmp, body, { mode: 0o600 });
-    await rename(tmp, ENV_PATH);
+    await rename(tmp, envPath);
   } catch (e) { return { ok: false, error: String(e), written: [] }; }
   return { ok: true, written: keys };
 }
@@ -392,7 +403,8 @@ export interface AddCustomSpec {
   envVars?: Record<string, string>;
 }
 
-export async function addCustomServer(spec: AddCustomSpec): Promise<{ ok: boolean; output: string; error?: string }> {
+export async function addCustomServer(spec: AddCustomSpec, requestedProfile?: string): Promise<{ ok: boolean; output: string; error?: string }> {
+  const profile = await resolveHermesProfile(requestedProfile);
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(spec.name)) {
     return { ok: false, output: "", error: "name must match [a-zA-Z0-9_-]{1,64}" };
   }
@@ -405,7 +417,7 @@ export async function addCustomServer(spec: AddCustomSpec): Promise<{ ok: boolea
   // 1) Write env vars first so the CLI sees them populated. Hermes config also
   //    references them by `${VAR}` substitution at server-connect time.
   if (spec.envVars && Object.keys(spec.envVars).length > 0) {
-    const r = await upsertEnv(spec.envVars);
+    const r = await upsertEnv(spec.envVars, profile);
     if (!r.ok) return { ok: false, output: "", error: `env write failed: ${r.error}` };
   }
 
@@ -457,7 +469,7 @@ export async function addCustomServer(spec: AddCustomSpec): Promise<{ ok: boolea
     }
   }
 
-  const res = await run("hermes", argList, { timeoutMs: 30000 });
+  const res = await run("hermes", hermesCliArgs(profile, argList), { timeoutMs: 30000 });
   return { ok: res.ok, output: res.stdout || res.stderr, error: res.ok ? undefined : (res.stderr || `exit ${res.code}`) };
 }
 
@@ -465,8 +477,10 @@ export async function addCustomServer(spec: AddCustomSpec): Promise<{ ok: boolea
 // Updates the `tools.include` array for an installed server. Atomic YAML
 // rewrite — only the targeted server's tools.include is touched.
 
-export async function setToolsInclude(name: string, tools: string[]): Promise<{ ok: boolean; error?: string }> {
-  if (!existsSync(CONFIG_PATH)) return { ok: false, error: "config.yaml not found" };
+export async function setToolsInclude(name: string, tools: string[], requestedProfile?: string): Promise<{ ok: boolean; error?: string }> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const configPath = hermesProfileConfigPath(profile);
+  if (!existsSync(configPath)) return { ok: false, error: `config.yaml not found for profile '${profile}'` };
   // Light validation of tool names — MCP tool names are dotted identifiers.
   for (const t of tools) {
     if (typeof t !== "string" || t.length === 0 || t.length > 200) {
@@ -477,7 +491,7 @@ export async function setToolsInclude(name: string, tools: string[]): Promise<{ 
     }
   }
   let raw: string;
-  try { raw = await readFile(CONFIG_PATH, "utf8"); }
+  try { raw = await readFile(configPath, "utf8"); }
   catch (e) { return { ok: false, error: String(e) }; }
   let doc: Record<string, unknown>;
   try { doc = yaml.load(raw) as Record<string, unknown>; }
@@ -502,21 +516,23 @@ export async function setToolsInclude(name: string, tools: string[]): Promise<{ 
     existing["include"] = tools;
     entryObj["tools"] = existing;
   }
-  const tmp = `${CONFIG_PATH}.tmp-${Date.now()}`;
+  const tmp = `${configPath}.tmp-${Date.now()}`;
   try {
     const dump = yaml.dump(doc, { lineWidth: 120, noRefs: true });
     await writeFile(tmp, dump, { mode: 0o644 });
-    await rename(tmp, CONFIG_PATH);
+    await rename(tmp, configPath);
   } catch (e) { return { ok: false, error: String(e) }; }
   return { ok: true };
 }
 
 // Read tools.include for a given installed server. Returns null if no include
 // filter is set (which means "all tools enabled").
-export async function getToolsInclude(name: string): Promise<string[] | null> {
-  if (!existsSync(CONFIG_PATH)) return null;
+export async function getToolsInclude(name: string, requestedProfile?: string): Promise<string[] | null> {
+  const profile = await resolveHermesProfile(requestedProfile);
+  const configPath = hermesProfileConfigPath(profile);
+  if (!existsSync(configPath)) return null;
   let doc: unknown;
-  try { doc = yaml.load(await readFile(CONFIG_PATH, "utf8")); }
+  try { doc = yaml.load(await readFile(configPath, "utf8")); }
   catch { return null; }
   if (!doc || typeof doc !== "object") return null;
   const servers = (doc as Record<string, unknown>)["mcp_servers"];

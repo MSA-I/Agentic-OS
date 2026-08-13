@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ ok: false, error: "missing body" }, { status: 400 });
   }
-  const spec = body as Partial<AddCustomSpec>;
+  const spec = body as Partial<AddCustomSpec> & { profile?: string };
   if (!spec.name || !spec.transport) {
     return NextResponse.json({ ok: false, error: "name and transport required" }, { status: 400 });
   }
@@ -39,6 +39,6 @@ export async function POST(req: Request) {
     auth: spec.auth,
     preset: spec.preset,
     envVars: spec.envVars,
-  });
+  }, spec.profile);
   return NextResponse.json(r, { status: r.ok ? 200 : 500 });
 }

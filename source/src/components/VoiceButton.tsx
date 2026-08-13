@@ -21,6 +21,7 @@ interface Props {
   onTranscript: (text: string, opts: { final: boolean }) => void;
   className?: string;
   size?: number;
+  disabled?: boolean;
 }
 
 // Shared voice→input wiring: append final transcripts to a text state, showing
@@ -43,7 +44,7 @@ export function useVoiceToInput(setText: (updater: (prev: string) => string) => 
   };
 }
 
-export default function VoiceButton({ onTranscript, className = "", size = 36 }: Props) {
+export default function VoiceButton({ onTranscript, className = "", size = 36, disabled = false }: Props) {
   const [active, setActive] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,14 @@ export default function VoiceButton({ onTranscript, className = "", size = 36 }:
     setSupported(!!C);
   }, []);
 
+  useEffect(() => {
+    if (!disabled) return;
+    try { recRef.current?.abort(); } catch {}
+    setActive(false);
+  }, [disabled]);
+
   function start() {
+    if (disabled) return;
     setError(null);
     const C = (typeof window !== "undefined" && ((window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: new () => SR }).webkitSpeechRecognition)) as undefined | { new(): SR };
     if (!C) { setError("Voice not supported in this browser. Use Chrome or Safari."); return; }
@@ -106,9 +114,10 @@ export default function VoiceButton({ onTranscript, className = "", size = 36 }:
     <>
       <motion.button
         onClick={active ? stop : start}
+        disabled={disabled}
         whileTap={{ scale: 0.92 }}
-        title={active ? "Stop recording (or finish speaking)" : "Speak to type"}
-        className={`relative grid place-items-center rounded-lg border transition ${className}`}
+        title={disabled ? "Voice input is unavailable for this read-only conversation" : active ? "Stop recording (or finish speaking)" : "Speak to type"}
+        className={`relative grid place-items-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-45 ${className}`}
         style={{
           width: size, height: size,
           borderColor: active ? "rgba(248,113,113,0.6)" : "var(--panel-border)",

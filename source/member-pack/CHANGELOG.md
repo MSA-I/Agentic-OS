@@ -75,7 +75,7 @@ The newest changes are at the top. Each entry is what changed for **you** — ne
 - 📊 **New guide: OpenSEO.** The **SEO → OpenSEO** sub-tab (a free, self-hosted Semrush/Ahrefs alternative — keyword research, rank tracking, backlinks, site audits, on your own DataForSEO key, running locally in Docker) now has a proper setup guide: `install/29-OPENSEO.md`. It was already in the dashboard but undocumented; now you can actually set it up.
 
 ## 2026-07-05
-- 🧭 **New tab: OmniRoute.** Build with AI for **$0** by routing every message across **90+ free providers** with automatic fallback — no API key, nothing leaves your Mac. Install with `npm install -g omniroute` and go. Guide: `install/28-OMNIROUTE.md`.
+- 🧭 **New tab: OmniRoute.** Build with AI for **$0** through a locally managed gateway that routes requests across **90+ free upstream providers** with automatic fallback. Prompts and files may be sent to the selected provider. Install with `npm install -g omniroute` and go. Guide: `install/28-OMNIROUTE.md`.
 - ✅ **New: Implementation Checklist.** A simple tick-box list to get a fresh install up and running (`IMPLEMENTATION-CHECKLIST.md`, linked at the top of the README) — only four steps to a working dashboard.
 
 ## 2026-07-03

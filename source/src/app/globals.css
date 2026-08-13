@@ -37,6 +37,10 @@
   --shadow-1: 0 1px 0 rgba(232, 237, 244, 0.03), 0 6px 18px rgba(0,0,0,0.55);
   --shadow-2: 0 2px 0 rgba(232, 237, 244, 0.04), 0 18px 48px rgba(0,0,0,0.6);
 
+  --scrollbar-thumb: rgba(125, 171, 255, 0.34);
+  --scrollbar-thumb-hover: rgba(125, 171, 255, 0.62);
+  --scrollbar-track: rgba(232, 237, 244, 0.035);
+
   /* ── Aliases ──────────────────────────────────────────────────────────
      ~90 components address the palette through the old Aubergine names.
      Remapping them here is what keeps this redesign to two files: every
@@ -478,11 +482,110 @@ blockquote cite {
   font-feature-settings: "tnum";
 }
 
-/* Minimal scrollbar */
-.scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.scroll::-webkit-scrollbar-thumb { background: rgba(46, 125, 255, 0.22); border-radius: 2px; }
-.scroll::-webkit-scrollbar-thumb:hover { background: rgba(46, 125, 255, 0.4); }
-.scroll::-webkit-scrollbar-track { background: transparent; }
+/* Shared native scrollbar skin for nested panels. ScrollArea hides its native
+   gutter and renders a synchronized overlay thumb below. */
+* {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+*::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+
+.scroll-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  --scroll-area-fade-color: var(--bg-deep);
+}
+.scroll-area__viewport {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-area__viewport::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.scroll-area__viewport:focus-visible {
+  outline: 2px solid var(--sdi-soft);
+  outline-offset: -2px;
+}
+.scroll-area__content { min-width: 0; }
+.scroll-area__track {
+  position: absolute;
+  z-index: 30;
+  inset-block: 6px;
+  inset-inline-end: 4px;
+  width: 8px;
+  border-radius: 999px;
+  background: var(--scrollbar-track);
+  opacity: 0.62;
+  pointer-events: auto;
+  transition: opacity 140ms ease;
+}
+.scroll-area__thumb {
+  width: 100%;
+  min-height: 24px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  will-change: transform;
+  transition: background-color 140ms ease;
+}
+.scroll-area__thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+.scroll-area[data-dragging="true"] .scroll-area__thumb { cursor: grabbing; background-color: var(--scrollbar-thumb-hover); }
+.scroll-area[data-overflow-y="false"] .scroll-area__track,
+.scroll-area[data-scrollbar="hidden"] .scroll-area__track { opacity: 0; pointer-events: none; }
+.scroll-area[data-scrollbar="always"][data-overflow-y="true"] .scroll-area__track { opacity: 1; }
+.scroll-area[data-scrollbar="hover"] .scroll-area__track { opacity: 0; }
+.scroll-area[data-scrollbar="hover"]:hover .scroll-area__track,
+.scroll-area[data-scrollbar="hover"]:focus-within .scroll-area__track,
+.scroll-area[data-scrollbar="hover"][data-dragging="true"] .scroll-area__track { opacity: 1; }
+.scroll-area__fade {
+  position: absolute;
+  z-index: 20;
+  inset-inline: 0;
+  height: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.scroll-area__fade[data-visible="true"] { opacity: 1; }
+.scroll-area__fade--start {
+  inset-block-start: 0;
+  background: linear-gradient(to bottom, var(--scroll-area-fade-color), transparent);
+}
+.scroll-area__fade--end {
+  inset-block-end: 0;
+  background: linear-gradient(to top, var(--scroll-area-fade-color), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-area__track,
+  .scroll-area__thumb,
+  .scroll-area__fade { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .scroll-area__fade { display: none; }
+  .scroll-area__track { background: Canvas; border: 1px solid CanvasText; }
+  .scroll-area__thumb { background: CanvasText; border-color: Canvas; }
+  .scroll-area__viewport:focus-visible { outline-color: Highlight; }
+}
 
 /* Agent tally colours — keeps existing class names alive */
 .glow-c { color: var(--amber);    text-shadow: 0 0 14px rgba(255, 176, 32, 0.45); }
@@ -659,6 +762,56 @@ blockquote cite {
 .local-md th, .local-md td { border: 1px solid var(--line-soft); padding: 4px 9px; }
 .local-md blockquote { border-left: 2px solid var(--line-soft); margin: 0.5em 0; padding-left: 0.8em; color: var(--cream-mute); }
 .local-md hr { border: 0; border-top: 1px solid var(--line-soft); margin: 0.7em 0; }
+
+/* Setup Center project guides: dense operational documentation, not raw
+   browser markdown. Long commands remain horizontally reachable. */
+.setup-guide > :first-child { margin-top: 0; }
+.setup-guide > :last-child { margin-bottom: 0; }
+.setup-guide h1,
+.setup-guide h2,
+.setup-guide h3 {
+  color: var(--cream);
+  font-family: var(--face-display);
+  font-weight: 650;
+  line-height: 1.22;
+  margin: 1.35em 0 0.55em;
+}
+.setup-guide h1 { font-size: 1.45rem; }
+.setup-guide h2 { font-size: 1.12rem; padding-bottom: 0.35em; border-bottom: 1px solid var(--line-soft); }
+.setup-guide h3 { font-size: 0.95rem; }
+.setup-guide p { margin: 0.58em 0; }
+.setup-guide ul,
+.setup-guide ol { margin: 0.55em 0; padding-left: 1.35rem; }
+.setup-guide li { margin: 0.3em 0; }
+.setup-guide strong { color: var(--cream); font-weight: 650; }
+.setup-guide blockquote {
+  margin: 0.8em 0;
+  padding: 0.65em 0.9em;
+  border-left: 2px solid var(--amber);
+  background: rgba(255,176,32,0.055);
+  color: var(--cream-dim);
+}
+.setup-guide code {
+  font-family: var(--face-data);
+  font-size: 0.88em;
+  color: var(--sdi-soft);
+  background: rgba(0,0,0,0.28);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  padding: 0.08em 0.32em;
+}
+.setup-guide pre {
+  margin: 0.75em 0;
+  overflow-x: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: rgba(0,0,0,0.34);
+  padding: 0.8rem 0.9rem;
+}
+.setup-guide pre code { border: 0; background: transparent; padding: 0; }
+.setup-guide table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.setup-guide th,
+.setup-guide td { border: 1px solid var(--line-soft); padding: 0.4rem 0.55rem; text-align: left; }
 
 /* ── Dopamine layer — broadcast recolour (SDI blue · magenta · cyan) ──── */
 .fx-aurora{position:fixed;inset:-20%;z-index:1;pointer-events:none;opacity:.5;filter:blur(46px);

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import { hermesCliArgs } from "@/lib/hermesProfile";
+import { resolveHiggsfieldProfile } from "@/lib/higgsfieldProfile";
 import { run } from "@/lib/runner";
 
 export const runtime = "nodejs";
@@ -12,14 +14,7 @@ export const dynamic = "force-dynamic";
 // the resulting asset URLs all land in one place. Hermes is told to save every asset
 // it produces into the gallery dir, so the OS gallery is a byproduct of the run rather
 // than a separate sync step that can drift.
-// Profile: HIGGS_PROFILE env → the member's active Hermes profile (never a hardcoded name).
-import { readFileSync } from "fs";
-import { hermesHome } from "@/lib/config";
-function higgsProfile(): string {
-  if (process.env.HIGGS_PROFILE) return process.env.HIGGS_PROFILE;
-  try { return readFileSync(path.join(hermesHome(), "active_profile"), "utf8").trim() || "main"; } catch { return "main"; }
-}
-const PROFILE = higgsProfile();
+// Profile resolution is shared with status and navigation availability.
 const ROOT = path.join(os.homedir(), ".agentic-os", "higgsfield");
 const GALLERY = path.join(ROOT, "gallery");
 const SESSIONS = path.join(ROOT, "sessions");
@@ -36,6 +31,7 @@ const GUIDE = (kind: string) =>
   ].join(" ");
 
 export async function POST(req: Request) {
+  const { profile } = await resolveHiggsfieldProfile();
   const body = await req.json().catch(() => ({}));
   const prompt = String(body.prompt ?? "").trim();
   const kind = ["image", "video", "auto"].includes(String(body.kind)) ? String(body.kind) : "auto";
@@ -47,7 +43,7 @@ export async function POST(req: Request) {
 
   const started = Date.now();
   const full = `${GUIDE(kind)}\n\nREQUEST:\n${prompt}`;
-  const r = await run("hermes", ["-p", PROFILE, "-z", full, "--yolo", "--accept-hooks"], { timeoutMs: 900_000, cwd: GALLERY });
+  const r = await run("hermes", hermesCliArgs(profile, ["-z", full, "--yolo", "--accept-hooks"]), { timeoutMs: 900_000, cwd: GALLERY });
   const out = (r.stdout || "").replace(ANSI, "").trim();
 
   // whatever actually appeared on disk is the truth — the JSON line is only a hint

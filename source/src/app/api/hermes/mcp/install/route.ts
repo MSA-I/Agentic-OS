@@ -16,12 +16,13 @@
 import { spawn } from "node:child_process";
 import { upsertEnv } from "@/lib/hermesMcp";
 import { config } from "@/lib/config";
+import { hermesCliArgs, resolveHermesProfile } from "@/lib/hermesProfile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  let body: { name?: string; envVars?: Record<string, string> };
+  let body: { name?: string; envVars?: Record<string, string>; profile?: string };
   try { body = await req.json(); }
   catch { return new Response(JSON.stringify({ error: "invalid json" }), { status: 400 }); }
   const name = body.name;
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
   }
   const hermesBin = config.hermes;
   const envVars = body.envVars ?? {};
+  const profile = await resolveHermesProfile(body.profile);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
       // Step 1 — write env vars (if any) to ~/.hermes/.env.
       if (Object.keys(envVars).length > 0) {
         emit({ type: "step", label: "Writing credentials to ~/.hermes/.env" });
-        const r = await upsertEnv(envVars);
+        const r = await upsertEnv(envVars, profile);
         if (!r.ok) {
           emit({ type: "error", text: `env write failed: ${r.error}` });
           emit({ type: "done", ok: false, code: 1, reason: "env write failed" });
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
       // We force a non-TTY env so the CLI doesn't try to use the interactive
       // pager / spinner. Pre-set credentials in env so the CLI sees them and
       // can skip its own prompts where supported.
-      emit({ type: "step", label: `Running: hermes mcp install ${name}` });
+      emit({ type: "step", label: `Running: hermes ${profile === "default" ? "" : `-p ${profile} `}mcp install ${name}`.replace(/\s+/g, " ") });
       const childEnv: NodeJS.ProcessEnv = {
         ...process.env,
         ...envVars,
@@ -71,7 +73,7 @@ export async function POST(req: Request) {
         // it the install can hang waiting on a TTY confirm we can't satisfy.
         HERMES_ACCEPT_HOOKS: "1",
       };
-      const child = spawn(hermesBin, ["mcp", "install", name], {
+      const child = spawn(hermesBin, hermesCliArgs(profile, ["mcp", "install", name]), {
         cwd: process.env.HOME,
         env: childEnv,
         stdio: ["pipe", "pipe", "pipe"],

@@ -20,23 +20,37 @@ function extractHtml(text: string): string | null {
   return (m ? m[1] : body).trim();
 }
 
-// Find the Playwright headless-chromium binary (separate from the user's real Chrome).
+// Prefer Playwright's headless Chromium; on Windows, Edge is a compatible fallback.
 let _chrome: string | null | undefined;
 function findChrome(): string | null {
   if (_chrome !== undefined) return _chrome;
   _chrome = null;
   try {
-    const base = path.join(os.homedir(), "Library", "Caches", "ms-playwright");
+    const base = process.platform === "darwin"
+      ? path.join(os.homedir(), "Library", "Caches", "ms-playwright")
+      : process.platform === "win32"
+        ? path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"), "ms-playwright")
+        : path.join(os.homedir(), ".cache", "ms-playwright");
+    const executable = process.platform === "win32" ? "chrome-headless-shell.exe" : "chrome-headless-shell";
     const fs = require("node:fs") as typeof import("node:fs");
     for (const d of fs.readdirSync(base)) {
       if (!d.startsWith("chromium_headless_shell")) continue;
       const inner = path.join(base, d);
       for (const sub of fs.readdirSync(inner)) {
-        const bin = path.join(inner, sub, "chrome-headless-shell");
+        const bin = path.join(inner, sub, executable);
         if (existsSync(bin)) { _chrome = bin; return _chrome; }
       }
     }
-  } catch { /* none */ }
+  } catch { /* no Playwright cache */ }
+  if (process.platform === "win32") {
+    const edgeCandidates = [
+      path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Microsoft", "Edge", "Application", "msedge.exe"),
+      path.join(process.env.ProgramFiles || "C:\\Program Files", "Microsoft", "Edge", "Application", "msedge.exe"),
+    ];
+    for (const candidate of edgeCandidates) {
+      if (existsSync(candidate)) { _chrome = candidate; return _chrome; }
+    }
+  }
   return _chrome;
 }
 

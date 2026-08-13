@@ -12,7 +12,14 @@ export const dynamic = "force-dynamic";
 const ROOT = path.join(os.homedir(), ".agentic-os", "codex-workspace", "chats");
 
 async function ensure() { await fs.mkdir(ROOT, { recursive: true }); }
-const safe = (name: string) => path.basename(name); // never escape the dir
+// Encode the id as one portable filename segment. `path.basename()` alone
+// leaves `:` intact, which makes project-scoped `local:<uuid>` drafts invalid
+// filenames on Windows.
+const safe = (name: string) => encodeURIComponent(path.basename(name));
+const storedId = (file: string) => {
+  const stem = file.replace(/\.json$/, "");
+  try { return decodeURIComponent(stem); } catch { return stem; }
+};
 
 // GET              → { sessions: [{id,title,count,when}] }  (newest first)
 // GET ?id=<id>     → the saved conversation JSON
@@ -30,8 +37,15 @@ export async function GET(req: Request) {
     try {
       const st = await fs.stat(path.join(ROOT, f));
       const j = JSON.parse(await fs.readFile(path.join(ROOT, f), "utf8"));
-      return { id: f.replace(/\.json$/, ""), title: j.title || "Chat", count: (j.messages || []).length, when: st.mtime.toISOString() };
-    } catch { return { id: f.replace(/\.json$/, ""), title: "Chat", count: 0, when: new Date(0).toISOString() }; }
+      return {
+        id: j.id || storedId(f),
+        title: j.title || "Chat",
+        count: (j.messages || []).length,
+        when: st.mtime.toISOString(),
+        project: typeof j.project === "string" ? j.project : undefined,
+        root: typeof j.root === "string" ? j.root : undefined,
+      };
+    } catch { return { id: storedId(f), title: "Chat", count: 0, when: new Date(0).toISOString() }; }
   }));
   return NextResponse.json({ sessions: sessions.sort((a, b) => b.when.localeCompare(a.when)).slice(0, 40) });
 }
@@ -43,8 +57,11 @@ export async function POST(req: Request) {
   const id = safe(String(body.id || `c-${Date.now()}`));
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const title = String(body.title || "Chat").slice(0, 80);
-  await fs.writeFile(path.join(ROOT, id + ".json"), JSON.stringify({ id, title, when: new Date().toISOString(), messages }, null, 2), "utf8");
+  const originalId = String(body.id || decodeURIComponent(id));
+  const project = typeof body.project === "string" ? body.project.slice(0, 240) : undefined;
+  const root = typeof body.root === "string" ? body.root.slice(0, 2048) : undefined;
+  await fs.writeFile(path.join(ROOT, id + ".json"), JSON.stringify({ id: originalId, title, when: new Date().toISOString(), messages, project, root }, null, 2), "utf8");
   const md = `# ${title}\n\n` + messages.map((m: { role: string; text: string }) => `**${m.role}:**\n\n${m.text}\n`).join("\n---\n\n");
   await fs.writeFile(path.join(ROOT, id + ".md"), md, "utf8");
-  return NextResponse.json({ ok: true, id });
+  return NextResponse.json({ ok: true, id: originalId });
 }

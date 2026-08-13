@@ -17,6 +17,8 @@
 **/.next/
 **/out/
 **/build/
+!source/src/app/api/opencode/build/
+!source/src/app/api/opencode/build/route.ts
 **/dist/
 **/coverage/
 **/*.tsbuildinfo
@@ -51,7 +53,6 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
-
 # Known malformed local artifacts; preserve locally but never publish
 source/src/components/(\[\])
 source/src/components/[{]

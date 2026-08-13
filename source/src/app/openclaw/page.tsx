@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, MessageSquare, Terminal, Layers, Sparkles, History } from "lucide-react";
+import { Box, History, Layers, MessageSquare, Sparkles, Terminal } from "lucide-react";
 import AgentRoom from "@/components/AgentRoom";
 import UnifiedChat from "@/components/UnifiedChat";
 import OpenClawWorkspace from "@/components/OpenClawWorkspace";
@@ -17,8 +17,13 @@ export default function OpenClawRoute() {
   const [v, setV] = useState<OcVitals | null>(null);
   useEffect(() => {
     const onNav = (event: Event) => {
-      const d = (event as CustomEvent<{ agent?: string; section?: WorkspaceSection }>).detail;
+      const d = (event as CustomEvent<{ agent?: string; section?: WorkspaceSection; target?: string }>).detail;
       if (d?.agent !== "openclaw") return;
+      const target = d.target;
+      if (target === "chat" || target === "sessions" || target === "studio" || target === "workspace" || target === "control") {
+        setTab(target);
+        return;
+      }
       const next: Partial<Record<WorkspaceSection, OcTab>> = { new: "chat", messages: "chat", tools: "control", artifacts: "studio", projects: "workspace", history: "sessions" };
       if (d.section && next[d.section]) setTab(next[d.section]!);
     };
@@ -42,7 +47,7 @@ export default function OpenClawRoute() {
 
   const section: WorkspaceSection = tab === "chat" ? "messages" : tab === "sessions" ? "history" : tab === "workspace" ? "projects" : tab === "studio" ? "artifacts" : "tools";
   return (
-    <AgentWorkspaceShell agent="openclaw" active={section}><div className="space-y-5">
+    <AgentWorkspaceShell agent="openclaw" active={section} activeTarget={tab}><div className="space-y-5">
       <div className="flex items-center gap-2 scroll-rail pb-1 -mx-1 px-1">
         {([
           { key: "chat",      label: "Chat",         icon: <MessageSquare size={14} /> },
@@ -50,12 +55,12 @@ export default function OpenClawRoute() {
           { key: "studio",    label: "Studio",       icon: <Sparkles size={14} /> },
           { key: "workspace", label: "Workspace",    icon: <Layers size={14} /> },
           { key: "control",   label: "Control Room", icon: <Terminal size={14} /> },
-        ] as { key: OcTab; label: string; icon: React.ReactNode }[]).map((t) => {
-          const active = tab === t.key;
+        ] as { key: OcTab; label: string; icon: React.ReactNode }[]).map((item) => {
+          const active = tab === item.key;
           return (
             <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
+              key={item.key}
+              onClick={() => setTab(item.key)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12.5px] transition"
               style={{
                 background: active ? "rgba(245,101,74,0.16)" : "transparent",
@@ -63,7 +68,7 @@ export default function OpenClawRoute() {
                 color: active ? "var(--fg)" : "var(--fg-dim)",
               }}
             >
-              {t.icon}{t.label}
+              {item.icon}{item.label}
             </button>
           );
         })}

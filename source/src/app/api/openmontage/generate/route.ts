@@ -3,6 +3,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { hermesHome } from "@/lib/config";
 
+const PYTHON = process.env.AGENTIC_OS_PY_BIN || (process.platform === "win32" ? "py" : "python3");
+
 // POST { prompt, shots? } → starts a cinematic generation job, returns { jobId }.
 // The Python pipeline (OpenRouter cinematic images → ffmpeg Ken Burns + grade) runs
 // detached and writes live progress to a job json that /api/openmontage/status reads.
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   const outFile = path.join(outDir, `${jobId}.mp4`);
 
   const child = spawn(
-    "python3",
+    PYTHON,
     [script, "--prompt", prompt.trim().slice(0, 600), countFlag, String(n),
       "--out", outFile, "--job", jobFile],
     { detached: true, stdio: "ignore", cwd: ws }

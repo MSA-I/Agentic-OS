@@ -4,6 +4,7 @@
   "claude": null,
   "openclaw": null,
   "hermes": null,
+  "opencode": null,
   "_paths_note": "Leave as null to auto-detect via `which`. Or paste the full path you get from `which claude` etc.",
 
   "nlmBin": null,

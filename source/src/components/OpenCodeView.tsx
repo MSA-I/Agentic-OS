@@ -2,26 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
-import { Layers, Loader2, ExternalLink, RefreshCw, CornerDownLeft } from "lucide-react";
+import { Layers, Loader2, ExternalLink, RefreshCw, CornerDownLeft, PlugZap } from "lucide-react";
+import { openSetupCenter } from "./SetupCenterHost";
 
 const SKY = "#38bdf8";      // opencode accent
 const EMERALD = "#34E5B0";
 const TERM_LSK = "agentic-os/opencode/terminal/v1"; // persisted scrollback
-const MODEL_LSK = "agentic-os/opencode/model/v1";   // persisted model choice
+const MODEL_LSK = "agentic-os/opencode/model/v2";   // persisted explicit model choice
 
-// Built-in FREE models on the opencode (Zen) provider — no API key, cost $0.
-// Anyone who's run `opencode auth login` can also type their own provider/model.
-const MODELS = [
-  { id: "opencode/nemotron-3-ultra-free", label: "Nemotron 3 Ultra", sub: "NVIDIA · free · verified" },
-  { id: "opencode/big-pickle", label: "Big Pickle", sub: "opencode Zen · free flagship" },
-  { id: "opencode/deepseek-v4-flash-free", label: "DeepSeek V4 Flash", sub: "free · fast" },
-  { id: "opencode/north-mini-code-free", label: "North Mini Code", sub: "Cohere · free · coding" },
-  { id: "omniroute/auto/coding", label: "OmniRoute · Auto Coding", sub: "free router · verified $0" },
-  { id: "omniroute/auto/best-coding", label: "OmniRoute · Best Coding", sub: "free router · strongest coder" },
-  { id: "omniroute/auto/best-fast", label: "OmniRoute · Fast", sub: "free router · quick answers" },
-  { id: "tinker/thinkingmachines/Inkling", label: "Inkling", sub: "Tinker · 975B MoE · paid" },
-];
-const subOf = (id: string) => MODELS.find((m) => m.id === id)?.sub || "custom provider/model";
+interface ModelOption { id: string; label: string; sub: string; setupRequired?: boolean }
+const INITIAL_MODEL: ModelOption = {
+  id: "opencode/nemotron-3-ultra-free",
+  label: "Nemotron 3 Ultra",
+  sub: "OpenCode Zen · free",
+};
+const subOf = (models: ModelOption[], id: string) => models.find((m) => m.id === id)?.sub || "custom provider/model";
 
 interface HistEntry { ts: number; prompt: string; project: string; ok: boolean; cost?: number; turns?: number; }
 
@@ -53,7 +48,9 @@ function toolLine(s: Line): string {
 
 export default function OpenCodeView() {
   const [tab, setTab] = useState<Tab>("terminal");
-  const [model, setModel] = useState<string>(MODELS[0].id);
+  const [models, setModels] = useState<ModelOption[]>([INITIAL_MODEL]);
+  const [model, setModel] = useState<string>(INITIAL_MODEL.id);
+  const [omniRouteConfigured, setOmniRouteConfigured] = useState(false);
   const [input, setInput] = useState("");
   const handleVoice = useVoiceToInput(setInput);
   const [lines, setLines] = useState<Line[]>([]);
@@ -64,25 +61,80 @@ export default function OpenCodeView() {
   const termRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false);
+  const statusInitialized = useRef(false);
+  const persistedModel = useRef<string | null>(null);
 
   const [history, setHistory] = useState<HistEntry[]>([]);
   const [obsidian, setObsidian] = useState<string | null>(null);
+  const selectedModelSetupRequired = models.find((item) => item.id === model)?.setupRequired === true;
   const loadHistory = useCallback(async () => {
     try { const r = await fetch("/api/opencode/history", { cache: "no-store" }); const j = await r.json(); setHistory(j.history ?? []); setObsidian(j.obsidian ?? null); } catch {}
   }, []);
 
   useEffect(() => {
     try { const raw = localStorage.getItem(TERM_LSK); if (raw) setLines(JSON.parse(raw).slice(-400)); } catch {}
-    try { const m = localStorage.getItem(MODEL_LSK); if (m) setModel(m); } catch {}
+    try {
+      const m = localStorage.getItem(MODEL_LSK);
+      if (m) {
+        persistedModel.current = m;
+        setModel(m);
+      }
+    } catch {}
     hydrated.current = true;
     loadHistory();
   }, [loadHistory]);
-  useEffect(() => { if (hydrated.current) try { localStorage.setItem(MODEL_LSK, model); } catch {} }, [model]);
   useEffect(() => { if (hydrated.current) try { localStorage.setItem(TERM_LSK, JSON.stringify(lines.slice(-400))); } catch {} }, [lines]);
 
   // opencode is a local binary — one status ping tells us it's installed & ready.
   useEffect(() => {
-    const ping = () => fetch("/api/opencode/status", { cache: "no-store" }).then((r) => r.json()).then((j) => setReady(!!j.ready)).catch(() => setReady(false));
+    const ping = () => fetch("/api/opencode/status", { cache: "no-store" }).then((r) => r.json()).then((j) => {
+      const available: ModelOption[] = Array.isArray(j.models)
+        ? j.models.filter((item: unknown): item is ModelOption => {
+            if (!item || typeof item !== "object") return false;
+            const candidate = item as Partial<ModelOption>;
+            return typeof candidate.id === "string" && typeof candidate.label === "string" && typeof candidate.sub === "string";
+          })
+        : [];
+      const selectableModels = available.length ? available : [INITIAL_MODEL];
+      const requestedDefault = typeof j.defaultModel === "string" ? j.defaultModel : selectableModels[0].id;
+      const defaultNeedsSetup = j.defaultModelSetupRequired === true
+        && !selectableModels.some((item) => item.id === requestedDefault);
+      const defaultSetupModels: ModelOption[] = defaultNeedsSetup
+        ? [{
+            id: requestedDefault,
+            label: "OmniRoute · setup required",
+            sub: "Connect the OmniRoute provider in Setup Center",
+            setupRequired: true,
+          }, ...selectableModels]
+        : selectableModels;
+      const nextModels = [...defaultSetupModels];
+      const explicitModel = persistedModel.current;
+      if (explicitModel?.startsWith("omniroute/")
+        && !nextModels.some((item) => item.id === explicitModel)) {
+        nextModels.unshift({
+          id: explicitModel,
+          label: "OmniRoute - setup required",
+          sub: "Reconnect the OmniRoute provider in Setup Center",
+          setupRequired: true,
+        });
+      }
+      const fallbackModel = nextModels.some((item) => item.id === requestedDefault)
+        ? requestedDefault
+        : nextModels[0].id;
+      const initialModel = explicitModel && nextModels.some((item) => item.id === explicitModel)
+        ? explicitModel
+        : fallbackModel;
+      setReady(!!j.ready);
+      setModels(nextModels);
+      setOmniRouteConfigured(!!j.omniRouteProviderConfigured);
+      setModel((current) => {
+        if (!statusInitialized.current) {
+          statusInitialized.current = true;
+          return initialModel;
+        }
+        return nextModels.some((item) => item.id === current) ? current : fallbackModel;
+      });
+    }).catch(() => setReady(false));
     ping(); const id = setInterval(ping, 10000); return () => clearInterval(id);
   }, []);
   useEffect(() => { if (termRef.current) termRef.current.scrollTop = termRef.current.scrollHeight; }, [lines, building]);
@@ -95,7 +147,11 @@ export default function OpenCodeView() {
 
   const build = useCallback(async (text?: string) => {
     const p = (text ?? input).trim();
-    if (!p || building) return;
+    if (!p || building || ready !== true) return;
+    if (selectedModelSetupRequired) {
+      openSetupCenter("/opencode");
+      return;
+    }
     setInput("");
     setLines((l) => [...l, { kind: "user", text: p }]);
     setBuilding(true); setProject(null);
@@ -105,6 +161,10 @@ export default function OpenCodeView() {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ prompt: p, model }), signal: ctrl.signal,
       });
+      if (!r.ok) {
+        const error = await r.json().catch(() => ({})) as { error?: string };
+        throw new Error(error.error || `OpenCode request failed (${r.status}).`);
+      }
       const reader = r.body?.getReader(); const dec = new TextDecoder(); let buf = "";
       while (reader) {
         const { value, done } = await reader.read(); if (done) break;
@@ -130,7 +190,7 @@ export default function OpenCodeView() {
       if ((err as Error).name !== "AbortError") setLines((l) => [...l, { kind: "error", text: String(err).slice(0, 160) }]);
     }
     setBuilding(false); loadBuilds(); loadHistory();
-  }, [input, building, model, loadBuilds, loadHistory]);
+  }, [input, building, model, loadBuilds, loadHistory, ready, selectedModelSetupRequired]);
 
   function stop() { ctrlRef.current?.abort(); setBuilding(false); setLines((l) => [...l, { kind: "info", text: "⎿ Interrupted." }]); }
   function clearTerm() { setLines([]); try { localStorage.removeItem(TERM_LSK); } catch {} }
@@ -152,14 +212,28 @@ export default function OpenCodeView() {
               {ready == null ? "checking" : ready ? "installed" : "not found"}
             </span>
           </div>
-          <div className="text-[10.5px] text-[var(--cream-mute)] mt-1">open-source terminal agent · {model} · {subOf(model)}</div>
+          <div className="text-[10.5px] text-[var(--cream-mute)] mt-1">
+            open-source terminal agent · {model} · {subOf(models, model)} · OmniRoute {omniRouteConfigured ? (ready ? "connected" : "provider configured · CLI unavailable") : "setup required"}
+          </div>
         </div>
         {/* model switcher (free opencode Zen models) + tabs */}
         <div className="ml-auto flex items-center gap-1.5">
-          <select value={model} onChange={(e) => setModel(e.target.value)} disabled={building}
+          {(ready === false || selectedModelSetupRequired) && (
+            <button type="button" onClick={() => openSetupCenter("/opencode")}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-semibold"
+              style={{ borderColor: `${SKY}55`, color: SKY, background: `${SKY}12` }}>
+              <PlugZap size={12} /> {ready === false ? "Set up OpenCode" : "Connect OmniRoute"}
+            </button>
+          )}
+          <select value={model} onChange={(e) => {
+            const nextModel = e.target.value;
+            persistedModel.current = nextModel;
+            try { localStorage.setItem(MODEL_LSK, nextModel); } catch {}
+            setModel(nextModel);
+          }} disabled={building || ready === null}
             className="px-2.5 py-1.5 text-[11px] font-medium rounded-lg border bg-transparent focus:outline-none disabled:opacity-40"
             style={{ borderColor: "var(--line-soft)", color: SKY }}>
-            {MODELS.map((m) => (<option key={m.id} value={m.id} style={{ background: "#0d0a12", color: "#cdbfd0" }}>{m.label}</option>))}
+            {models.map((m) => (<option key={m.id} value={m.id} disabled={m.setupRequired} style={{ background: "#0d0a12", color: "#cdbfd0" }}>{m.label}</option>))}
           </select>
           <div className="flex gap-1.5">
           {([{ k: "terminal", label: "Terminal" }, { k: "workspace", label: "Workspace" }] as const).map((t) => (
@@ -232,19 +306,19 @@ export default function OpenCodeView() {
 
           <div className="border-t px-3.5 py-2.5 shrink-0 flex items-center gap-2" style={{ borderColor: "#152029", background: "#0c1218" }}>
             <span className="mono text-[13px]" style={{ color: building ? "#5f6d76" : SKY }}>&gt;</span>
-            <VoiceButton onTranscript={handleVoice} size={28} />
-            <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} disabled={building}
+            <VoiceButton onTranscript={handleVoice} size={28} disabled={building || ready !== true || selectedModelSetupRequired} />
+            <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} disabled={building || ready !== true || selectedModelSetupRequired}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); build(); } }}
-              placeholder={building ? "building… (esc to stop)" : "tell opencode what to build…"}
+              placeholder={ready === null ? "Checking OpenCode setup…" : ready === false ? "Install or connect OpenCode in Setup Center" : selectedModelSetupRequired ? "Connect OmniRoute in Setup Center or choose another model" : building ? "building… (esc to stop)" : "tell opencode what to build…"}
               className="flex-1 bg-transparent mono text-[13px] focus:outline-none disabled:opacity-60" style={{ color: "var(--cream)" }} />
             {building
               ? <button onClick={stop} className="mono text-[11px] px-2 py-1 rounded border" style={{ borderColor: "#e8728a55", color: "#e8728a" }}>esc</button>
-              : <button onClick={() => build()} disabled={!input.trim() || ready === false} className="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded border disabled:opacity-30" style={{ borderColor: `${SKY}55`, color: SKY }}><CornerDownLeft size={11} /> run</button>}
+              : <button onClick={() => build()} disabled={!input.trim() || ready !== true || selectedModelSetupRequired} className="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded border disabled:opacity-30" style={{ borderColor: `${SKY}55`, color: SKY }}><CornerDownLeft size={11} /> run</button>}
           </div>
           <div className="px-3.5 pb-2.5 shrink-0 flex items-center gap-2 flex-wrap" style={{ background: "#0c1218" }}>
             <span className="mono text-[10px]" style={{ color: "#5f6d76" }}>? try:</span>
             {EXAMPLES.map((ex) => (
-              <button key={ex} onClick={() => build(ex)} disabled={building} className="mono text-[10px] px-2 py-0.5 rounded-full border disabled:opacity-40 transition" style={{ borderColor: "var(--line-soft)", color: "var(--cream-dim)" }}>{ex}</button>
+              <button key={ex} onClick={() => build(ex)} disabled={building || ready !== true || selectedModelSetupRequired} className="mono text-[10px] px-2 py-0.5 rounded-full border disabled:opacity-40 transition" style={{ borderColor: "var(--line-soft)", color: "var(--cream-dim)" }}>{ex}</button>
             ))}
           </div>
         </div>
