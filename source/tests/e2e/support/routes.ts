@@ -34,4 +34,10 @@ export const VISUAL_ROUTES = [
   { name: "claude", route: "/claude?view=chat" },
   { name: "codex", route: "/codex?view=chat" },
   { name: "hermes", route: "/hermes?view=chat" },
+  { name: "openclaw", route: "/openclaw?workspaceTarget=chat" },
+  { name: "glm", route: "/glm?workspaceTarget=chat" },
+  { name: "kimi", route: "/kimi?workspaceTarget=chat" },
+  { name: "antigravity", route: "/antigravity?workspaceTarget=chat" },
+  { name: "freeclaude", route: "/freeclaude?workspaceTarget=chat" },
+  { name: "memory", route: "/memory" },
 ] as const;

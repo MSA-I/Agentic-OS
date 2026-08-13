@@ -30,20 +30,26 @@ workspace is organized or how its capabilities behave.
 
 ## Locked Layout Contract
 
-This redesign is a visual skin, not an information-architecture redesign.
+The standard application remains a visual-skin redesign. Claude, Codex,
+Hermes, OpenClaw, GLM, Kimi, Antigravity, and Free Claude Code have a
+separately approved immersive-agent presentation.
 
 - Preserve all 47 existing page routes.
 - Preserve the existing 244px application sidebar, its sections, item order,
   labels, and navigation behavior.
 - Preserve every page's current composition, section order, card order, tabs,
   controls, and content hierarchy.
-- Preserve the existing agent workspace composition, including its 276px
-  internal sidebar on wide screens and its current responsive stacking.
+- `/claude`, `/codex`, `/hermes`, `/openclaw`, `/glm`, `/kimi`,
+  `/antigravity`, and `/freeclaude` use a full-height immersive shell with one
+  236px agent sidebar, one content surface, and a fixed composer. Their actions
+  retain the same URLs, events, projects, sessions, and persistence behavior.
+- Preserve the existing standard composition for every route outside the eight
+  approved exceptions.
 - Preserve the current Mission Control composition: header and status tiles,
   Today's List, agent sections, and the rest of the existing page in their
   current order.
-- Preserve the existing mobile bottom navigation and the current mobile content
-  order.
+- Preserve the existing mobile bottom navigation on standard routes. Immersive
+  routes instead use a compact top bar and focus-trapped agent drawer.
 - Do not introduce an activity rail, replacement context pane, inspector,
   route registry, capability-filtered navigation, or a replacement Mission
   Control data model.
@@ -57,10 +63,11 @@ interface elements requires separate user approval.
 
 - Apply the Agentic OS palette, Geist typography, compact radii, static relief
   textures, and accessible state styling through a shared visual layer.
-- Keep Agentic OS chrome consistent while allowing the existing central agent
-  workspace to use its approved Claude, Codex, Hermes, or OpenClaw identity.
+- Keep Agentic OS chrome consistent on standard routes. The eight primary agent
+  routes deliberately replace that chrome with provider-specific shells.
 - Remove CSS gradients, decorative glow, glass effects, shimmer, particles,
-  auroras, and idle animation from the rendered visual system.
+  auroras, and idle animation from the standard visual system. MEMORY is the
+  narrow Canvas exception, with reduced-motion and hidden-tab safeguards.
 - Use motion only for clear state transitions and respect
   `prefers-reduced-motion`.
 - Keep reading regions on solid surfaces so texture never compromises text
@@ -84,13 +91,17 @@ interface elements requires separate user approval.
 - No data migration is performed and no user state is deleted.
 - Existing API routes remain intact; no overview or capability endpoint is
   required for the visual skin.
+- MEMORY continues to consume the existing graph endpoint; the immersive agent
+  screens continue to consume the existing agent, project, session, deep-link,
+  and localStorage contracts.
 - Public files must not expose credentials, binary paths, local vault/session
   paths, logs, configuration values, or private runtime state.
 - Tests use mocked responses for agent actions.
 
 ## Non-goals
 
-- A new application shell or navigation hierarchy.
+- A new global application shell or navigation hierarchy outside the eight
+  approved immersive-agent routes.
 - A new Mission Control workflow or aggregation backend.
 - New agent behavior, provider integration, authentication, billing, or hosted
   account model.
@@ -102,8 +113,8 @@ interface elements requires separate user approval.
 - Target WCAG 2.2 AA for contrast, focus visibility, semantics, keyboard
   navigation, and reflow.
 - No page-level horizontal clipping at 390px.
-- Existing horizontally scrollable control rows may remain scrollable, but the
-  page itself must stay within the viewport and preserve control order.
+- Immersive agent pages must remain within `100dvh` with no page-level overflow;
+  their mobile drawer must trap focus, close on Escape, and restore focus.
 - Loading, empty, offline, setup, unavailable, and error states must remain
   understandable without color alone.
 
@@ -115,8 +126,9 @@ Release requires:
   `musecoder` NFT trace warning.
 - All 47 page routes return successfully without unexpected page, console, or
   network errors.
-- Mission Control, Claude, Codex, and Hermes pass visual review at 1440x900,
-  1024x768, and 390x844 while preserving the locked layout.
+- Mission Control, MEMORY, and all eight immersive-agent routes pass visual review at
+  1440x900, 1024x768, and 390x844 against their respective standard or
+  immersive layout contracts.
 - Focused axe and layout-contract checks pass.
 - Texture, privacy, secret, and publication-manifest checks pass.
 - The final published tree reproduces with `npm ci` and `npm run build` from

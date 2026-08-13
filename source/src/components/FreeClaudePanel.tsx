@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
+import type { WorkspaceNavDetail } from "./AgentWorkspaceShell";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Square, ExternalLink, Trash2, MessageSquare, Layers,
@@ -48,7 +49,7 @@ function fmtAgo(ms: number): string {
 //               PDFs render inline. Perfect for previewing landing pages
 //               you ask FCC to build, plus HyperFrames renders (.mp4/.webm).
 // ─────────────────────────────────────────────────────────────────────────
-export default function FreeClaudePanel() {
+export default function FreeClaudePanel({ activeTab = "chat" }: { activeTab?: Tab }) {
   const [tab, setTab] = useState<Tab>("chat");
 
   // ───── Chat state ─────
@@ -83,6 +84,20 @@ export default function FreeClaudePanel() {
   const [open, setOpen] = useState<{ path: string; content: string; bytes: number; truncated: boolean; kind: FccFileKind } | null>(null);
   const [htmlMode, setHtmlMode] = useState<"source" | "preview">("preview");
   const [newProjectName, setNewProjectName] = useState("");
+
+  useEffect(() => { setTab(activeTab); }, [activeTab]);
+  useEffect(() => {
+    const onNav = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceNavDetail>).detail;
+      if (detail?.agent !== "freeclaude" || detail.action !== "new") return;
+      setMsgs([]);
+      setPartial("");
+      setInput("");
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    };
+    window.addEventListener("agent-workspace-nav", onNav);
+    return () => window.removeEventListener("agent-workspace-nav", onNav);
+  }, []);
 
   // ── Restore persisted state on mount ──
   useEffect(() => {
@@ -330,11 +345,11 @@ export default function FreeClaudePanel() {
           )}
         </div>
       }
-      className="flex-1 min-h-[640px]"
+      className="agent-freeclaude-panel flex-1 min-h-0 h-full"
     >
       <div className="flex flex-col h-full min-h-0">
         {/* Tab bar */}
-        <div className="flex gap-2 mb-3">
+        <div className="hidden" aria-hidden="true">
           {tabs.map((t) => (
             <button
               key={t.key}

@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive, Bot, Box, ChevronDown, ChevronRight, Command, FileStack,
-  FolderKanban, GitBranch, MessageSquare, Orbit, Pin, Plus, Search,
+  FolderKanban, GitBranch, Home, MessageSquare, Orbit, Pin, Plus, Search,
   PanelLeftOpen, Settings2, Sparkles, Wifi, WifiOff, Wrench, X,
 } from "lucide-react";
+import Link from "next/link";
 import ScrollArea from "./ScrollArea";
 
-export type WorkspaceAgent = "claude" | "openclaw" | "hermes" | "antigravity" | "codex";
+export type WorkspaceAgent = "claude" | "openclaw" | "hermes" | "antigravity" | "codex" | "glm" | "kimi" | "freeclaude";
 export type WorkspaceSection = "new" | "tools" | "messages" | "artifacts" | "projects" | "history";
 export type WorkspaceAction = "new" | "select" | "project" | "navigate";
 
@@ -80,7 +81,7 @@ const meta: Record<WorkspaceAgent, {
   controls: { target: string; section: WorkspaceSection; label: string; icon: React.ReactNode }[];
 }> = {
   codex: {
-    accent: "#6867AA", shell: "#10101A", product: "CODEX",
+    accent: "#A7A7AD", shell: "#121212", product: "CODEX",
     newLabel: "New task", search: "Search tasks", projectLabel: "Projects",
     emptyPinned: "Shift-click a task to pin",
     controls: [
@@ -91,7 +92,7 @@ const meta: Record<WorkspaceAgent, {
     ],
   },
   claude: {
-    accent: "#D97757", shell: "#F1ECE4", product: "CLAUDE CODE",
+    accent: "#943E28", shell: "#F4F1EB", product: "CLAUDE",
     newLabel: "New chat", search: "Search conversations", projectLabel: "Projects",
     emptyPinned: "Starred chats appear here",
     controls: [
@@ -105,7 +106,7 @@ const meta: Record<WorkspaceAgent, {
     ],
   },
   hermes: {
-    accent: "#EDFF45", shell: "#0000F2", product: "HERMES",
+    accent: "#4055FF", shell: "#EEF1FF", product: "HERMES AGENT",
     newLabel: "New session", search: "Search session memory", projectLabel: "Profiles",
     emptyPinned: "Pin an active mission",
     controls: [
@@ -122,6 +123,7 @@ const meta: Record<WorkspaceAgent, {
       { target: "moa", section: "tools", label: "MoA", icon: <Bot size={14} /> },
       { target: "workspace", section: "projects", label: "Workspace", icon: <FileStack size={14} /> },
       { target: "mcps", section: "tools", label: "Skills, tools & MCPs", icon: <Wrench size={14} /> },
+      { target: "control", section: "tools", label: "Control room", icon: <Command size={14} /> },
       { target: "manage", section: "tools", label: "Settings", icon: <Settings2 size={14} /> },
     ],
   },
@@ -147,6 +149,34 @@ const meta: Record<WorkspaceAgent, {
       { target: "workspace", section: "projects", label: "Workspace files", icon: <FolderKanban size={14} /> },
     ],
   },
+  glm: {
+    accent: "#34E5B0", shell: "#0C2423", product: "GLM",
+    newLabel: "New GLM chat", search: "Search GLM history", projectLabel: "Workspace",
+    emptyPinned: "Pin a GLM conversation",
+    controls: [
+      { target: "chat", section: "messages", label: "Chat", icon: <MessageSquare size={14} /> },
+      { target: "workspace", section: "projects", label: "Workspace", icon: <FileStack size={14} /> },
+    ],
+  },
+  kimi: {
+    accent: "#46C7FF", shell: "#0A1830", product: "KIMI",
+    newLabel: "New Kimi chat", search: "Search Kimi history", projectLabel: "Projects",
+    emptyPinned: "Pin a Kimi conversation",
+    controls: [
+      { target: "chat", section: "messages", label: "Chat", icon: <MessageSquare size={14} /> },
+      { target: "workspace", section: "projects", label: "Workspace", icon: <FolderKanban size={14} /> },
+    ],
+  },
+  freeclaude: {
+    accent: "#34D399", shell: "#10251F", product: "FREE CLAUDE CODE",
+    newLabel: "New free chat", search: "Search free sessions", projectLabel: "Projects",
+    emptyPinned: "Pin a free Claude session",
+    controls: [
+      { target: "chat", section: "messages", label: "Chat", icon: <MessageSquare size={14} /> },
+      { target: "workspace", section: "projects", label: "Workspace", icon: <FolderKanban size={14} /> },
+      { target: "factory", section: "tools", label: "Agent Factory", icon: <Wrench size={14} /> },
+    ],
+  },
 };
 
 function shortLabel(value: string) {
@@ -157,6 +187,19 @@ function shortLabel(value: string) {
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
   try { return JSON.parse(raw) as T; } catch { return fallback; }
+}
+
+function safeArrayParse<T>(raw: string | null): T[] {
+  const parsed = safeParse<unknown>(raw, []);
+  return Array.isArray(parsed) ? parsed as T[] : [];
+}
+
+function safeRecordParse(raw: string | null): Record<string, boolean> {
+  const parsed = safeParse<unknown>(raw, {});
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  return Object.fromEntries(
+    Object.entries(parsed).filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean"),
+  );
 }
 
 export default function AgentWorkspaceShell({
@@ -171,6 +214,11 @@ export default function AgentWorkspaceShell({
   children: React.ReactNode;
 }) {
   const ui = meta[agent];
+  const immersiveAgent = true;
+  const hasNativeHistory = agent !== "glm" && agent !== "kimi" && agent !== "freeclaude";
+  const projectOptional = !hasNativeHistory;
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [nativeGroups, setNativeGroups] = useState<Group[]>([]);
   const [localSessions, setLocalSessions] = useState<LocalSession[]>([]);
   const [query, setQuery] = useState("");
@@ -188,6 +236,42 @@ export default function AgentWorkspaceShell({
   const [openClawStatus, setOpenClawStatus] = useState<OpenClawSummary | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const initialWorkspaceContextDispatchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!sidebarOpen || window.matchMedia("(min-width: 768px)").matches) return;
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : sidebarTriggerRef.current;
+    const selector = "a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
+    const focusable = () => Array.from(sidebar.querySelectorAll<HTMLElement>(selector))
+      .filter((element) => element.getClientRects().length > 0);
+    focusable()[0]?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSidebarOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previous?.focus();
+    };
+  }, [sidebarOpen]);
 
   const pinKey = `agentic-os:${agent}:pinned-sessions:v2`;
   const localKey = `agentic-os:${agent}:local-sessions:v2`;
@@ -218,6 +302,11 @@ export default function AgentWorkspaceShell({
   }, [agent]);
 
   const load = useCallback(() => {
+    if (!hasNativeHistory) {
+      setNativeGroups([]);
+      setHistoryLoaded(true);
+      return;
+    }
     fetch(`/api/agent-history?agent=${agent}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : { groups: [] })
       .then((payload) => {
@@ -237,7 +326,7 @@ export default function AgentWorkspaceShell({
         const url = new URL(window.location.href);
         const remembered = url.searchParams.get("project") || localStorage.getItem(projectKey);
         const localProjectIds = new Set(
-          safeParse<LocalSession[]>(localStorage.getItem(localKey), []).map((session) => session.projectId),
+          safeArrayParse<LocalSession>(localStorage.getItem(localKey)).map((session) => session.projectId),
         );
         const chosen = remembered && (next.some((group) => group.id === remembered) || localProjectIds.has(remembered))
           ? remembered
@@ -256,7 +345,7 @@ export default function AgentWorkspaceShell({
         setNativeGroups([]);
         setHistoryLoaded(true);
       });
-  }, [agent, localKey, projectKey]);
+  }, [agent, hasNativeHistory, localKey, projectKey]);
 
   const loadHermesRuntime = useCallback(async (requestedProfile: string) => {
     setHermesMcpState("loading");
@@ -289,14 +378,14 @@ export default function AgentWorkspaceShell({
   }, []);
 
   useEffect(() => {
-    setPinned(safeParse(localStorage.getItem(pinKey), []));
-    setLocalSessions(safeParse(localStorage.getItem(localKey), []));
-    setNavGroupsOpen(safeParse(localStorage.getItem(navGroupsKey), {}));
+    setPinned(safeArrayParse<string>(localStorage.getItem(pinKey)));
+    setLocalSessions(safeArrayParse<LocalSession>(localStorage.getItem(localKey)));
+    setNavGroupsOpen(safeRecordParse(localStorage.getItem(navGroupsKey)));
     const url = new URL(window.location.href);
     setActiveSessionPath(url.searchParams.get("session") || localStorage.getItem(sessionKey));
-    setSelectedTarget(url.searchParams.get("workspaceTarget") || undefined);
+    setSelectedTarget(url.searchParams.get("workspaceTarget") || activeTarget);
     load();
-  }, [load, localKey, navGroupsKey, pinKey, sessionKey]);
+  }, [activeTarget, load, localKey, navGroupsKey, pinKey, sessionKey]);
 
   useEffect(() => {
     if (agent === "openclaw") {
@@ -393,8 +482,10 @@ export default function AgentWorkspaceShell({
 
   useEffect(() => {
     if (!historyLoaded || activeProject) return;
-    emit({ action: "project", section: "messages", target: "chat" });
-  }, [activeProject, emit, historyLoaded]);
+    const control = selectedTarget ? ui.controls.find((item) => item.target === selectedTarget) : undefined;
+    if (control) emit({ action: "navigate", section: control.section, target: control.target });
+    else emit({ action: "project", section: "messages", target: "chat" });
+  }, [activeProject, emit, historyLoaded, selectedTarget, ui.controls]);
 
   useEffect(() => {
     if (!activeProject || !activeSessionPath) return;
@@ -483,6 +574,13 @@ export default function AgentWorkspaceShell({
   }
 
   function startNewSession() {
+    if (!activeProject && projectOptional) {
+      syncUrl(null, null, "chat", "push");
+      setSelectedTarget("chat");
+      setSidebarOpen(false);
+      emit({ action: "new", section: "new", target: "chat" });
+      return;
+    }
     if (!activeProject) return;
     const project = activeProject;
     const id = crypto.randomUUID();
@@ -646,6 +744,7 @@ export default function AgentWorkspaceShell({
         navigate("tools", "mcps");
       }}
       data-hermes-mcp-summary={hermesMcpState}
+      data-workspace-target="mcps"
       aria-current={selected ? "page" : undefined}
       title={hermesMcpError ?? "Open the MCP catalogue for the active Hermes profile"}
       className="w-full rounded border px-2.5 py-2 text-left transition hover:bg-white/[0.045]"
@@ -723,6 +822,14 @@ export default function AgentWorkspaceShell({
       <div data-section="projects"><div className="flex items-center justify-between px-1 pb-1 text-[8px] uppercase tracking-[0.2em] text-[var(--fg-dimmer)]"><span>Gateway agents</span><span>{groups.length}</span></div>{projectGroups("thread")}</div>
     </div>;
 
+    if (agent === "glm" || agent === "kimi" || agent === "freeclaude") return <div data-agent-layout="model-workspace" className="space-y-4 px-3 py-3">
+      {navGroup("workspace", agent === "freeclaude" ? "Free Claude" : "Workspace", <div data-section="controls" className="space-y-1">{ui.controls.map((item) => control(item, "mission"))}</div>)}
+      <div className="rounded-lg border px-3 py-3 text-[10px] leading-relaxed text-[var(--fg-dimmer)]" style={{ borderColor: `${ui.accent}25`, background: `${ui.accent}0a` }}>
+        <div className="mb-1 font-semibold uppercase tracking-[0.16em]" style={{ color: ui.accent }}>Local continuity</div>
+        Chat history, model settings and workspace state stay on this device and keep their existing storage keys.
+      </div>
+    </div>;
+
     return <div data-agent-layout="mission-workspace" className="space-y-4 px-3 py-3">
       {navGroup("missions", "Missions", <div data-section="controls">{ui.controls.slice(0, 2).map((item) => control(item, "mission"))}</div>)}
       {navGroup("workspace", "Workspace", <div data-section="controls">{ui.controls.slice(2).map((item) => control(item, "mission"))}</div>)}
@@ -732,7 +839,9 @@ export default function AgentWorkspaceShell({
     </div>;
   };
 
-  const gridClass = "xl:grid-cols-[276px_minmax(0,1fr)]";
+  const gridClass = immersiveAgent
+    ? "md:grid-cols-[236px_minmax(0,1fr)]"
+    : "xl:grid-cols-[276px_minmax(0,1fr)]";
   const activeSession = allSessions.find((session) => session.path === activeSessionPath);
   const activeContextLabel = activeProject
     ? agent === "hermes"
@@ -740,31 +849,41 @@ export default function AgentWorkspaceShell({
       : shortLabel(activeProject.label)
     : null;
   const gatewayUnavailable = agent === "openclaw" && openClawStatus !== null && !openClawStatus.ok;
-  const canStartSession = Boolean(activeProject) && !gatewayUnavailable;
-  const missingContextLabel = agent === "hermes" ? "Choose profile" : agent === "openclaw" ? "Choose agent" : "Choose project";
+  const canStartSession = (projectOptional || Boolean(activeProject)) && !gatewayUnavailable;
+  const missingContextLabel = projectOptional ? "Local workspace" : agent === "hermes" ? "Choose profile" : agent === "openclaw" ? "Choose agent" : "Choose project";
   const newSessionLabel = !activeContextLabel
-    ? missingContextLabel
+    ? projectOptional ? ui.newLabel : missingContextLabel
     : agent === "hermes"
       ? `${ui.newLabel} as ${activeContextLabel}`
       : agent === "openclaw"
         ? `${ui.newLabel} with ${activeContextLabel}`
         : `${ui.newLabel} in ${activeContextLabel}`;
-  const newSessionTitle = !activeProject
+  const newSessionTitle = !activeProject && !projectOptional
     ? missingContextLabel
     : gatewayUnavailable
       ? "OpenClaw gateway is offline"
       : newSessionLabel;
 
   return (
-    <div data-agent-workspace={agent} className={`grid min-h-[calc(100vh-190px)] grid-cols-1 gap-4 ${gridClass}`}>
-      <div className="min-w-0">
+    <div
+      data-agent-workspace={agent}
+      data-agent-experience={immersiveAgent ? "immersive" : "embedded"}
+      className={immersiveAgent
+        ? `flex h-dvh min-h-0 flex-col md:grid ${gridClass}`
+        : `grid min-h-[calc(100vh-190px)] grid-cols-1 gap-4 ${gridClass}`}
+    >
+      <div className={immersiveAgent ? "min-w-0 flex-none md:h-dvh" : "min-w-0"}>
+        <div data-agent-mobile-bar={immersiveAgent ? agent : undefined} className={immersiveAgent ? "flex min-h-12 items-center border-b px-2 md:hidden" : "contents"}>
         <button
+          ref={sidebarTriggerRef}
           type="button"
           data-agent-sidebar-toggle={agent}
           data-active-context={activeProject?.id ?? ""}
           aria-expanded={sidebarOpen}
           onClick={() => setSidebarOpen((open) => !open)}
-          className="flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left md:max-w-[560px] xl:hidden"
+          className={immersiveAgent
+            ? "flex min-h-11 min-w-0 flex-1 items-center gap-3 px-2 py-1.5 text-left md:hidden"
+            : "flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left md:max-w-[560px] xl:hidden"}
           style={{ borderColor: `${ui.accent}32`, background: `${ui.accent}0d` }}
         >
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg" style={{ color: ui.accent, background: `${ui.accent}18` }}>{agentIcon}</span>
@@ -776,21 +895,37 @@ export default function AgentWorkspaceShell({
           </span>
           <PanelLeftOpen size={15} style={{ color: "var(--fg-dimmer)" }} />
         </button>
+        {immersiveAgent && (
+          <Link
+            href="/"
+            aria-label="Back to Agentic OS"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[var(--fg-dim)] transition hover:bg-black/5 hover:text-[var(--fg)] md:hidden"
+          >
+            <Home size={16} />
+          </Link>
+        )}
+        </div>
 
         {sidebarOpen && <button type="button" aria-label="Close agent navigation" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-black/60 md:hidden" />}
 
         <aside
+          ref={sidebarRef}
           data-agent-sidebar={agent}
           data-agent-variant={agent}
           data-agent-sidebar-sheet={sidebarOpen ? "open" : "closed"}
-          className={`${sidebarOpen ? "flex" : "hidden"} fixed inset-x-3 bottom-20 z-50 max-h-[min(68dvh,560px)] w-auto flex-col overflow-hidden rounded-xl border md:static md:mt-2 md:max-h-[min(62dvh,560px)] md:w-full md:max-w-[560px] xl:sticky xl:top-4 xl:mt-0 xl:flex xl:max-h-[calc(100dvh-224px)] xl:max-w-none`}
+          role={sidebarOpen ? "dialog" : undefined}
+          aria-modal={sidebarOpen ? true : undefined}
+          aria-label={`${ui.product} navigation`}
+          className={immersiveAgent
+            ? `${sidebarOpen ? "flex" : "hidden"} fixed inset-y-0 left-0 z-50 w-[min(86vw,320px)] flex-col overflow-hidden border-r md:static md:flex md:h-dvh md:w-full md:rounded-none md:border-y-0 md:border-l-0`
+            : `${sidebarOpen ? "flex" : "hidden"} fixed inset-x-3 bottom-20 z-50 max-h-[min(68dvh,560px)] w-auto flex-col overflow-hidden rounded-xl border md:static md:mt-2 md:max-h-[min(62dvh,560px)] md:w-full md:max-w-[560px] xl:sticky xl:top-4 xl:mt-0 xl:flex xl:max-h-[calc(100dvh-224px)] xl:max-w-none`}
           style={{ background: ui.shell, borderColor: `${ui.accent}2f`, boxShadow: `0 18px 60px -42px ${ui.accent}` }}
         >
           <div className="flex-none border-b px-3.5 pb-3 pt-3" style={{ borderColor: `${ui.accent}22` }}>
             <div className="flex items-center justify-between text-[9px] font-semibold tracking-[0.22em]" style={{ color: ui.accent }}>
               <span className="flex items-center gap-1.5">{agentIcon}{ui.product}</span>
               <span className="ml-auto rounded-full border px-1.5 py-0.5" style={{ borderColor: `${ui.accent}35`, color: `${ui.accent}cc` }}>LOCAL</span>
-              <button type="button" onClick={() => setSidebarOpen(false)} aria-label="Close agent navigation" className="ml-2 grid h-7 w-7 place-items-center rounded-md text-[var(--fg-dimmer)] xl:hidden">
+              <button type="button" onClick={() => setSidebarOpen(false)} aria-label="Close agent navigation" className={`ml-2 h-7 w-7 place-items-center rounded-md text-[var(--fg-dimmer)] ${immersiveAgent ? "grid md:hidden" : "grid xl:hidden"}`}>
                 <X size={13} />
               </button>
             </div>
@@ -812,7 +947,7 @@ export default function AgentWorkspaceShell({
           <ScrollArea
             ariaLabel={`${ui.product} navigation`}
             className="min-h-0 flex-1"
-            viewportClassName="h-full max-h-[calc(68dvh-132px)] md:max-h-[calc(62dvh-132px)] xl:max-h-[calc(100dvh-344px)]"
+            viewportClassName={immersiveAgent ? "h-full" : "h-full max-h-[calc(68dvh-132px)] md:max-h-[calc(62dvh-132px)] xl:max-h-[calc(100dvh-344px)]"}
             scrollbar="hover"
             fades={false}
             overscroll="contain"
@@ -821,12 +956,24 @@ export default function AgentWorkspaceShell({
             {agentNavigation()}
           </ScrollArea>
 
-          <button onClick={load} className="flex w-full flex-none items-center gap-2 border-t px-4 py-3 text-[9.5px] text-[var(--fg-dimmer)] hover:text-[var(--fg-dim)]" style={{ borderColor: `${ui.accent}20` }}>
-            <Archive size={10} /> Refresh native history
-          </button>
+          <div className="flex-none border-t" style={{ borderColor: `${ui.accent}20` }}>
+            {hasNativeHistory && <button onClick={load} className="flex w-full items-center gap-2 px-4 py-2.5 text-[9.5px] text-[var(--fg-dimmer)] hover:text-[var(--fg-dim)]">
+              <Archive size={10} /> Refresh native history
+            </button>}
+            {immersiveAgent && (
+              <Link
+                href="/"
+                data-agent-os-home
+                className="flex min-h-11 w-full items-center gap-2 border-t px-4 py-3 text-[11px] font-medium text-[var(--fg-dim)] transition hover:text-[var(--fg)]"
+                style={{ borderColor: `${ui.accent}20` }}
+              >
+                <Home size={13} /> Agentic OS
+              </Link>
+            )}
+          </div>
         </aside>
       </div>
-      <div className="min-w-0">{children}</div>
+      <div data-agent-primary-content className={immersiveAgent ? "min-h-0 min-w-0 flex-1 overflow-hidden" : "min-h-0 min-w-0 overflow-hidden"}>{children}</div>
     </div>
   );
 }

@@ -442,7 +442,7 @@ export default function UnifiedChat({
   const petState = usePetState(streaming);
 
   return (
-    <div className="panel flex flex-col overflow-hidden relative" style={{ height }}>
+    <div data-unified-chat={agent} className="panel flex flex-col overflow-hidden relative" style={{ height }}>
       {/* Animated Hermes pet — mirrors the agent's live state (idle / thinking / done / failed) */}
       {agent === "hermes" && <WakeWordCard onCommand={(cmd) => send(cmd, true)} busy={streaming} />}
       {agent === "hermes" && (
@@ -452,7 +452,7 @@ export default function UnifiedChat({
         </div>
       )}
       {/* Top: agent switcher */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--panel-border)]">
+      <div data-chat-header className="flex items-center justify-between px-5 py-3 border-b border-[var(--panel-border)]">
         <div className="flex items-center gap-2">
           {showAgentSwitcher ? (
             (["claude", "openclaw", "hermes", "antigravity"] as AgentKey[]).map((a) => {
@@ -604,13 +604,15 @@ export default function UnifiedChat({
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="h-full grid place-items-center text-center"
             >
-              <div className="max-w-md">
-                <div className="mx-auto mb-3"><AgentAvatar agent={agent} size={56} /></div>
-                <h3 className="text-lg font-medium" style={{ color: accentText }}>
-                  Chat with {agentLabel(agent)}
+              <div className="max-w-xl" data-agent-empty-state={agent}>
+                {agent !== "hermes" && <div className="mx-auto mb-3"><AgentAvatar agent={agent} size={56} /></div>}
+                <h3 className={agent === "hermes" ? "hermes-agent-title" : "text-lg font-medium"} style={{ color: accentText }}>
+                  {agent === "hermes" ? "HERMES AGENT" : agent === "claude" ? "Welcome back, Moshe" : `Chat with ${agentLabel(agent)}`}
                 </h3>
                 <p className="mt-2 text-sm text-[var(--fg-dim)] leading-relaxed">
-                  Type or use the mic. Every exchange auto-saves to <code>Agentic OS/Memories/</code> in your Obsidian vault.
+                  {agent === "hermes"
+                    ? "Drop a file path, a traceback, or a rough idea. I’ll investigate, suggest next steps, and keep things reversible."
+                    : <>Type or use the mic. Every exchange auto-saves to <code>Agentic OS/Memories/</code> in your Obsidian vault.</>}
                 </p>
                 <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[var(--fg-dimmer)]">
                   <kbd className="px-1.5 py-0.5 rounded border border-[var(--panel-border)]">⌘+Enter</kbd>

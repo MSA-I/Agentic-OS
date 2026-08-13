@@ -106,7 +106,7 @@ export default function AntigravityView() {
   const accent = "#7c3aed"; // matches the Antigravity sidebar accent
 
   return (
-    <AgentWorkspaceShell agent="antigravity" active={tab === "chat" ? "messages" : tab === "history" ? "history" : "projects"} activeTarget={tab}><div className="space-y-5">
+    <AgentWorkspaceShell agent="antigravity" active={tab === "chat" ? "messages" : tab === "history" ? "history" : "projects"} activeTarget={tab}><div data-agent-page="antigravity" data-active-tab={tab} className={`h-full min-h-0 ${tab === "chat" ? "flex flex-col gap-3 overflow-hidden p-4 md:p-5" : "overflow-y-auto p-4 md:p-5"}`}>
       {tab === "history" && <AgentHistory agent="antigravity" />}
 
       {tab === "chat" && (

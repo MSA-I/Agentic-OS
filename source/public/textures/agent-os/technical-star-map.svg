@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1440" viewBox="0 0 1440 1440" fill="none">
+  <rect width="1440" height="1440" fill="#0B1023"/>
+  <defs>
+    <pattern id="micro-grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#7690C8" stroke-opacity=".055" stroke-width="1"/>
+      <circle cx="1" cy="1" r="1" fill="#A9C8FF" fill-opacity=".12"/>
+    </pattern>
+    <pattern id="major-grid" width="240" height="240" patternUnits="userSpaceOnUse">
+      <rect width="240" height="240" fill="url(#micro-grid)"/>
+      <path d="M240 0H0V240" stroke="#8DA8E2" stroke-opacity=".08"/>
+    </pattern>
+    <radialGradient id="node" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="scale(11)">
+      <stop stop-color="#C9F6FF" stop-opacity=".72"/>
+      <stop offset=".24" stop-color="#67E8F9" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#67E8F9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1440" height="1440" fill="url(#major-grid)"/>
+  <g stroke="#7B9FE8" stroke-linecap="round">
+    <path d="M-90 286C132 196 276 438 470 349C632 275 706 92 922 124C1125 154 1234 385 1536 291" stroke-opacity=".15"/>
+    <path d="M-126 1090C97 1000 203 748 442 823C653 889 737 1189 986 1120C1173 1068 1265 873 1518 904" stroke-opacity=".13"/>
+    <path d="M112 1312C194 1115 387 1044 555 1107C710 1165 775 1344 957 1367" stroke-opacity=".1"/>
+    <path d="M1084-55C961 159 1015 333 1187 421C1345 502 1476 453 1554 548" stroke-opacity=".11"/>
+  </g>
+  <g stroke="#9BC6FF" stroke-opacity=".13">
+    <circle cx="346" cy="314" r="128"/>
+    <circle cx="346" cy="314" r="177" stroke-dasharray="3 9"/>
+    <circle cx="1090" cy="1018" r="156"/>
+    <circle cx="1090" cy="1018" r="211" stroke-dasharray="4 12"/>
+    <path d="M346 137V491M169 314H523M1090 807V1229M879 1018H1301" stroke-opacity=".08"/>
+  </g>
+  <g fill="#8BDFF2">
+    <circle cx="346" cy="314" r="3" fill-opacity=".85"/>
+    <circle cx="470" cy="349" r="2" fill-opacity=".55"/>
+    <circle cx="922" cy="124" r="2" fill-opacity=".5"/>
+    <circle cx="442" cy="823" r="2.5" fill-opacity=".65"/>
+    <circle cx="986" cy="1120" r="2" fill-opacity=".55"/>
+    <circle cx="1090" cy="1018" r="3" fill-opacity=".82"/>
+    <circle cx="1187" cy="421" r="2" fill-opacity=".52"/>
+  </g>
+  <g>
+    <circle cx="346" cy="314" r="11" fill="url(#node)"/>
+    <circle cx="1090" cy="1018" r="11" fill="url(#node)"/>
+    <circle cx="922" cy="124" r="8" fill="url(#node)"/>
+    <circle cx="442" cy="823" r="8" fill="url(#node)"/>
+  </g>
+  <g fill="#B8C9ED" fill-opacity=".22">
+    <circle cx="96" cy="78" r="1"/><circle cx="205" cy="594" r="1.2"/><circle cx="618" cy="204" r="1"/>
+    <circle cx="792" cy="689" r="1.3"/><circle cx="1270" cy="648" r="1"/><circle cx="1348" cy="1278" r="1.2"/>
+    <circle cx="602" cy="1289" r="1"/><circle cx="118" cy="1218" r="1.1"/><circle cx="1023" cy="576" r="1"/>
+  </g>
+</svg>

@@ -14,16 +14,22 @@ replace or rearrange it.
   scrolling behavior.
 - Mission Control keeps its current header, live status tiles, Today's List,
   agent areas, and all following sections in their current order.
-- Agent routes keep their current workspace shell, 276px internal sidebar on
-  wide screens, tab order, panels, cards, and controls.
-- At mobile widths, the existing global bottom navigation remains in place and
-  page sections retain their current stacking order.
+- `/claude`, `/codex`, `/hermes`, `/openclaw`, `/glm`, `/kimi`,
+  `/antigravity`, and `/freeclaude` are the approved immersive-agent
+  exception: they own `100dvh`, omit the global shell chrome, and use one 236px
+  agent sidebar plus a flexible content surface. Their former duplicate tab
+  rails are represented by the same actions inside that sidebar.
+- Every route outside those eight keeps the existing standard shell, panels,
+  cards, and controls.
+- At mobile widths, the existing global bottom navigation remains in place on
+  standard routes. The eight immersive-agent routes use a compact top bar and
+  focus-trapped agent drawer, with no global bottom navigation.
 - There is no new 56px rail, 268px context pane, 320px inspector, replacement
   dashboard grid, or drawer-based information architecture.
 - CSS may change color, type, texture, borders, radii, focus, and state
   transitions. It must not redefine the application grid or reorder content.
-- `data-agent-os-*` and `data-agent-workspace` attributes are non-structural
-  hooks for theming and tests only.
+- `data-agent-os-*`, `data-agent-workspace`, `data-agent-experience`, and
+  `data-shell-mode` are the authoritative hooks for theming and layout tests.
 
 The authoritative visual override is
 `source/src/app/agent-os-skin.css`.
@@ -62,10 +68,14 @@ Only the existing central agent workspace changes provider identity.
 
 | Theme | Canvas | Ink | Accent | Rule / support |
 |---|---:|---:|---:|---:|
-| Claude | `#F1ECE4` | `#191817` | `#D97757` | `#CFC3B8` |
-| Codex | `#10101A` | `#D9D9E8` | `#6867AA` | `#6867AA` |
-| Hermes | `#0000F2` | `#F5F5F5` | `#EDFF45` | `#F5F5F5` |
-| OpenClaw | `#101012` | `#F6F5F3` | `#F5654A` | `#4FC8AE` |
+| Claude immersive | `#FBFAF7` | `#2D2B29` | `#943E28` | `#DEDBD5` |
+| Codex immersive | `#181818` | `#F0F0F0` | `#A7A7AD` | `#343434` |
+| Hermes immersive | `#F9FAFF` | `#273052` | `#4055FF` | `#D9DEF5` |
+| OpenClaw immersive | `#111315` | `#F6F5F3` | `#F5654A` | `#343A3D` |
+| Antigravity immersive | `#171B35` | `#F4F3FF` | `#8B7CFF` | `#3D4777` |
+| GLM immersive | `#0F1F1E` | `#EFFFF9` | `#34E5B0` | `#31504C` |
+| Kimi immersive | `#0E1830` | `#F1F8FF` | `#46C7FF` | `#324A76` |
+| Free Claude Code immersive | `#101B18` | `#F1FBF7` | `#34D399` | `#325048` |
 
 Wrappers inherit their provider identity. Tools without a verified provider
 identity remain on the neutral Agentic OS theme. Provider accent communicates
@@ -73,7 +83,8 @@ identity, not warning or error semantics.
 
 ## Typography, Shape, and Motion
 
-- `Geist Sans` is the only interface family.
+- `Geist Sans` is the interface family. The approved Hermes wordmark exception
+  uses a Didone stack (`Didot`, `Bodoni MT`, then serif fallback).
 - `Geist Mono` is limited to code, paths, metrics, timestamps, and shortcuts.
 - Radius scale: `4px` for controls, `6px` for surfaces, and `10px` for
   overlays.
@@ -96,6 +107,8 @@ allowed to reduce text contrast.
 | `ridges.webp` | Hermes material field | 2048x2048 | 900350 | 210.756 | 143-255 | `989db814f2f1039da6cc1705fdde05d347e26d6d81f9bbeae4e00f172c4a0743` |
 | `weave.webp` | Global sidebar and dark agent workspaces | 2048x2048 | 1832662 | 157.296 | 0-231 | `2621a6328165400e211ee5f0426b431bddcc0e194a82cca82dc4a32d2f48f6c7` |
 | `contours.webp` | Main canvas and light agent workspaces | 2048x2048 | 2372574 | 177.602 | 24-255 | `61d95497294565df7731d2cb034c18e528fffb240f78a57cc773d254b59121ff` |
+| `technical-star-map.svg` | Global desktop sidebar and mobile drawer | vector | 2940 | n/a | n/a | `36b942b9255dae2deaf863dc52df27bf51fc39d9b99ab388e73f6b73e3906a41` |
+| `hermes-relief.svg` | Subtle classical relief behind Hermes chat | vector | 1949 | n/a | n/a | `19f2076791328635be487d3537db75e7d6ac1ab9b103d5b16c46f8f6d85a99eb` |
 
 All final assets are neutral grayscale WebP files with
 `maxRgbDelta=0`. The generated 1254x1254 source images were resized once to
@@ -150,6 +163,10 @@ logos, marks, devices, or embedded brand color.
 
 - Existing navigation, tabs, URLs, deep links, keyboard behavior, and
   localStorage behavior remain unchanged.
+- The immersive sidebars dispatch the existing `agent-workspace-nav` events;
+  no agent API, query parameter, project/session identity, or persistence key
+  is replaced.
+- Every immersive sidebar exposes a persistent `Agentic OS` return action.
 - Existing command palette behavior remains available; the redesign does not
   add new global shortcuts.
 - Existing agent actions and forms retain their current behavior.
@@ -161,9 +178,12 @@ logos, marks, devices, or embedded brand color.
 
 ## Prohibited Visual Effects
 
-- CSS gradients and gradient text.
+- CSS gradients and gradient text outside the approved immersive compositions.
 - Decorative glass, backdrop blur, glow, particles, auroras, or shimmer.
-- Decorative animated canvases, idle loops, or `requestAnimationFrame` work.
+- Decorative animated canvases, idle loops, or `requestAnimationFrame` work,
+  except the approved MEMORY Galaxy. Its Canvas is data-driven, pauses while
+  the tab is hidden, disables flight/twinkle under reduced motion, and is paired
+  with the keyboard-accessible clean graph.
 - Color as the only status signal.
 - Texture directly behind long-form text without a solid reading surface.
 - Structural component transplantation from the Gorgeous-websites template.
@@ -171,12 +191,13 @@ logos, marks, devices, or embedded brand color.
 ## Responsive and Accessibility Contract
 
 - The page viewport does not horizontally clip at 390px.
-- The existing mobile bottom navigation remains reachable and visible.
+- The existing mobile bottom navigation remains reachable and visible on
+  standard routes; it is intentionally absent on immersive-agent routes.
 - Full editors are not forced into a new mobile composition.
 - Keyboard order and focus remain visible and logical.
 - Status does not rely on color alone.
 - Target WCAG 2.2 AA for contrast, semantics, keyboard behavior, and reflow.
-- Mission Control, Claude, Codex, and Hermes are visually reviewed at
+- Mission Control, MEMORY, and all eight immersive agents are visually reviewed at
   1440x900, 1024x768, and 390x844 against the locked layout.
 
 ## Template Provenance

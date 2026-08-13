@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Cpu, History, Layers, MessageSquare, Share2, Terminal, Zap } from "lucide-react";
 import UnifiedChat from "@/components/UnifiedChat";
 import ClaudeWorkspace from "@/components/ClaudeWorkspace";
 import UltracodeView from "@/components/UltracodeView";
@@ -33,49 +32,21 @@ export default function ClaudeRoute() {
   const section: WorkspaceSection = tab === "chat" ? "messages" : tab === "history" ? "history" : tab === "workspace" ? "projects" : tab === "artifacts" ? "artifacts" : "tools";
 
   return (
-    <AgentWorkspaceShell agent="claude" active={section} activeTarget={tab}><div className="space-y-5">
-      <div className="flex items-center gap-2 scroll-rail pb-1 -mx-1 px-1">
-        {([
-          { key: "chat",      label: "Chat",      icon: <MessageSquare size={14} /> },
-          { key: "history",   label: "Sessions",  icon: <History size={14} /> },
-          { key: "workspace", label: "Workspace", icon: <Layers size={14} /> },
-          { key: "artifacts", label: "Artifacts", icon: <Share2 size={14} /> },
-          { key: "ultracode", label: "Ultracode", icon: <Zap size={14} /> },
-          { key: "ant",       label: "Ant CLI",   icon: <Terminal size={14} /> },
-          { key: "agents",    label: "Agents",    icon: <Cpu size={14} /> },
-        ] as { key: ClaudeTab; label: string; icon: React.ReactNode }[]).map((item) => {
-          const active = tab === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12.5px] transition"
-              style={{
-                background: active ? "rgba(217,119,87,0.16)" : "transparent",
-                borderColor: active ? "#D97757" : "var(--panel-border)",
-                color: active ? "var(--fg)" : "var(--fg-dim)",
-              }}
-            >
-              {item.icon}{item.label}
-            </button>
-          );
-        })}
-      </div>
-
+    <AgentWorkspaceShell agent="claude" active={section} activeTarget={tab}><div data-agent-page="claude" className="h-full min-h-0 overflow-hidden">
       {tab === "chat" ? (
-        <UnifiedChat defaultAgent="claude" showAgentSwitcher={false} />
+        <UnifiedChat defaultAgent="claude" showAgentSwitcher={false} height="100%" />
       ) : tab === "history" ? (
-        <AgentHistory agent="claude" />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><AgentHistory agent="claude" /></div>
       ) : tab === "workspace" ? (
-        <ClaudeWorkspace />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><ClaudeWorkspace /></div>
       ) : tab === "artifacts" ? (
-        <ClaudeArtifacts />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><ClaudeArtifacts /></div>
       ) : tab === "ultracode" ? (
-        <UltracodeView />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><UltracodeView /></div>
       ) : tab === "ant" ? (
-        <ClaudeAnt />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><ClaudeAnt /></div>
       ) : (
-        <AntAgents />
+        <div data-agent-tool-panel className="h-full overflow-y-auto p-5"><AntAgents /></div>
       )}
     </div></AgentWorkspaceShell>
   );

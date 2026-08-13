@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
 import {
-  MessageSquare, Layers, Send, Square, Trash2, RefreshCw, FileCode,
+  Send, Square, Trash2, RefreshCw, FileCode,
   ExternalLink, Loader2, Sparkles, FolderTree,
 } from "lucide-react";
+import AgentWorkspaceShell, { type WorkspaceNavDetail } from "./AgentWorkspaceShell";
 
 const ACCENT = "#34E5B0"; // GLM emerald
 const HISTORY_KEY = "agentic-os/glm/history/v1";
@@ -43,6 +44,21 @@ export default function GLMView() {
   }, []);
   useEffect(() => { if (hydrated.current) try { localStorage.setItem(HISTORY_KEY, JSON.stringify(msgs.slice(-200))); } catch {} }, [msgs]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, partial]);
+  useEffect(() => {
+    const onNav = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceNavDetail>).detail;
+      if (detail?.agent !== "glm") return;
+      if (detail.action === "new") {
+        setMsgs([]);
+        setPartial("");
+        setErr(null);
+        try { localStorage.removeItem(HISTORY_KEY); } catch {}
+      }
+      setTab(detail.target === "workspace" || detail.section === "projects" ? "workspace" : "chat");
+    };
+    window.addEventListener("agent-workspace-nav", onNav);
+    return () => window.removeEventListener("agent-workspace-nav", onNav);
+  }, []);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -100,22 +116,13 @@ export default function GLMView() {
   const isHtml = !!openFile && /\.html?$/i.test(openFile.relPath);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* header + tabs */}
+    <AgentWorkspaceShell agent="glm" active={tab === "chat" ? "messages" : "projects"} activeTarget={tab}><div data-agent-model-view="glm" data-active-tab={tab} className="flex h-full min-h-0 flex-col overflow-hidden p-4 md:p-5">
+      {/* model identity */}
       <div className="flex items-center gap-3 mb-3 shrink-0">
-        <div className="w-8 h-8 rounded-lg grid place-items-center text-[#062019] font-bold" style={{ background: "linear-gradient(135deg,#34E5B0,#0E8C6E)" }}>G</div>
+        <div className="w-8 h-8 rounded-lg grid place-items-center bg-[#34E5B0] text-[#062019] font-bold">G</div>
         <div>
           <div className="text-[15px] font-semibold text-[var(--cream)] leading-none">GLM 5.2</div>
           <div className="text-[10.5px] text-[var(--cream-mute)] mt-1">Zhipu z.ai · Coding Plan · 1M context · chat + workspace</div>
-        </div>
-        <div className="ml-auto flex gap-1.5">
-          {([{ k: "chat", label: "Chat", icon: <MessageSquare size={13} /> }, { k: "workspace", label: "Workspace", icon: <Layers size={13} /> }] as const).map((t) => (
-            <button key={t.k} onClick={() => setTab(t.k)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition"
-              style={{ borderColor: tab === t.k ? ACCENT : "var(--line-soft)", background: tab === t.k ? `${ACCENT}1e` : "transparent", color: tab === t.k ? ACCENT : "var(--cream-dim)" }}>
-              {t.icon} {t.label}{t.k === "workspace" && files.length ? ` · ${files.length}` : ""}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -225,6 +232,6 @@ export default function GLMView() {
           </div>
         </div>
       )}
-    </div>
+    </div></AgentWorkspaceShell>
   );
 }

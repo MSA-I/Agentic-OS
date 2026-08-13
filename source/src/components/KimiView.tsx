@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import VoiceButton, { useVoiceToInput } from "./VoiceButton";
 import {
-  MessageSquare, Layers, Send, Square, Trash2, RefreshCw, FolderTree,
+  Send, Square, Trash2, RefreshCw, FolderTree,
   ExternalLink, Loader2, Sparkles, FileCode, Zap,
 } from "lucide-react";
+import AgentWorkspaceShell, { type WorkspaceNavDetail } from "./AgentWorkspaceShell";
 
 const ACCENT = "#00CCFF"; // Kimi cyan
 const HISTORY_KEY = "agentic-os/kimi/history/v1";
@@ -59,6 +60,22 @@ export default function KimiView() {
   useEffect(() => { if (hydrated.current) try { localStorage.setItem(HISTORY_KEY, JSON.stringify(msgs.slice(-200))); } catch {} }, [msgs]);
   useEffect(() => { if (hydrated.current) try { localStorage.setItem(MODE_KEY, mode); } catch {} }, [mode]);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, partial]);
+  useEffect(() => {
+    const onNav = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceNavDetail>).detail;
+      if (detail?.agent !== "kimi") return;
+      if (detail.action === "new") {
+        setMsgs([]);
+        setPartial("");
+        setActivity(null);
+        setErr(null);
+        try { localStorage.removeItem(HISTORY_KEY); } catch {}
+      }
+      setTab(detail.target === "workspace" || detail.section === "projects" ? "workspace" : "chat");
+    };
+    window.addEventListener("agent-workspace-nav", onNav);
+    return () => window.removeEventListener("agent-workspace-nav", onNav);
+  }, []);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -134,22 +151,13 @@ export default function KimiView() {
   const isHtml = !!openFile && /\.html?$/i.test(openFile.relPath);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* header + tabs */}
+    <AgentWorkspaceShell agent="kimi" active={tab === "chat" ? "messages" : "projects"} activeTarget={tab}><div data-agent-model-view="kimi" data-active-tab={tab} className="flex h-full min-h-0 flex-col overflow-hidden p-4 md:p-5">
+      {/* model identity */}
       <div className="flex items-center gap-3 mb-3 shrink-0">
-        <div className="w-8 h-8 rounded-lg grid place-items-center text-[#06222b] font-bold" style={{ background: `linear-gradient(135deg,#00CCFF,#0066AA)` }}>K</div>
+        <div className="w-8 h-8 rounded-lg grid place-items-center bg-[#00CCFF] text-[#06222b] font-bold">K</div>
         <div>
           <div className="text-[15px] font-semibold text-[var(--cream)] leading-none">Kimi Code</div>
           <div className="text-[10.5px] text-[var(--cream-mute)] mt-1">K3 + K2.7 Code · OAuth · single-shot chat + workspace</div>
-        </div>
-        <div className="ml-auto flex gap-1.5">
-          {([{ k: "chat", label: "Chat", icon: <MessageSquare size={13} /> }, { k: "workspace", label: "Workspace", icon: <Layers size={13} /> }] as const).map((t) => (
-            <button key={t.k} onClick={() => setTab(t.k)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium border transition"
-              style={{ borderColor: tab === t.k ? ACCENT : "var(--line-soft)", background: tab === t.k ? `${ACCENT}1e` : "transparent", color: tab === t.k ? ACCENT : "var(--cream-dim)" }}>
-              {t.icon} {t.label}{t.k === "workspace" && projects.length ? ` · ${projects.length}` : ""}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -295,6 +303,6 @@ export default function KimiView() {
           </div>
         </div>
       )}
-    </div>
+    </div></AgentWorkspaceShell>
   );
 }

@@ -233,6 +233,7 @@ export default function WakeWordCard({ onCommand, busy }: { onCommand: (cmd: str
 
   return (
     <div
+      data-hermes-wake-word
       className="mx-5 mt-3 rounded-2xl px-5 py-4"
       style={{
         border: `1px solid ${live ? "var(--gold, #edff45)" : "var(--panel-border)"}`,
@@ -243,6 +244,7 @@ export default function WakeWordCard({ onCommand, busy }: { onCommand: (cmd: str
     >
       <div className="flex items-center gap-5">
         <button
+          data-hermes-wake-toggle
           onClick={() => (live ? disarm() : arm())}
           aria-label={live ? "Turn wake word off" : "Turn wake word on"}
           className="grid place-items-center rounded-full flex-none"
@@ -260,7 +262,7 @@ export default function WakeWordCard({ onCommand, busy }: { onCommand: (cmd: str
               : <EarOff size={22} color="var(--fg-dim)" strokeWidth={2} />}
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div data-hermes-wake-copy className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <span className="font-semibold truncate"
                   style={{ fontFamily: "var(--face-ui)", fontSize: 20, letterSpacing: "-0.01em", color: "var(--fg)" }}>

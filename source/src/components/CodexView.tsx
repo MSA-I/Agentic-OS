@@ -598,37 +598,11 @@ export default function CodexView() {
     return `/api/codex/preview/${encodeURIComponent(selected.name)}/${segs}`;
   }
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = useMemo(() => [
-    { key: "chat",      label: "Chat",      icon: <MessageSquare size={12} /> },
-    { key: "goal",      label: "Goal Mode", icon: <Target size={12} />, count: goals.filter((goal) => goal.status === "running").length || undefined },
-    { key: "sessions",  label: "Sessions",  icon: <ListChecks size={12} />, count: sessions.length || undefined },
-    { key: "workspace", label: "Workspace", icon: <Layers size={12} />, count: projects.length || undefined },
-  ], [goals, sessions, projects]);
-
   const workspaceSection: WorkspaceSection = tab === "chat" ? "messages" : tab === "sessions" ? "history" : tab === "workspace" ? "projects" : "tools";
   const hasConversationContext = Boolean(sidebarSessionPath && activeProjectRoot);
   return (
-    <AgentWorkspaceShell agent="codex" active={workspaceSection} activeTarget={tab}><div className="flex min-h-0 flex-col lg:h-full">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3 mb-3">
-        <div className="flex gap-2 scroll-rail pb-1 lg:pb-0">
-          {tabs.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition text-[11px] uppercase tracking-[0.18em]"
-              style={{
-                borderColor: tab === item.key ? ACCENT : "var(--line-soft)",
-                background: tab === item.key ? `${ACCENT}1e` : "transparent",
-                color: tab === item.key ? ACCENT : "var(--cream-dim)",
-                fontFamily: "'Manrope', sans-serif",
-                fontWeight: 600,
-              }}
-            >
-              {item.icon}{item.label}
-              {item.count !== undefined && <span className="hand text-[1.05rem] ml-1" style={{ color: ACCENT }}>{item.count}</span>}
-            </button>
-          ))}
-        </div>
+    <AgentWorkspaceShell agent="codex" active={workspaceSection} activeTarget={tab}><div data-codex-view className="flex h-full min-h-0 flex-col">
+      <div className="hidden">
         <span className="pill self-start lg:self-auto" title="Active scratch project — Codex chats write files here"
               style={{ background: `${ACCENT}18`, borderColor: `${ACCENT}40`, color: ACCENT }}>
           <FolderOpen size={10} className="inline mr-1" />{activeProject || "Choose workspace"}
@@ -639,7 +613,7 @@ export default function CodexView() {
         {/* ─── CHAT TAB ─── */}
         {tab === "chat" && (
           <>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b" style={{ borderColor: "var(--line-soft)" }}>
+            {(msgs.length > 0 || streaming) && <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b" style={{ borderColor: "var(--line-soft)" }}>
               <div className="flex items-center gap-2 scroll-rail" tabIndex={0} aria-label="Codex connection details">
                 <span className="action-tag" style={{ color: ACCENT }}>Codex · Direct</span>
                 <span className="pill" style={{ color: ACCENT, borderColor: `${ACCENT}30`, background: `${ACCENT}0c` }}>codex exec --json</span>
@@ -652,16 +626,23 @@ export default function CodexView() {
                   </button>
                 )}
               </div>
-            </div>
+            </div>}
             <div
               ref={scrollRef}
-              className="scroll flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
+              className="scroll relative flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
               tabIndex={0}
               aria-label="Codex conversation messages"
             >
               <AnimatePresence initial={false}>
                 {msgs.length === 0 && !streaming && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[var(--cream-soft)] text-sm leading-relaxed">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} data-codex-empty-state className="grid h-full place-items-center text-center text-[var(--cream-soft)]">
+                    <div className="absolute inset-0 grid place-items-center px-6">
+                      <div>
+                        <div className="mx-auto mb-5 h-8 w-8 rounded-full border border-white/20" aria-hidden="true" />
+                        <p className="text-[22px] font-medium tracking-[-0.02em] text-[var(--cream)]">What should we build in {activeProject || "this workspace"}?</p>
+                      </div>
+                    </div>
+                    <div className="sr-only">
                     <p className="text-base text-[var(--cream)]">Codex — project-scoped native task.</p>
                     <p className="mt-2">The first message starts <code className="mono text-[var(--cream)]">codex exec --json</code>; later messages use <code className="mono text-[var(--cream)]">codex exec resume</code> on <strong>{engine === "gpt56" ? "GPT 5.6 (Sol) — OpenAI's frontier Codex on your ChatGPT login (OAuth, no API key)" : engine === "hy3" ? "HY3 — Tencent\u2019s 295B agentic model, free on OpenRouter" : "OmniRoute — 90+ free providers"}</strong>.</p>
                     <ul className="mt-3 text-xs text-[var(--cream-mute)] space-y-1">
@@ -670,6 +651,7 @@ export default function CodexView() {
                       <li>• For long-running work, switch to <strong>Goal Mode</strong></li>
                       <li>• Esc to abort an in-flight call</li>
                     </ul>
+                    </div>
                   </motion.div>
                 )}
                 {msgs.map((m, i) => (

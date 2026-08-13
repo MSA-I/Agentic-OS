@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, History, Layers, MessageSquare, Sparkles, Terminal } from "lucide-react";
+import { Box } from "lucide-react";
 import AgentRoom from "@/components/AgentRoom";
 import UnifiedChat from "@/components/UnifiedChat";
 import OpenClawWorkspace from "@/components/OpenClawWorkspace";
@@ -47,33 +47,7 @@ export default function OpenClawRoute() {
 
   const section: WorkspaceSection = tab === "chat" ? "messages" : tab === "sessions" ? "history" : tab === "workspace" ? "projects" : tab === "studio" ? "artifacts" : "tools";
   return (
-    <AgentWorkspaceShell agent="openclaw" active={section} activeTarget={tab}><div className="space-y-5">
-      <div className="flex items-center gap-2 scroll-rail pb-1 -mx-1 px-1">
-        {([
-          { key: "chat",      label: "Chat",         icon: <MessageSquare size={14} /> },
-          { key: "sessions",  label: "Sessions",     icon: <History size={14} /> },
-          { key: "studio",    label: "Studio",       icon: <Sparkles size={14} /> },
-          { key: "workspace", label: "Workspace",    icon: <Layers size={14} /> },
-          { key: "control",   label: "Control Room", icon: <Terminal size={14} /> },
-        ] as { key: OcTab; label: string; icon: React.ReactNode }[]).map((item) => {
-          const active = tab === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => setTab(item.key)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12.5px] transition"
-              style={{
-                background: active ? "rgba(245,101,74,0.16)" : "transparent",
-                borderColor: active ? "#F5654A" : "var(--panel-border)",
-                color: active ? "var(--fg)" : "var(--fg-dim)",
-              }}
-            >
-              {item.icon}{item.label}
-            </button>
-          );
-        })}
-      </div>
-
+    <AgentWorkspaceShell agent="openclaw" active={section} activeTarget={tab}><div data-agent-page="openclaw" data-active-tab={tab} className={`h-full min-h-0 ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto p-4 md:p-5"}`}>
       {tab === "chat" ? (
         <UnifiedChat defaultAgent="openclaw" showAgentSwitcher={false} />
       ) : tab === "sessions" ? (

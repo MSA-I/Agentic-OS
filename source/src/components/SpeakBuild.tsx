@@ -92,6 +92,14 @@ export default function SpeakBuild() {
 
   async function refreshFiles(): Promise<WsFile[]> {
     try {
+      const projectsResponse = await fetch("/api/freeclaude/workspace", { cache: "no-store" });
+      const projectsPayload = await projectsResponse.json() as { projects?: { name?: string }[] };
+      const projectExists = Array.isArray(projectsPayload.projects)
+        && projectsPayload.projects.some((entry) => entry.name === project);
+      if (!projectExists) {
+        setFiles([]);
+        return [];
+      }
       const r = await fetch(`/api/freeclaude/workspace?project=${project}`, { cache: "no-store" });
       const j = await r.json();
       const fs: WsFile[] = j.files ?? [];

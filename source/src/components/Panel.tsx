@@ -36,7 +36,7 @@ export default function Panel({ title, accent = "system", icon, actions, childre
           {icon}
           <span>{title}</span>
         </h2>
-        <div className="flex items-center gap-2 min-w-0 max-w-full overflow-x-auto scroll-rail">{actions}</div>
+        <div tabIndex={0} aria-label={`${title} actions`} className="flex items-center gap-2 min-w-0 max-w-full overflow-x-auto scroll-rail">{actions}</div>
       </header>
       <div className="flex-1 min-h-0 p-5">{children}</div>
     </motion.section>
