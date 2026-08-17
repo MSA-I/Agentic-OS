@@ -1,0 +1,453 @@
+{
+  "schemaVersion": {
+    "evidenceLevel": "static",
+    "value": "agent-os-wave-0-baseline/v1"
+  },
+  "collectedAt": {
+    "evidenceLevel": "current-live",
+    "value": "2026-08-13T18:37:51.802Z"
+  },
+  "safetyContract": {
+    "evidenceLevel": "static",
+    "defaultMode": "stdout-only",
+    "networkScope": "loopback-get-only",
+    "databaseScope": "sqlite-read-only-query-only",
+    "excludedActions": [
+      "prompt-send",
+      "run-start",
+      "run-resume",
+      "run-cancel",
+      "approval-mutation",
+      "tool-invocation",
+      "workbench-database-write",
+      "secret-value-read-or-output"
+    ]
+  },
+  "git": {
+    "evidenceLevel": "static",
+    "sha": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
+    "branch": "main",
+    "worktree": {
+      "evidenceLevel": "current-live",
+      "dirty": true,
+      "changedEntryCount": 7,
+      "stagedEntryCount": 1,
+      "unstagedEntryCount": 6,
+      "untrackedEntryCount": 5,
+      "note": "Counts only; unrelated paths are intentionally omitted from evidence."
+    }
+  },
+  "runtime": {
+    "evidenceLevel": "current-live",
+    "collectedBy": "fixed-read-only-cli-probes",
+    "providers": {
+      "codex": {
+        "evidenceLevel": "current-live",
+        "version": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "codex --version",
+          "executable": "C:\\Users\\art1\\AppData\\Roaming\\npm\\codex.cmd",
+          "exitCode": 0,
+          "latencyMs": 414.2,
+          "version": "codex-cli 0.144.6"
+        },
+        "health": {
+          "evidenceLevel": "blocked",
+          "status": "blocked",
+          "reason": "no-safe-no-op-health-command-defined-for-wave-0"
+        },
+        "credentialSignal": {
+          "evidenceLevel": "current-live",
+          "configured": true,
+          "meaning": "credential-presence-only-not-authentication-proof"
+        }
+      },
+      "claude": {
+        "evidenceLevel": "current-live",
+        "version": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "claude --version",
+          "executable": "C:\\Users\\art1\\.local\\bin\\claude.exe",
+          "exitCode": 0,
+          "latencyMs": 325.2,
+          "version": "2.1.227 (Claude Code)"
+        },
+        "health": {
+          "evidenceLevel": "blocked",
+          "status": "blocked",
+          "reason": "no-safe-no-op-health-command-defined-for-wave-0"
+        },
+        "credentialSignal": {
+          "evidenceLevel": "current-live",
+          "configured": true,
+          "meaning": "credential-presence-only-not-authentication-proof"
+        }
+      },
+      "hermes": {
+        "evidenceLevel": "current-live",
+        "version": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "hermes --version",
+          "executable": "C:\\Users\\art1\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe",
+          "exitCode": 0,
+          "latencyMs": 1165,
+          "version": "Hermes Agent v0.17.0 (2026.6.19) · upstream 91e550b0 · local cfbc7ed1 (+13988 carried commits)"
+        },
+        "health": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "hermes status",
+          "executable": "C:\\Users\\art1\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe",
+          "exitCode": 0,
+          "latencyMs": 2161.9,
+          "observed": true,
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "OpenRouter"
+        }
+      },
+      "openclaw": {
+        "evidenceLevel": "current-live",
+        "version": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "openclaw --version",
+          "executable": "C:\\Users\\art1\\AppData\\Roaming\\npm\\openclaw.cmd",
+          "exitCode": 0,
+          "latencyMs": 380.9,
+          "version": "OpenClaw 2026.7.1-2 (0790d9f)"
+        },
+        "health": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "command": "openclaw health",
+          "executable": "C:\\Users\\art1\\AppData\\Roaming\\npm\\openclaw.cmd",
+          "exitCode": 0,
+          "latencyMs": 7878,
+          "observed": true,
+          "gatewayObserved": true,
+          "agentCount": 1,
+          "sessionCount": 6,
+          "loopMaxMs": 35,
+          "loopP99Ms": 34
+        }
+      },
+      "antigravity": {
+        "evidenceLevel": "blocked",
+        "version": {
+          "evidenceLevel": "blocked",
+          "status": "blocked",
+          "reason": "not-installed-or-not-on-path",
+          "command": "agy --version"
+        },
+        "health": {
+          "evidenceLevel": "blocked",
+          "status": "blocked",
+          "reason": "no-safe-no-op-health-command-defined-for-wave-0"
+        }
+      }
+    },
+    "node": {
+      "evidenceLevel": "current-live",
+      "status": "observed",
+      "version": "v24.15.0",
+      "platform": "win32",
+      "architecture": "x64"
+    }
+  },
+  "workbenchDatabase": {
+    "evidenceLevel": "current-live",
+    "status": "observed",
+    "accessMode": "sqlite-read-only-query-only",
+    "pathResolutionSource": ".env.local:selected-key-only",
+    "databaseFile": {
+      "evidenceLevel": "current-live",
+      "sizeBytes": 4096,
+      "modifiedAt": "2026-08-13T14:02:32.964Z"
+    },
+    "runCountsByStatus": {
+      "evidenceLevel": "current-live",
+      "values": {
+        "cancelled": 3,
+        "queued": 9
+      }
+    },
+    "stuckRuns": {
+      "evidenceLevel": "current-live",
+      "thresholdMinutes": 15,
+      "cutoff": "2026-08-13T18:22:51.922Z",
+      "total": 9,
+      "byStatus": {
+        "queued": {
+          "count": 9,
+          "oldestUpdatedAt": "2026-08-13T14:02:47.177Z",
+          "oldestAgeMs": 16504745
+        }
+      }
+    },
+    "runAttributionSignals": {
+      "evidenceLevel": "current-live",
+      "byProvider": {
+        "codex": {
+          "totalRuns": 4,
+          "withActorId": 4,
+          "withProjectId": 4,
+          "withNativeSessionId": 0,
+          "fullyAttributed": 0
+        },
+        "hermes": {
+          "totalRuns": 4,
+          "withActorId": 4,
+          "withProjectId": 4,
+          "withNativeSessionId": 4,
+          "fullyAttributed": 4
+        },
+        "openclaw": {
+          "totalRuns": 4,
+          "withActorId": 4,
+          "withProjectId": 4,
+          "withNativeSessionId": 4,
+          "fullyAttributed": 4
+        }
+      }
+    },
+    "activeRunEventLag": {
+      "evidenceLevel": "current-live",
+      "activeRunCount": 9,
+      "activeRunsWithoutEvents": 0,
+      "maximumLagMs": 16504679
+    },
+    "pendingMessages": {
+      "evidenceLevel": "current-live",
+      "count": 4,
+      "oldestCreatedAt": "2026-08-13T14:02:37.544Z",
+      "oldestAgeMs": 16514378
+    }
+  },
+  "http": {
+    "evidenceLevel": "current-live",
+    "status": "observed",
+    "baseUrl": "http://127.0.0.1:3737",
+    "discoveryAttempts": [
+      {
+        "evidenceLevel": "current-live",
+        "baseUrl": "http://127.0.0.1:3737",
+        "status": "agent-os-observed",
+        "httpStatus": 200,
+        "latencyMs": 131.9,
+        "reason": null
+      }
+    ],
+    "getLatencyProbes": {
+      "evidenceLevel": "current-live",
+      "vitals": {
+        "evidenceLevel": "current-live",
+        "status": "observed",
+        "httpStatus": 200,
+        "latencyMs": 7455.1,
+        "providers": {
+          "codex": {
+            "evidenceLevel": "blocked",
+            "status": "blocked",
+            "reason": "provider-missing-from-vitals"
+          },
+          "claude": {
+            "evidenceLevel": "current-live",
+            "status": "observed",
+            "reportedOk": true,
+            "reportedLatencyMs": 407,
+            "version": "2.1.227 (Claude Code)"
+          },
+          "hermes": {
+            "evidenceLevel": "current-live",
+            "status": "observed",
+            "reportedOk": true,
+            "reportedLatencyMs": 2405,
+            "model": "deepseek/deepseek-v4-flash",
+            "provider": "OpenRouter"
+          },
+          "openclaw": {
+            "evidenceLevel": "current-live",
+            "status": "observed",
+            "reportedOk": true,
+            "reportedLatencyMs": 8096,
+            "gateway": "live",
+            "degraded": false,
+            "busy": false,
+            "sessionCount": 6,
+            "agentCount": 1
+          },
+          "antigravity": {
+            "evidenceLevel": "blocked",
+            "status": "blocked",
+            "reportedOk": false,
+            "reportedLatencyMs": 0,
+            "version": "Error: antigravity is not installed or not configured. Set AGENTIC_OS_ANTIGRAVITY_BIN or install the CLI."
+          }
+        }
+      },
+      "sessions": {
+        "codex": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 96.3
+        },
+        "claude": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 438.2
+        },
+        "hermes": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 187.6
+        },
+        "openclaw": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 203.9
+        },
+        "antigravity": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 200.8
+        }
+      },
+      "workbenchRuns": {
+        "evidenceLevel": "blocked",
+        "status": "blocked",
+        "reason": "intentionally-omitted-because-current-supervisor-initialization-can-write-orphan-state"
+      }
+    },
+    "nativeSessionInventory": {
+      "evidenceLevel": "current-live",
+      "providers": {
+        "codex": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 96.3,
+          "sessionCount": 203,
+          "returnedCount": 100,
+          "attributionSignals": {
+            "evidenceLevel": "current-live",
+            "sampleSize": 100,
+            "totalCount": 203,
+            "sampleCoveragePercent": 49.26,
+            "withActorId": 0,
+            "withProjectId": 100,
+            "fullyAttributed": 0,
+            "withoutActorOrProject": 0
+          }
+        },
+        "claude": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 438.2,
+          "sessionCount": 199,
+          "returnedCount": 100,
+          "attributionSignals": {
+            "evidenceLevel": "current-live",
+            "sampleSize": 100,
+            "totalCount": 199,
+            "sampleCoveragePercent": 50.25,
+            "withActorId": 0,
+            "withProjectId": 100,
+            "fullyAttributed": 0,
+            "withoutActorOrProject": 0
+          }
+        },
+        "hermes": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 187.6,
+          "sessionCount": 275,
+          "returnedCount": 100,
+          "attributionSignals": {
+            "evidenceLevel": "current-live",
+            "sampleSize": 100,
+            "totalCount": 275,
+            "sampleCoveragePercent": 36.36,
+            "withActorId": 100,
+            "withProjectId": 100,
+            "fullyAttributed": 100,
+            "withoutActorOrProject": 0
+          }
+        },
+        "openclaw": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 203.9,
+          "sessionCount": 1,
+          "returnedCount": 1,
+          "attributionSignals": {
+            "evidenceLevel": "current-live",
+            "sampleSize": 1,
+            "totalCount": 1,
+            "sampleCoveragePercent": 100,
+            "withActorId": 1,
+            "withProjectId": 1,
+            "fullyAttributed": 1,
+            "withoutActorOrProject": 0
+          }
+        },
+        "antigravity": {
+          "evidenceLevel": "current-live",
+          "status": "observed",
+          "httpStatus": 200,
+          "latencyMs": 200.8,
+          "sessionCount": 2,
+          "returnedCount": 2,
+          "attributionSignals": {
+            "evidenceLevel": "current-live",
+            "sampleSize": 2,
+            "totalCount": 2,
+            "sampleCoveragePercent": 100,
+            "withActorId": 0,
+            "withProjectId": 2,
+            "fullyAttributed": 0,
+            "withoutActorOrProject": 0
+          }
+        }
+      },
+      "note": "Attribution metrics cover the returned page only; total count comes from the provider adapter."
+    }
+  },
+  "historical": {
+    "evidenceLevel": "historical",
+    "status": "inventoried",
+    "artifactCount": 1,
+    "artifacts": [
+      {
+        "evidenceLevel": "historical",
+        "name": "setup-center-e2e-report.json",
+        "sizeBytes": 3251,
+        "modifiedAt": "2026-08-11T20:06:38.672Z",
+        "sha256": "43f5d6ff9b0406db2174c05e94ad9fc7e75dc7eb5d10318823ac47c2de69e33c",
+        "interpretation": "historical-artifact-only-not-current-runtime-proof"
+      }
+    ]
+  },
+  "interpretationRules": {
+    "evidenceLevel": "static",
+    "levels": [
+      "static",
+      "current-live",
+      "historical",
+      "blocked"
+    ],
+    "blockedIsNeverPass": true,
+    "configuredIsNotLiveVerified": true,
+    "timeoutQuotaAndNotInstalledRemainBlocked": true
+  }
+}

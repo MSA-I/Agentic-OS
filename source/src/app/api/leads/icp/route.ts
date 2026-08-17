@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { parseICP } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 // POST {brief, offer} → structured ICP filters.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/leads/icp");
+  if (frozen) return frozen;
   const { brief, offer } = await req.json().catch(() => ({}));
   if (!brief || typeof brief !== "string" || brief.trim().length < 3) {
     return Response.json({ error: "Describe your target customer (a sentence is enough)." }, { status: 400 });

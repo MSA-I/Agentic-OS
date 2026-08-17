@@ -1,7 +1,7 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
-import { existsSync } from "node:fs";
-import path from "node:path";
+import { resolveRegisteredProjectLaunchDirectory, ProjectRegistryError } from "@/lib/control-plane/projectRegistry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,22 +42,34 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 }
 
 export async function POST(req: Request) {
-  const { prompt, dangerouslySkipPermissions, history, model, cwd } = await req.json();
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/antigravity/chat");
+  if (frozen) return frozen;
+  const { prompt, dangerouslySkipPermissions, history, model, cwd, projectId } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return NextResponse.json({ error: "missing prompt" }, { status: 400 });
   }
   if (prompt.length > 32_000) {
     return NextResponse.json({ error: "prompt too long" }, { status: 413 });
   }
+  if (cwd !== undefined) return NextResponse.json({ error: "client-supplied cwd is not accepted; select a project" }, { status: 400 });
+  if (dangerouslySkipPermissions !== undefined) {
+    return NextResponse.json({ error: "Antigravity permission bypass is disabled by Agent OS execution policy." }, { status: 403 });
+  }
 
   const args: string[] = ["-p", buildPromptWithHistory(history, prompt)];
   // Launch-day default: Gemini 3.6 Flash (High) — 17% fewer tokens, faster agentic steps.
   // Callers may override with any `agy models` name (e.g. "Gemini 3.1 Pro (High)").
   args.push("--model", typeof model === "string" && model.trim() ? model.trim() : "Gemini 3.6 Flash (High)");
-  if (dangerouslySkipPermissions === true) args.push("--dangerously-skip-permissions");
-
-  const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : undefined;
+  let runCwd;
+  try { runCwd = await resolveRegisteredProjectLaunchDirectory("antigravity", typeof projectId === "string" ? projectId : undefined); }
+  catch (error) {
+    const code = error instanceof ProjectRegistryError ? error.code : "project_directory_invalid";
+    return NextResponse.json({ code, error: "Antigravity project is not an approved launch target." }, { status: 400 });
+  }
   const out = await run("antigravity", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd, signal: req.signal });
+  if (out.code === -1 && /^Provider launch denied:/.test(out.stderr)) {
+    return NextResponse.json({ code: out.stderr.split(": ").at(-1), error: "Antigravity start is disabled by runtime containment." }, { status: 503 });
+  }
   const text = out.stdout.replace(ANSI_STRIP, "").trim();
   const stderrClean = out.stderr.replace(ANSI_STRIP, "").trim();
 

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { workspacePath } from "@/lib/workspaceRoot";
@@ -11,6 +12,8 @@ const GAMES_DIR = workspacePath("games");
 // POST { prompt } → commission the game-dev agent: create a kanban card on the
 // game-studio board (workspace = the games gallery dir) and dispatch it now.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/games/commission");
+  if (frozen) return frozen;
   let body: { prompt?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: "bad json" }, { status: 400 }); }
   const prompt = (body.prompt ?? "").toString().trim();

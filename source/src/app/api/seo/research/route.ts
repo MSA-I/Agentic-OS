@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, readFileSync } from "node:fs";
@@ -70,6 +71,8 @@ function connectedSites(): string[] {
 // POST {site, days, seed} → live GSC research + scored opportunities.
 // site === "all" → run every connected site in parallel and merge the topics (each tagged with its site).
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/seo/research");
+  if (frozen) return frozen;
   if (!existsSync(SCRIPT)) return Response.json({ error: "research script missing" }, { status: 500 });
   const { site, days, seed } = await req.json().catch(() => ({}));
   const isAll = site === "all";

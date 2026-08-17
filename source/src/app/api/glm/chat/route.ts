@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import fs from "node:fs";
 import { hermesHome } from "@/lib/config";
 import path from "node:path";
@@ -27,6 +28,8 @@ function glmKey(): string | null {
 interface ChatMsg { role: "user" | "assistant"; text: string; }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/glm/chat");
+  if (frozen) return frozen;
   const { prompt, history = [] } = (await req.json()) as { prompt: string; history?: ChatMsg[] };
   const key = glmKey();
   const enc = new TextEncoder();

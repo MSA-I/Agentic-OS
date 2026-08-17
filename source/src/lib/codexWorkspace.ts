@@ -18,6 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
 import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
+import { isSensitivePath, resolveContainedExistingPathSync } from "./control-plane/pathSecurity";
 
 const HOME = os.homedir();
 export const CODEX_HOME = path.join(HOME, ".codex");
@@ -31,20 +32,20 @@ export const CODEX_SCRATCH_ROOT = process.env.AGENTIC_OS_CODEX_SCRATCH
 // terminal-native approval prompt has nowhere to appear in the browser — without
 // an explicit policy Codex blocks forever waiting for an answer (the "approval
 // loop" members hit). We pass verified flags (codex-cli 0.125+) per chosen mode:
-//   auto     — never prompt, but sandbox writes to the workspace (safe default)
-//   readonly — never prompt, read-only sandbox (Codex can plan/read, never writes)
-//   yolo     — bypass approvals AND sandbox (full access — back up first)
+//   auto     — server-selected workspace-write sandbox (safe operational default)
+//   readonly — client may reduce authority to a read-only sandbox
 // NB: true interactive "ask" isn't possible through the browser pipe (no TTY),
 // so "readonly" is the safe stand-in for "let me see before it touches anything".
-export type CodexApprovalMode = "auto" | "readonly" | "yolo";
+// Unknown/client bypass values normalize to the server default; they never add
+// authority or disable the sandbox.
+export type CodexApprovalMode = "auto" | "readonly";
 
 export function normalizeCodexApprovalMode(v: unknown): CodexApprovalMode {
-  return v === "yolo" || v === "readonly" ? v : "auto";
+  return v === "readonly" ? v : "auto";
 }
 
 export function codexApprovalArgs(mode: unknown): string[] {
   switch (normalizeCodexApprovalMode(mode)) {
-    case "yolo":     return ["--dangerously-bypass-approvals-and-sandbox"];
     case "readonly": return ["-c", "approval_policy=never", "--sandbox", "read-only"];
     case "auto":
     default:         return ["-c", "approval_policy=never", "--sandbox", "workspace-write"];
@@ -57,7 +58,6 @@ export function codexApprovalArgs(mode: unknown): string[] {
 // `sandbox_mode`. A fresh `codex exec` keeps using codexApprovalArgs above.
 export function codexResumeApprovalArgs(mode: unknown): string[] {
   switch (normalizeCodexApprovalMode(mode)) {
-    case "yolo":     return ["--dangerously-bypass-approvals-and-sandbox"];
     case "readonly": return ["-c", "approval_policy=never", "-c", 'sandbox_mode="read-only"'];
     case "auto":
     default:         return ["-c", "approval_policy=never", "-c", 'sandbox_mode="workspace-write"'];
@@ -215,7 +215,7 @@ export async function readSession(id: string): Promise<SessionDetail | null> {
         const full = path.join(dir, it.name);
         if (it.isDirectory()) {
           await walk(full, depth + 1, base);
-        } else if (it.isFile()) {
+        } else if (it.isFile() && !isSensitivePath(path.relative(base, full))) {
           const st = await safeStat(full);
           if (!st) continue;
           const kind = fileKind(it.name);
@@ -393,8 +393,9 @@ export async function listProjectFiles(project: string, maxFiles = 80): Promise<
 export async function readProjectFile(project: string, relPath: string): Promise<{ path: string; content: string; bytes: number; mtime: number; truncated: boolean } | null> {
   if (!isSafeProjectName(project)) return null;
   const base = path.join(CODEX_SCRATCH_ROOT, project);
-  const abs = path.resolve(base, relPath);
-  if (abs !== base && !abs.startsWith(base + path.sep)) return null;
+  const resolved = resolveContainedExistingPathSync(base, relPath);
+  if (!resolved.ok) return null;
+  const abs = resolved.absolutePath;
 
   const st = await safeStat(abs);
   if (!st || !st.isFile()) return null;

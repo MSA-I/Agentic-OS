@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -24,6 +25,8 @@ function nlm(args: string[], timeoutMs: number): Promise<{ code: number; stdout:
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/astros/notebook");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const topic = String(body.topic || "").slice(0, 120);
   const urls: string[] = (Array.isArray(body.urls) ? body.urls : [])

@@ -2,22 +2,30 @@ import {
   authorizeWorkbenchMutation,
   readWorkbenchJson,
   validateMessage,
+  validateCommandIdentity,
   validateRunId,
   workbenchError,
   workbenchJson,
 } from "@/lib/workbench/http";
-import { getRunSupervisor } from "@/lib/workbench/supervisor";
+import { getDurableWorkbenchControlPlane } from "@/lib/workbench/durableControlPlane";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorizeWorkbenchMutation(request);
+    const callerSessionId = authorizeWorkbenchMutation(request);
     const { id } = await context.params;
-    const message = validateMessage(await readWorkbenchJson(request));
-    const result = await getRunSupervisor().message(validateRunId(id), message.mode, message.content);
-    return workbenchJson(result, { status: result.delivery === "queued" ? 202 : 200 });
+    const body = await readWorkbenchJson(request);
+    const message = validateMessage(body);
+    const identity = validateCommandIdentity(body, callerSessionId);
+    const result = getDurableWorkbenchControlPlane().message(
+      validateRunId(id),
+      message.mode,
+      message.content,
+      identity,
+    );
+    return workbenchJson(result, { status: 202 });
   } catch (error) {
     return workbenchError(error);
   }

@@ -1,6 +1,8 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { hermesHome } from "@/lib/config";
+import { resolveRegisteredProjectLaunchDirectory, ProjectRegistryError } from "@/lib/control-plane/projectRegistry";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { readFileSync, readdirSync } from "node:fs";
@@ -99,13 +101,16 @@ function slashShim(prompt: string, profile: string): string | null {
 }
 
 export async function POST(req: Request) {
-  const { prompt, profile, history, sessionId, cwd } = await req.json();
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/chat");
+  if (frozen) return frozen;
+  const { prompt, profile, history, sessionId, cwd, projectId } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return NextResponse.json({ error: "missing prompt" }, { status: 400 });
   }
   if (prompt.length > 16_000) {
     return NextResponse.json({ error: "prompt too long" }, { status: 413 });
   }
+  if (cwd !== undefined) return NextResponse.json({ error: "client-supplied cwd is not accepted; select a project" }, { status: 400 });
   // Optional profile = chat as a specific Hermes employee (seo-writer, etc.).
   if (profile !== undefined && (typeof profile !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(profile))) {
     return NextResponse.json({ error: "bad profile" }, { status: 400 });
@@ -113,14 +118,13 @@ export async function POST(req: Request) {
   if (sessionId !== undefined && (typeof sessionId !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(sessionId))) {
     return NextResponse.json({ error: "bad session id" }, { status: 400 });
   }
+  if (/^\/yolo(?:\s|$)/i.test(prompt.trim())) {
+    return NextResponse.json({ error: "Hermes YOLO mode is disabled by Agent OS execution policy." }, { status: 403 });
+  }
 
   // hermes -z PROMPT  — single-query non-interactive mode.
-  // --yolo + --accept-hooks are ESSENTIAL for headless/VPS runs: without them,
-  // Hermes blocks on an interactive approval/hook-confirmation prompt it can't
-  // display in oneshot mode, and the dashboard just sees blank output. (Matches
-  // the flags Goal Mode already uses.) If the reply is STILL blank after this,
-  // it's almost always auth — run `hermes status` and check the provider shows
-  // a ✓ for its API key.
+  // Agent OS deliberately does not auto-approve tools or hooks. A headless run
+  // that requires interactive approval must stop safely rather than bypass it.
   // A stale/deleted profile selection (e.g. a "kimi" pill left in localStorage from an
   // earlier setup) must NOT hard-fail every message with "Profile 'kimi' does not exist".
   // Only pass --profile when that profile actually exists; otherwise fall back to Hermes'
@@ -140,9 +144,17 @@ export async function POST(req: Request) {
   const fullPrompt = sessionId ? (shimmed ?? prompt) : buildPromptWithHistory(history, shimmed ?? prompt);
   const args = [...profileArgs, "chat", "-Q"];
   if (sessionId) args.push("--resume", sessionId);
-  args.push("-q", fullPrompt, "--source", "agent-os", "--yolo", "--accept-hooks");
-  const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd) ? cwd : undefined;
+  args.push("-q", fullPrompt, "--source", "agent-os");
+  let runCwd;
+  try { runCwd = await resolveRegisteredProjectLaunchDirectory("hermes", typeof projectId === "string" ? projectId : undefined); }
+  catch (error) {
+    const code = error instanceof ProjectRegistryError ? error.code : "project_directory_invalid";
+    return NextResponse.json({ code, error: "Hermes project is not an approved launch target." }, { status: 400 });
+  }
   const out = await run("hermes", args, { timeoutMs: TIMEOUT_MS, cwd: runCwd, signal: req.signal });
+  if (out.code === -1 && /^Provider launch denied:/.test(out.stderr)) {
+    return NextResponse.json({ code: out.stderr.split(": ").at(-1), error: "Hermes start is disabled by runtime containment." }, { status: 503 });
+  }
 
   const text = out.stdout.replace(ANSI_STRIP, "").trim();
   const stderrClean = out.stderr.replace(ANSI_STRIP, "").trim();

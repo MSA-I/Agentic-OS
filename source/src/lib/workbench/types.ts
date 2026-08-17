@@ -59,13 +59,18 @@ export interface WorkContext {
 }
 
 export const RUN_STATUSES = [
+  "requested",
   "queued",
+  "claimed",
+  "starting",
   "running",
   "awaiting_approval",
+  "stopping",
   "succeeded",
   "failed",
   "cancelled",
   "orphaned",
+  "blocked",
 ] as const;
 
 export type RunStatus = (typeof RUN_STATUSES)[number];

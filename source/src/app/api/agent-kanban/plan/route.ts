@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { resolveModel, localChat } from "@/lib/localOllama";
 import { hermesOneShot, seoPlannerPrompt, parsePlannerJson } from "@/lib/kanbanSeo";
@@ -13,6 +14,8 @@ const SYS =
   "No prose, no markdown. Keep titles under 5 words. Make the set varied and genuinely useful or fun.";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/agent-kanban/plan");
+  if (frozen) return frozen;
   const { goal, engine, profile } = await req.json();
   if (typeof goal !== "string" || !goal.trim()) return NextResponse.json({ error: "missing goal" }, { status: 400 });
 

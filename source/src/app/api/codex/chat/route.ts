@@ -1,7 +1,12 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawnStream, terminateChildProcessTree } from "@/lib/runner";
-import { CODEX_SCRATCH_ROOT, codexApprovalArgs, codexResumeApprovalArgs, ensureProject } from "@/lib/codexWorkspace";
+import { providerChildEnvironment } from "@/lib/runner";
+import { codexApprovalArgs, codexResumeApprovalArgs } from "@/lib/codexWorkspace";
+import { config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
+import { resolveRegisteredProjectLaunchDirectory, ProjectRegistryError } from "@/lib/control-plane/projectRegistry";
+import { RuntimeContainmentError } from "@/lib/control-plane/runtimeContainment";
 import { omnirouteCodexArgs, openrouterApiKey, openrouterCodexArgs, openrouterCodexEnv, OPENROUTER_HY3_MODEL, omnirouteCodexEnv, nativeCodexArgs, nativeCodexEnv, NATIVE_CODEX_MODEL, withSteer, probeOmniRoute } from "@/lib/omniroute";
-import path from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +42,8 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/codex/chat");
+  if (frozen) return frozen;
   const body = await req.json();
   const prompt = body.prompt;
   const model = typeof body.model === "string" && /^[A-Za-z0-9._:/-]+$/.test(body.model) ? body.model : null;
@@ -53,13 +60,18 @@ export async function POST(req: Request) {
   // Pin Codex's cwd to a scratch project so anything it writes (HTML, scripts,
   // generated assets) lands somewhere the Workspace tab can find. Same pattern
   // as the Free Claude Code chat endpoint.
-  let cwd: string | undefined;
-  if (typeof body.project === "string" && /^[A-Za-z0-9_.-]+$/.test(body.project)) {
-    cwd = (await ensureProject(body.project)) ?? undefined;
-  } else if (typeof body.cwd === "string") {
-    cwd = body.cwd;
-  } else {
-    cwd = (await ensureProject("codex-default")) ?? path.join(CODEX_SCRATCH_ROOT, "codex-default");
+  if (body.cwd !== undefined) {
+    return new Response("client-supplied cwd is not accepted; select a project", { status: 400 });
+  }
+  const projectId = body.projectId ?? body.project;
+  if (projectId !== undefined && typeof projectId !== "string") return new Response("invalid project", { status: 400 });
+  let cwd;
+  try { cwd = await resolveRegisteredProjectLaunchDirectory("codex", projectId); }
+  catch (error) {
+    const code = error instanceof ProjectRegistryError ? error.code : "project_directory_invalid";
+    return new Response(JSON.stringify({ type: "error", code, message: "Codex project is not an approved launch target." }) + "\n", {
+      status: 400, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
   }
 
   // Engine selection:
@@ -93,7 +105,25 @@ export async function POST(req: Request) {
     : ["exec", "--json", "--skip-git-repo-check", ...codexApprovalArgs(body.approvalMode), ...providerArgs, withSteer(fullPrompt)];
 
   const extraEnv = engine === "hy3" ? openrouterCodexEnv() : engine === "gpt56" ? nativeCodexEnv() : omnirouteCodexEnv();
-  const child = spawnStream("codex", args, { cwd, extraEnv });
+  let executableIdentity;
+  try {
+    executableIdentity = await assertProviderLaunch("codex", config.codex, args, providerChildEnvironment("codex", extraEnv));
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return new Response(
+      `${JSON.stringify({ type: "error", code, message: "Codex executable identity or launch policy could not be verified." })}\n`,
+      { status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" } },
+    );
+  }
+  let child;
+  try {
+    child = spawnStream("codex", args, { cwd, extraEnv, verifiedExecutable: executableIdentity });
+  } catch (error) {
+    const code = error instanceof RuntimeContainmentError ? error.code : "runtime_containment_unavailable";
+    return new Response(`${JSON.stringify({ type: "error", code, message: "Codex start is disabled until runtime containment is available." })}\n`, {
+      status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
+  }
   req.signal.addEventListener("abort", () => { void terminateChildProcessTree(child); }, { once: true });
 
   const encoder = new TextEncoder();

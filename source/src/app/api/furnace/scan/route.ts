@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { run } from "@/lib/runner";
 import { config } from "@/lib/config";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
@@ -231,7 +232,9 @@ async function runScan(): Promise<void> {
 }
 
 // POST — kick a scan, return instantly (fire-and-forget; long-lived launchd server keeps it running).
-export async function POST() {
+export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/furnace/scan");
+  if (frozen) return frozen;
   const st = await readStatus();
   if (st.running && st.startedAt && Date.now() - new Date(st.startedAt).getTime() < 700_000) {
     return Response.json({ ok: true, status: "running", startedAt: st.startedAt });

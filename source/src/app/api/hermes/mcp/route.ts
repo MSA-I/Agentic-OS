@@ -5,6 +5,7 @@
 // whole MCPs tab). For mutations we use POST + an action discriminator so the
 // dashboard doesn't need to know about multiple URL shapes.
 
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listCatalog, listInstalled, toggleEnabled, uninstall } from "@/lib/hermesMcp";
 import { hermesProfileExists, isValidHermesProfile, resolveHermesProfile } from "@/lib/hermesProfile";
@@ -33,6 +34,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/mcp");
+  if (frozen) return frozen;
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 }); }

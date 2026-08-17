@@ -46,6 +46,12 @@ export interface WorkspaceNavDetail {
 
 interface Group extends WorkspaceProjectRef { sessions: WorkspaceSessionRef[]; }
 interface LocalSession extends WorkspaceSessionRef { projectId: string; source: "local"; }
+
+function localSessionLabel(agent: WorkspaceAgent): string {
+  if (agent === "codex") return "New task";
+  if (agent === "antigravity") return "New mission";
+  return "New conversation";
+}
 interface HermesProfileSummary {
   name: string;
   model: string;
@@ -379,7 +385,19 @@ export default function AgentWorkspaceShell({
 
   useEffect(() => {
     setPinned(safeArrayParse<string>(localStorage.getItem(pinKey)));
-    setLocalSessions(safeArrayParse<LocalSession>(localStorage.getItem(localKey)));
+    setLocalSessions(safeArrayParse<LocalSession>(localStorage.getItem(localKey)).map((session) => ({
+      id: session.id,
+      name: localSessionLabel(agent),
+      path: session.path,
+      mtime: session.mtime,
+      bytes: session.bytes,
+      projectId: session.projectId,
+      nativeId: session.nativeId,
+      nativeStarted: session.nativeStarted,
+      sessionKey: session.sessionKey,
+      resumable: session.resumable,
+      source: "local",
+    })));
     setNavGroupsOpen(safeRecordParse(localStorage.getItem(navGroupsKey)));
     const url = new URL(window.location.href);
     setActiveSessionPath(url.searchParams.get("session") || localStorage.getItem(sessionKey));
@@ -397,14 +415,6 @@ export default function AgentWorkspaceShell({
   }, [agent]);
 
   useEffect(() => {
-    const onRename = (event: Event) => {
-      const detail = (event as CustomEvent<{ agent?: WorkspaceAgent; sessionPath?: string; title?: string }>).detail;
-      if (detail?.agent !== agent || !detail.sessionPath || !detail.title?.trim()) return;
-      setLocalSessions((current) => current.map((session) => session.path === detail.sessionPath
-        ? { ...session, name: detail.title!.trim().slice(0, 80), mtime: Date.now() }
-        : session));
-    };
-    window.addEventListener("agent-conversation-renamed", onRename);
     const onNativeId = (event: Event) => {
       const detail = (event as CustomEvent<{ agent?: WorkspaceAgent; sessionPath?: string; nativeId?: string }>).detail;
       if (detail?.agent !== agent || !detail.sessionPath || !detail.nativeId) return;
@@ -414,7 +424,6 @@ export default function AgentWorkspaceShell({
     };
     window.addEventListener("agent-conversation-native-id", onNativeId);
     return () => {
-      window.removeEventListener("agent-conversation-renamed", onRename);
       window.removeEventListener("agent-conversation-native-id", onNativeId);
     };
   }, [agent]);
@@ -585,7 +594,7 @@ export default function AgentWorkspaceShell({
     const project = activeProject;
     const id = crypto.randomUUID();
     const session: LocalSession = {
-      id, name: agent === "codex" ? "New task" : agent === "antigravity" ? "New mission" : "New conversation",
+      id, name: localSessionLabel(agent),
       path: `local:${id}`, mtime: Date.now(), bytes: 0, projectId: project.id,
       nativeId: id, nativeStarted: false, resumable: true, source: "local",
     };

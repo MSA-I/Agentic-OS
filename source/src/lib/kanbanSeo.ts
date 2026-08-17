@@ -1,5 +1,6 @@
 import { run } from "@/lib/runner";
 import { config } from "@/lib/config";
+import { assertProviderLaunch } from "@/lib/control-plane/executableIdentity";
 
 // Author/persona for the SEO writer — config-driven so articles carry the member's
 // identity, never a hardcoded one. Members set "userName" in ~/.agentic-os/config.json.
@@ -24,7 +25,9 @@ export async function hermesOneShot(profile: string, prompt: string, timeoutMs =
   let lastErr = "unknown";
   for (let i = 0; i < chain.length; i++) {
     const p = chain[i];
-    const r = await run("hermes", ["--profile", p, "-z", prompt, "--yolo", "--accept-hooks"], { timeoutMs });
+    const args = ["--profile", p, "-z", prompt];
+    await assertProviderLaunch("hermes", config.hermes, args);
+    const r = await run("hermes", args, { timeoutMs });
     const out = (r.stdout || "").trim();
     const rateLimited = /HTTP 429|temporarily overloaded|rate.?limit/i.test(out) || (!out && /429|overloaded/i.test(r.stderr || ""));
     if (out && !rateLimited) return out;

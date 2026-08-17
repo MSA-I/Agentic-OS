@@ -302,7 +302,7 @@ export default function AntigravityOfficialView() {
         body: JSON.stringify({
           prompt,
           model,
-          cwd: selectedProject?.root,
+          projectId: selectedProject?.name,
           history: previous.slice(-24).map(({ role, text }) => ({ role, text })),
         }),
         signal: controller.signal,

@@ -2,7 +2,7 @@
 // Mirrors lib/codexGoals.ts but persisted to its own state file so Codex + Hermes
 // goals don't collide.
 //
-// Each goal spawns `hermes chat -q "<prompt>" --yolo --accept-hooks --max-turns 50 -Q`
+// Each goal spawns bounded quiet-mode Hermes without auto-approving tools or hooks.
 // in a dedicated cwd. Output streams to a per-goal log file the UI tails live.
 
 import { readFile, writeFile, mkdir, rename, readdir, stat } from "node:fs/promises";

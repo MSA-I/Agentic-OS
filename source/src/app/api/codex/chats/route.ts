@@ -6,9 +6,9 @@ import { workspacePath } from "@/lib/workspaceRoot";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Codex chat history — persisted to disk so conversations survive refreshes and
-// restarts (same pattern as the OmniRoute workspace). One JSON per session plus
-// a readable .md transcript alongside.
+// Legacy Codex chat metadata. Raw prompt/transcript files may exist from older
+// builds, but this route never returns or writes their content. Native provider
+// history is the only persistent transcript authority during the pilot.
 const ROOT = workspacePath("codex-workspace", "chats");
 
 async function ensure() { await fs.mkdir(ROOT, { recursive: true }); }
@@ -21,15 +21,24 @@ const storedId = (file: string) => {
   try { return decodeURIComponent(stem); } catch { return stem; }
 };
 
-// GET              → { sessions: [{id,title,count,when}] }  (newest first)
-// GET ?id=<id>     → the saved conversation JSON
+// GET              → redacted legacy metadata (newest first)
+// GET ?id=<id>     → one redacted metadata record
 export async function GET(req: Request) {
   await ensure();
   const id = new URL(req.url).searchParams.get("id");
   if (id) {
     try {
-      const j = await fs.readFile(path.join(ROOT, safe(id) + ".json"), "utf8");
-      return NextResponse.json(JSON.parse(j));
+      const file = path.join(ROOT, safe(id) + ".json");
+      const [raw, stat] = await Promise.all([fs.readFile(file, "utf8"), fs.stat(file)]);
+      const record = JSON.parse(raw) as { id?: unknown; messages?: unknown };
+      return NextResponse.json({
+        session: {
+          id: typeof record.id === "string" ? record.id : id,
+          count: Array.isArray(record.messages) ? record.messages.length : 0,
+          when: stat.mtime.toISOString(),
+          legacyContentWithheld: true,
+        },
+      });
     } catch { return NextResponse.json({ error: "not found" }, { status: 404 }); }
   }
   const files = (await fs.readdir(ROOT).catch(() => [])).filter((f) => f.endsWith(".json"));
@@ -39,29 +48,11 @@ export async function GET(req: Request) {
       const j = JSON.parse(await fs.readFile(path.join(ROOT, f), "utf8"));
       return {
         id: j.id || storedId(f),
-        title: j.title || "Chat",
         count: (j.messages || []).length,
         when: st.mtime.toISOString(),
-        project: typeof j.project === "string" ? j.project : undefined,
-        root: typeof j.root === "string" ? j.root : undefined,
+        legacyContentWithheld: true,
       };
-    } catch { return { id: storedId(f), title: "Chat", count: 0, when: new Date(0).toISOString() }; }
+    } catch { return { id: storedId(f), count: 0, when: new Date(0).toISOString(), legacyContentWithheld: true }; }
   }));
   return NextResponse.json({ sessions: sessions.sort((a, b) => b.when.localeCompare(a.when)).slice(0, 40) });
-}
-
-// POST { id, title, messages } → saves sessions/<id>.json + .md
-export async function POST(req: Request) {
-  await ensure();
-  const body = await req.json().catch(() => ({}));
-  const id = safe(String(body.id || `c-${Date.now()}`));
-  const messages = Array.isArray(body.messages) ? body.messages : [];
-  const title = String(body.title || "Chat").slice(0, 80);
-  const originalId = String(body.id || decodeURIComponent(id));
-  const project = typeof body.project === "string" ? body.project.slice(0, 240) : undefined;
-  const root = typeof body.root === "string" ? body.root.slice(0, 2048) : undefined;
-  await fs.writeFile(path.join(ROOT, id + ".json"), JSON.stringify({ id: originalId, title, when: new Date().toISOString(), messages, project, root }, null, 2), "utf8");
-  const md = `# ${title}\n\n` + messages.map((m: { role: string; text: string }) => `**${m.role}:**\n\n${m.text}\n`).join("\n---\n\n");
-  await fs.writeFile(path.join(ROOT, id + ".md"), md, "utf8");
-  return NextResponse.json({ ok: true, id: originalId });
 }

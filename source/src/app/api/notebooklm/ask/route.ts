@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 import { writeFile, readFile, mkdir, stat } from "node:fs/promises";
@@ -26,6 +27,8 @@ async function logChat(notebookName: string | undefined, question: string, answe
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/ask");
+  if (frozen) return frozen;
   try {
     const { question, notebook_id, notebook_name } = await req.json();
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });

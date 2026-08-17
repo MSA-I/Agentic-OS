@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
@@ -58,6 +59,8 @@ export const dynamic = "force-dynamic";
 const XAI_VOICES = new Set(["eve", "ara", "rex", "sal", "leo", "una"]);
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/studio/generate");
+  if (frozen) return frozen;
   const { kind, prompt, voiceId, provider } = await req.json();
   if (typeof prompt !== "string" || !prompt.trim()) return NextResponse.json({ error: "missing prompt" }, { status: 400 });
   // image/b-roll prompts stay short; voice narration can be long (a 6-min script ≈ 6k chars).

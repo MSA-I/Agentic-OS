@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawnStream } from "@/lib/runner";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -45,6 +46,8 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/grok/chat");
+  if (frozen) return frozen;
   const body = await req.json();
   const prompt = body.prompt;
   const history: ChatMsg[] = Array.isArray(body.history) ? body.history : [];

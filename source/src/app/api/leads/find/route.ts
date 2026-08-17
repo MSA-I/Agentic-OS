@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { leadsFromCsv, hunterDomainSearch, apolloSearch, suggestCompanies, hunterKey, type ICP, type Lead, type Company } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 //   source "domains" → Hunter Domain Search over pasted domains (free tier)
 //   source "apollo"  → Apollo people search from the ICP (needs APOLLO_API_KEY)
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/leads/find");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const source = String(body?.source || "");
   try {

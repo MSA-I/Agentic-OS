@@ -15,10 +15,10 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { Zap, RefreshCw, Trash2, DollarSign, Clock, Users, Loader2, CheckCircle2, AlertCircle, Sparkles, ShieldCheck, Scissors, Rocket, Brain, Send, Square, Ban } from "lucide-react";
 import { usePollWhileVisible } from "@/lib/usePollWhileVisible";
+import { purgeLegacySensitiveBrowserState, readVolatileText, writeVolatileText } from "@/lib/workbench/volatileClientState";
 
-// One-click Ultracode missions — preset prompts that fire scoped dynamic
-// workflows. Each runs through /api/claude/chat with ultracode:true; the server
-// captures the run, and the history list below picks it up live.
+// One-click Ultracode missions remain visible as future templates. Launch and
+// resume stay blocked until the Workbench Tool Gateway can enforce their tools.
 interface Mission { id: string; label: string; icon: React.ReactNode; color: string; project: string; prompt: string; }
 const MISSIONS: Mission[] = [
   {
@@ -44,6 +44,7 @@ const PINK = "#f472b6";
 const EMERALD = "#5ab896";
 const PLUM = "#c4607e";
 const BLUE = "#60a5fa";
+const ULTRACODE_DRAFT_MEMORY_KEY = "draft:ultracode:new";
 
 type SubStatus = "running" | "completed" | "failed";
 interface SubagentNode {
@@ -93,8 +94,17 @@ export default function UltracodeView() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [run, setRun] = useState<UltracodeRun | null>(null);
-  const [launching, setLaunching] = useState<string | null>(null); // mission id in flight
   const [customPrompt, setCustomPrompt] = useState("");
+
+  useEffect(() => {
+    purgeLegacySensitiveBrowserState();
+    setCustomPrompt(readVolatileText(ULTRACODE_DRAFT_MEMORY_KEY));
+  }, []);
+
+  const updateCustomPrompt = useCallback((value: string) => {
+    setCustomPrompt(value);
+    writeVolatileText(ULTRACODE_DRAFT_MEMORY_KEY, value);
+  }, []);
 
   const loadList = useCallback(async () => {
     try {
@@ -107,8 +117,7 @@ export default function UltracodeView() {
   }, []);
   usePollWhileVisible(loadList, 4000);
 
-  // Load + live-refresh the open run. (Declared before launchMission so the
-  // reply path can call it.)
+  // Load + live-refresh historical runs while launch/resume remains blocked.
   const openIdRef = useRef(openId);
   openIdRef.current = openId;
   const loadRun = useCallback(async (id: string) => {
@@ -119,65 +128,9 @@ export default function UltracodeView() {
     } catch { /* ignore */ }
   }, []);
 
-  // Fire an Ultracode mission. We must drain the response stream (not fire-and-
-  // forget) — if the client disconnects, the route's cancel() kills the child.
-  // We read + discard chunks; the history poll animates the swarm meanwhile.
-  const launchMission = useCallback(async (id: string, prompt: string, project: string, resumeRunId?: string) => {
-    if (launching || !prompt.trim()) return;
-    setLaunching(id);
-    if (resumeRunId) setOpenId(resumeRunId); // keep the resumed run open + live-polling
-    try {
-      const r = await fetch("/api/claude/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(resumeRunId ? { prompt, resumeRunId } : { prompt, ultracode: true, project }),
-      });
-      if (!r.body) return;
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      let opened = !!resumeRunId; // already open when resuming
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!opened) {
-          buf += decoder.decode(value, { stream: true });
-          const m = /"ultracode_run_started"[^}]*"runId":"([^"]+)"/.exec(buf);
-          if (m) { setOpenId(m[1]); opened = true; void loadList(); }
-        }
-        // else: keep draining to keep the child alive; data is captured server-side.
-      }
-    } catch { /* ignore */ }
-    finally {
-      setLaunching(null);
-      void loadList();
-      if (resumeRunId) void loadRun(resumeRunId);
-    }
-  }, [launching, loadList, loadRun]);
-
   useEffect(() => { if (openId) loadRun(openId); else setRun(null); }, [openId, loadRun]);
   // Fast poll while the open run is still going.
   usePollWhileVisible(() => { if (openId && run?.status === "running") loadRun(openId); }, 1500, [openId, run?.status]);
-
-  async function del(id: string) {
-    if (!confirm("Delete this Ultracode run from history?")) return;
-    await fetch(`/api/claude/ultracode?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (openId === id) { setOpenId(null); setRun(null); }
-    await loadList();
-  }
-
-  const stopRun = useCallback(async (id: string) => {
-    try {
-      await fetch("/api/claude/ultracode", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "stop", id }),
-      });
-    } catch { /* ignore */ }
-    // Give the child a beat to die, then refresh status.
-    setTimeout(() => { void loadRun(id); void loadList(); }, 600);
-  }, [loadRun, loadList]);
 
   return (
     <div className="space-y-4">
@@ -190,10 +143,10 @@ export default function UltracodeView() {
             <Zap size={18} fill="currentColor" />
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] mb-1" style={{ color: GOLD }}>Ultracode · Dynamic Workflows</div>
-            <div className="text-[18px] font-semibold text-[var(--cream)] mb-1">Watch the swarm work</div>
+            <div className="text-[11px] uppercase tracking-[0.25em] mb-1" style={{ color: GOLD }}>Ultracode · Unavailable</div>
+            <div className="text-[18px] font-semibold text-[var(--cream)] mb-1">Tool Gateway required</div>
             <div className="text-[12.5px] text-[var(--cream-mute)] max-w-[680px] leading-snug">
-              Every Ultracode run is captured + replayable. Each node below is a real subagent Claude spun up — fanned out in parallel, checked by reviewers, converged into one answer. Launch a mission below, or turn on <strong style={{ color: GOLD }}>Ultracode</strong> in the Chat tab for a custom job.
+              Historical runs remain replayable, but launch, resume, stop, and delete stay unavailable until Workbench can enforce lifecycle and tool access. Drafts remain in memory only.
             </div>
           </div>
         </div>
@@ -201,17 +154,16 @@ export default function UltracodeView() {
         {/* One-click missions */}
         <div className="mt-3.5 pt-3 border-t" style={{ borderColor: "var(--line-soft)" }}>
           <div className="text-[9.5px] uppercase tracking-[0.25em] text-[var(--cream-mute)] font-semibold mb-2 flex items-center gap-1.5">
-            <Rocket size={11} /> Launch a mission · fires a dynamic workflow
+            <Rocket size={11} /> Mission templates · launch disabled
           </div>
           <div className="flex flex-wrap gap-2">
             {MISSIONS.map((m) => (
               <button key={m.id}
-                onClick={() => launchMission(m.id, m.prompt, m.project)}
-                disabled={!!launching}
-                title={m.prompt}
+                disabled
+                title={`Unavailable · Tool Gateway required. ${m.prompt}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11.5px] font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ borderColor: `${m.color}55`, background: `${m.color}12`, color: m.color }}>
-                {launching === m.id ? <Loader2 size={13} className="animate-spin" /> : m.icon}
+                {m.icon}
                 {m.label}
               </button>
             ))}
@@ -220,28 +172,23 @@ export default function UltracodeView() {
           <div className="mt-2 flex items-center gap-2">
             <input
               value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && customPrompt.trim() && !launching) launchMission("custom", customPrompt, "ultracode-custom"); }}
-              placeholder="…or type a custom mission and hit enter (runs at xhigh effort)"
-              disabled={!!launching}
+              onChange={(e) => updateCustomPrompt(e.target.value)}
+              placeholder="Draft a future Ultracode mission (memory only)"
               className="flex-1 px-3 py-1.5 text-[12px] rounded-md border bg-transparent text-[var(--cream)] placeholder:text-[var(--cream-mute)] disabled:opacity-50"
               style={{ borderColor: "var(--line-soft)" }}
             />
             <button
-              onClick={() => launchMission("custom", customPrompt, "ultracode-custom")}
-              disabled={!!launching || !customPrompt.trim()}
+              disabled
+              title="Unavailable · Tool Gateway required"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-[11px] uppercase tracking-widest font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ borderColor: `${GOLD}`, background: `${GOLD}1a`, color: GOLD }}>
-              {launching === "custom" ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-              Launch
+              <Send size={12} />
+              Unavailable
             </button>
           </div>
-          {launching && (
-            <div className="mt-2 text-[11px] flex items-center gap-1.5" style={{ color: GOLD }}>
-              <Loader2 size={11} className="animate-spin" />
-              Mission running — watch the swarm spawn below. This uses xhigh effort + real tokens.
-            </div>
-          )}
+          <div className="mt-2 text-[11px] flex items-center gap-1.5" style={{ color: GOLD }}>
+            <Ban size={11} /> Unavailable · Tool Gateway required · draft kept in memory only
+          </div>
         </div>
       </div>
 
@@ -257,7 +204,7 @@ export default function UltracodeView() {
           <div className="flex-1 min-h-0 overflow-y-auto scroll space-y-1.5">
             {runs.length === 0 && (
               <div className="px-2 py-4 text-[11px] text-[var(--cream-mute)] leading-snug">
-                No Ultracode runs yet. Flip on <strong style={{ color: GOLD }}>Ultracode</strong> in Chat, send a big task, and it&apos;ll appear here with the full swarm replay.
+                No historical Ultracode runs. New launches stay unavailable until the Tool Gateway cutover.
               </div>
             )}
             {runs.map((r) => (
@@ -281,7 +228,7 @@ export default function UltracodeView() {
                           : <CheckCircle2 size={11} className="shrink-0" style={{ color: EMERALD }} />}
                     <span className="text-[11.5px] text-[var(--cream)] truncate font-medium">{r.prompt}</span>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); del(r.id); }} className="text-[var(--cream-mute)] hover:text-[var(--plum)] shrink-0" title="Delete"><Trash2 size={11} /></button>
+                  <button disabled className="text-[var(--cream-mute)] shrink-0 opacity-40 cursor-not-allowed" title="Delete unavailable until Workbench lifecycle cutover"><Trash2 size={11} /></button>
                 </div>
                 {r.headline && <div className="text-[10.5px] text-[var(--cream-mute)] line-clamp-2 mb-1 leading-snug">{r.headline}</div>}
                 <div className="flex items-center gap-2.5 text-[10px] mono" style={{ color: "var(--cream-mute)" }}>
@@ -306,9 +253,7 @@ export default function UltracodeView() {
               </div>
             </div>
           ) : (
-            <RunDetail run={run} launching={launching}
-              onReply={(text) => launchMission("reply", text, run.project ?? "ultracode-custom", run.id)}
-              onStop={() => stopRun(run.id)} />
+            <RunDetail run={run} />
           )}
         </div>
       </div>
@@ -316,14 +261,22 @@ export default function UltracodeView() {
   );
 }
 
-function RunDetail({ run, launching, onReply, onStop }: { run: UltracodeRun; launching: string | null; onReply: (text: string) => void; onStop: () => void }) {
+function RunDetail({ run }: { run: UltracodeRun }) {
   const total = run.subagents.length;
   const done = run.subagents.filter((s) => s.status === "completed").length;
   const running = run.subagents.filter((s) => s.status === "running").length;
   const failed = run.subagents.filter((s) => s.status === "failed").length;
   const [reply, setReply] = useState("");
-  const busy = launching === "reply" || run.status === "running";
   const followUps = (run.turns ?? []).slice(1); // turn 0 is the original mission, shown as header
+
+  useEffect(() => {
+    setReply(readVolatileText(`draft:ultracode:${run.id}`));
+  }, [run.id]);
+
+  function updateReply(value: string) {
+    setReply(value);
+    writeVolatileText(`draft:ultracode:${run.id}`, value);
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -332,11 +285,11 @@ function RunDetail({ run, launching, onReply, onStop }: { run: UltracodeRun; lau
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="text-[13px] text-[var(--cream)] font-medium line-clamp-2">{run.prompt}</div>
           {run.status === "running" && (
-            <button onClick={onStop}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition"
+            <button disabled
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold opacity-40 cursor-not-allowed"
               style={{ background: "rgba(248,113,113,0.16)", border: "1px solid rgba(248,113,113,0.45)", color: "#f87171" }}
-              title="Stop this run — kills the workflow + all its subagents">
-              <Square size={12} fill="currentColor" /> Stop
+              title="Stop unavailable until Workbench can verify ACTIVE_PROCESS_ZERO">
+              <Square size={12} fill="currentColor" /> Stop unavailable
             </button>
           )}
         </div>
@@ -397,37 +350,28 @@ function RunDetail({ run, launching, onReply, onStop }: { run: UltracodeRun; lau
         )}
       </div>
 
-      {/* Reply box — resumes this exact session so context (team design,
-          assumptions) carries over. Disabled while a turn is running. */}
+      {/* Resume drafts stay local until Tool Gateway policy enforcement exists. */}
       <div className="border-t p-3" style={{ borderColor: "var(--line-soft)" }}>
         <div className="flex items-end gap-2 rounded-xl border bg-[rgba(0,0,0,0.25)] p-2 focus-within:border-[var(--panel-border-hot)] transition" style={{ borderColor: "var(--line-soft)" }}>
           <textarea
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.key === "Enter") && (e.metaKey || e.ctrlKey) && reply.trim() && !busy) {
-                e.preventDefault(); onReply(reply.trim()); setReply("");
-              }
-            }}
+            onChange={(e) => updateReply(e.target.value)}
             rows={2}
-            disabled={busy}
-            placeholder={busy ? "Workflow running — wait for it to finish…" : "Reply to this run (resumes the session — full context kept). ⌘+Enter to send."}
+            placeholder="Draft a future reply to this run (memory only)."
             className="flex-1 bg-transparent outline-none resize-none px-2 py-1.5 text-[12.5px] text-[var(--cream)] placeholder:text-[var(--cream-mute)] disabled:opacity-50"
           />
           <button
-            onClick={() => { if (reply.trim() && !busy) { onReply(reply.trim()); setReply(""); } }}
-            disabled={busy || !reply.trim()}
+            disabled
+            title="Unavailable · Tool Gateway required"
             className="px-3 py-2 rounded-lg text-[12px] font-semibold flex items-center gap-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: "rgba(217,119,87,0.18)", border: "1px solid rgba(217,119,87,0.5)", color: "#d97757" }}>
-            {launching === "reply" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-            Reply
+            <Send size={13} />
+            Unavailable
           </button>
         </div>
-        {run.status !== "running" && (
-          <div className="text-[10px] text-[var(--cream-mute)] mt-1.5 px-1">
-            Continues the same Claude session via <code className="mono">--resume</code> at xhigh effort — it remembers everything above.
-          </div>
-        )}
+        <div className="text-[10px] text-[var(--cream-mute)] mt-1.5 px-1">
+          Unavailable · Tool Gateway required · draft kept in memory only
+        </div>
       </div>
     </div>
   );

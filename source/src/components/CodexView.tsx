@@ -9,10 +9,26 @@ import {
   Copy, Download, X, Eye, ExternalLink, FilePlus, Layers, MessageSquare, Target,
 } from "lucide-react";
 import GoalLogStream from "./GoalLogStream";
-import AgentWorkspaceShell, { type WorkspaceNavDetail, type WorkspaceProjectRef, type WorkspaceSection, type WorkspaceSessionRef } from "./AgentWorkspaceShell";
+import AgentWorkspaceShell, { type WorkspaceNavDetail, type WorkspaceSection, type WorkspaceSessionRef } from "./AgentWorkspaceShell";
+import {
+  cancelWorkbenchRun,
+  createWorkbenchIdempotencyKey,
+  describeWorkbenchError,
+  executeWorkbenchRun,
+  isVerifiedCancellation,
+  workbenchRunLabel,
+  type WorkbenchStopState,
+} from "@/lib/workbench/uiClient";
+import type { Run } from "@/lib/workbench/types";
+import {
+  clearVolatileValue,
+  purgeLegacySensitiveBrowserState,
+  readVolatileValue,
+  writeVolatileValue,
+} from "@/lib/workbench/volatileClientState";
 
 // Codex agent surface — four tabs (same shape as Antigravity):
-//   Chat       — one-shot streaming via /api/codex/chat
+//   Chat       — canonical Workbench lifecycle over the native Codex runtime
 //   Goal Mode  — long-running goals tracked in ~/.agentic-os/codex-goals.json
 //   Sessions   — past Codex sessions (read from ~/.codex/session_index.jsonl)
 //   Workspace  — artefacts created by goals (text/image/video/audio/HTML preview)
@@ -38,7 +54,6 @@ interface CdxProject { name: string; root: string; mtime: number; fileCount: num
 type CdxFileKind = "text" | "image" | "video" | "audio" | "pdf" | "binary";
 interface CdxFile { name: string; relPath: string; bytes: number; mtime: number; kind: CdxFileKind; }
 interface Msg { role: "user" | "assistant" | "system"; text: string; files?: { name: string; relPath: string; kind: CdxFileKind }[]; }
-interface ChatSession { id: string; title: string; count: number; when: string; }
 
 // ── Session detail types (returned from /api/codex/session) ──
 interface SessionTurn { role: "user" | "assistant" | "reasoning"; text: string; ts?: number; }
@@ -76,8 +91,9 @@ function kindFromExt(name: string): CdxFileKind {
 // The provider's #6867AA remains the structural accent in the shared theme.
 // This lighter companion is used where the accent carries small text on dark UI.
 const ACCENT = "#A9A8DD";
-const STORAGE_KEY = "agentic-os/codex/history/v1";
+const SESSION_ID_KEY = "agentic-os/codex/session-id/v1";
 const ACTIVE_PROJECT_KEY = "agentic-os/codex/active-project/v1";
+const conversationMemoryKey = (id: string) => `conversation:codex:${id}`;
 
 function fmtAgo(ms: number): string {
   const d = Date.now() - ms;
@@ -104,28 +120,20 @@ export default function CodexView() {
   const [partial, setPartial] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const ctrlRef = useRef<AbortController | null>(null);
-  // Disk-backed conversation history (survives refresh + restarts)
+  const [activeRun, setActiveRun] = useState<Run | null>(null);
+  const activeRunRef = useRef<Run | null>(null);
+  const [stopState, setStopState] = useState<WorkbenchStopState>("not_requested");
+  // The non-sensitive session id may persist; transcript content is memory-only.
   const sidRef = useRef<string>("");
-  const [, setChatSessions] = useState<ChatSession[]>([]);
   // Inline preview of files a turn just built: message-index → open relPath
   const [inlinePreview, setInlinePreview] = useState<Record<number, string | null>>({});
 
-  // How Codex handles approvals. It runs headlessly (`codex exec`), so it can't
-  // show a terminal popup — pick the policy up front. Persisted across sessions.
-  const [approvalMode, setApprovalMode] = useState<"auto" | "readonly" | "yolo">("auto");
-  // hy3 = tencent/hy3:free via OpenRouter (free window) — DEFAULT while the window is open.
+  // Goal Mode still uses its legacy engine selector until its own Workbench cutover.
   const [engine, setEngine] = useState<"omniroute" | "hy3" | "gpt56">("gpt56");
   useEffect(() => {
     try { const v = localStorage.getItem("agentic-os/codex/engine"); if (v === "omniroute" || v === "hy3" || v === "gpt56") setEngine(v); } catch {}
   }, []);
   const changeEngine = (v: "omniroute" | "hy3" | "gpt56") => { setEngine(v); try { localStorage.setItem("agentic-os/codex/engine", v); } catch {} };
-  useEffect(() => {
-    try { const v = window.localStorage.getItem("codex-approval-mode"); if (v === "auto" || v === "readonly" || v === "yolo") setApprovalMode(v); } catch {}
-  }, []);
-  function changeApprovalMode(v: "auto" | "readonly" | "yolo") {
-    setApprovalMode(v);
-    try { window.localStorage.setItem("codex-approval-mode", v); } catch {}
-  }
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ─── Goal state ───
@@ -134,8 +142,6 @@ export default function CodexView() {
   const [goalPrompt, setGoalPrompt] = useState("");
   const [openGoalId, setOpenGoalId] = useState<string | null>(null);
   const [openGoalLog, setOpenGoalLog] = useState<string>("");
-  const [goalSubmitting, setGoalSubmitting] = useState(false);
-  const [goalError, setGoalError] = useState("");
 
   // ─── Sessions state ───
   const [sessions, setSessions] = useState<CodexSession[]>([]);
@@ -170,71 +176,31 @@ export default function CodexView() {
     try { window.localStorage.setItem(ACTIVE_PROJECT_KEY, activeProject); } catch {}
   }, [activeProject]);
 
-  // Restore chat history
+  // Restore only the non-sensitive session id. Raw chat content never leaves
+  // the current browser document except for the provider's own native history.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setMsgs(JSON.parse(raw).slice(-200));
-      sidRef.current = window.localStorage.getItem(STORAGE_KEY + "/sid") || `c-${Date.now()}`;
-      window.localStorage.setItem(STORAGE_KEY + "/sid", sidRef.current);
+      purgeLegacySensitiveBrowserState();
+      sidRef.current = window.localStorage.getItem(SESSION_ID_KEY) || `c-${Date.now()}`;
+      window.localStorage.setItem(SESSION_ID_KEY, sidRef.current);
+      setMsgs(readVolatileValue<Msg[]>(conversationMemoryKey(sidRef.current)) ?? []);
     } catch {}
-    refreshChatSessions();
   }, []);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-200))); } catch {}
-    // Persist the conversation to disk too (debounced) so history survives anything.
-    if (!msgs.length) return;
-    const t = setTimeout(() => {
-      void persistChatSession(msgs).then(refreshChatSessions);
-    }, 900);
-    return () => clearTimeout(t);
-  }, [msgs]);
-
-  async function refreshChatSessions() {
-    try {
-      const r = await fetch("/api/codex/chats", { cache: "no-store" });
-      const j = await r.json();
-      setChatSessions(Array.isArray(j.sessions) ? j.sessions : []);
-    } catch {}
-  }
-  async function persistChatSession(messages: Msg[], project?: WorkspaceProjectRef) {
-    const recent = messages.slice(-200);
-    const title = (recent.find((message) => message.role === "user")?.text || "Chat").slice(0, 60);
-    await fetch("/api/codex/chats", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: sidRef.current,
-        title,
-        messages: recent,
-        project: project?.id ?? activeProject,
-        root: project?.root ?? activeProjectRoot,
-      }),
-    });
-  }
   async function loadChatSession(id: string) {
-    try {
-      const r = await fetch(`/api/codex/chats?id=${encodeURIComponent(id)}`, { cache: "no-store" });
-      const j = await r.json();
-      if (Array.isArray(j.messages)) {
-        setMsgs(j.messages); sidRef.current = id; setInlinePreview({});
-        try { window.localStorage.setItem(STORAGE_KEY + "/sid", id); } catch {}
-      }
-    } catch {}
+    setMsgs(readVolatileValue<Msg[]>(conversationMemoryKey(id)) ?? []);
+    sidRef.current = id;
+    setInlinePreview({});
+    try { window.localStorage.setItem(SESSION_ID_KEY, id); } catch {}
   }
-  function newChat(session?: WorkspaceSessionRef, project?: WorkspaceProjectRef) {
+  function newChat(session?: WorkspaceSessionRef) {
     if (streaming) return;
     setMsgs([]); setPartial(""); setInlinePreview({});
     setNativeResumeId(null);
     setSidebarSessionPath(session?.path ?? null);
     sidRef.current = session?.nativeId || session?.id || `c-${Date.now()}`;
-    try { window.localStorage.setItem(STORAGE_KEY + "/sid", sidRef.current); window.localStorage.removeItem(STORAGE_KEY); } catch {}
-    // Persist the empty task immediately. Without this, refreshing a newly
-    // created task before its first message causes a noisy GET 404 and the
-    // project-scoped draft cannot be restored reliably.
-    void persistChatSession([], project).then(refreshChatSessions).catch(() => {});
+    clearVolatileValue(conversationMemoryKey(sidRef.current));
+    try { window.localStorage.setItem(SESSION_ID_KEY, sidRef.current); } catch {}
   }
 
   async function loadNativeSession(session: WorkspaceSessionRef) {
@@ -287,13 +253,12 @@ export default function CodexView() {
         setInlinePreview({});
         sidRef.current = "";
         try {
-          window.localStorage.removeItem(STORAGE_KEY + "/sid");
-          window.localStorage.removeItem(STORAGE_KEY);
+          window.localStorage.removeItem(SESSION_ID_KEY);
         } catch {}
         setTab("chat");
         return;
       }
-      if (d.action === "new") { newChat(d.session, d.project); setTab("chat"); }
+      if (d.action === "new") { newChat(d.session); setTab("chat"); }
       else if (d.action === "select" && d.session) { void loadSidebarSession(d.session); setTab("chat"); }
       else if (d.target === "chat" || d.target === "goal" || d.target === "sessions" || d.target === "workspace") setTab(d.target);
       else if (d.section === "messages") setTab("chat");
@@ -391,11 +356,6 @@ export default function CodexView() {
     const prompt = input.trim();
     if (!prompt || streaming || !sidebarSessionPath || !activeProjectRoot) return;
     const history = msgs;
-    if (sidebarSessionPath && !history.some((message) => message.role === "user")) {
-      window.dispatchEvent(new CustomEvent("agent-conversation-renamed", { detail: {
-        agent: "codex", sessionPath: sidebarSessionPath, title: prompt.slice(0, 72),
-      } }));
-    }
     setMsgs((m) => [...m, { role: "user", text: prompt }]);
     setInput("");
     setPartial("");
@@ -406,69 +366,43 @@ export default function CodexView() {
     const ctrl = new AbortController();
     ctrlRef.current = ctrl;
     let acc = "";
-    let sawDeltas = false;
 
     try {
-      const r = await fetch("/api/codex/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          history,
-          project: /^[A-Za-z0-9_.-]+$/.test(activeProject) ? activeProject : undefined,
-          cwd: activeProjectRoot || undefined,
-          sessionId: nativeResumeId || undefined,
-          approvalMode,
-          engine,
-        }),
-        signal: ctrl.signal,
-      });
-      if (!r.body) throw new Error("no body");
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const evt = JSON.parse(line);
-            // Real codex --json event shapes (verified by probing the CLI):
-            //   { type: "thread.started", thread_id }
-            //   { type: "turn.started" }
-            //   { type: "item.completed", item: { type: "agent_message" | "reasoning" | "command_execution" | ..., text } }
-            //   { type: "item.started" / "item.delta",  item: { text?, delta? } } — for streaming variants
-            //   { type: "turn.completed", usage: { input_tokens, output_tokens, ... } }
-            //   { type: "stderr", text }  — our wrapper appends these from child.stderr
-            //   { type: "done", code }    — our wrapper appends this on close
-            const item = evt.item;
-            if (evt.type === "thread.started" && typeof evt.thread_id === "string") {
-              setNativeResumeId(evt.thread_id);
-              if (sidebarSessionPath) window.dispatchEvent(new CustomEvent("agent-conversation-native-id", { detail: {
-                agent: "codex", sessionPath: sidebarSessionPath, nativeId: evt.thread_id,
-              } }));
-            } else if (evt.type === "item.delta" && item?.type === "agent_message" && typeof item.delta === "string") {
-              sawDeltas = true; acc += item.delta; setPartial(acc);
-            } else if (evt.type === "item.completed" && item?.type === "agent_message" && typeof item.text === "string") {
-              // Codex emits the whole assistant message at once in item.completed.
-              // If no deltas have arrived, this IS our answer.
-              if (!sawDeltas) { acc = item.text; setPartial(acc); }
-            } else if (evt.type === "item.completed" && item?.type === "reasoning" && typeof item.text === "string") {
-              // Optional: surface reasoning as a faint preamble. Skip for now to keep replies clean.
-            } else if (evt.type === "error" && evt.message) {
-              acc += `\n[error: ${evt.message}]`;
-            } else if (evt.type === "stderr" && /error/i.test(evt.text ?? "")) {
-              // Most stderr is noise (skill loading warnings); only surface real errors.
-              if (/failed|panic|cannot/i.test(evt.text)) acc += `\n[codex stderr] ${evt.text.trim()}`;
-            }
-          } catch { /* skip non-JSON */ }
-        }
+      const result = await executeWorkbenchRun({
+        agentId: "codex",
+        prompt,
+        projectId: activeProject,
+        sessionId: nativeResumeId,
+        idempotencyKey: createWorkbenchIdempotencyKey("codex"),
+      }, {
+        onStarted: ({ run }) => {
+          activeRunRef.current = run;
+          setActiveRun(run);
+          setStopState("not_requested");
+        },
+        onOutput: (text) => {
+          acc += text;
+          setPartial(acc);
+        },
+      }, ctrl.signal);
+      activeRunRef.current = result.run;
+      setActiveRun(result.run);
+      setStopState(result.stop.state);
+      const nextNativeId = result.run.context.sessionId;
+      if (nextNativeId) {
+        setNativeResumeId(nextNativeId);
+        if (sidebarSessionPath) window.dispatchEvent(new CustomEvent("agent-conversation-native-id", { detail: {
+          agent: "codex", sessionPath: sidebarSessionPath, nativeId: nextNativeId,
+        } }));
       }
-    } catch (e) { acc += `\n\n[error: ${String(e)}]`; }
+      if (result.run.status !== "succeeded") {
+        if (!isVerifiedCancellation(result)) setInput(prompt);
+        acc += `\n\n[${result.run.status}: ${result.run.error?.message ?? "Run did not complete"}]`;
+      }
+    } catch (error) {
+      setInput(prompt);
+      acc += `\n\n[error: ${describeWorkbenchError(error)}]`;
+    }
 
     // Diff files AFTER the turn — anything new or touched is what Codex built.
     const after = await projectFiles();
@@ -481,8 +415,7 @@ export default function CodexView() {
       { role: "assistant", text: acc || "(no output)", files: built.length ? built : undefined },
     ];
     setMsgs(completedMessages);
-    // A refresh immediately after the response must not cancel the debounced disk write.
-    void persistChatSession(completedMessages).then(refreshChatSessions).catch(() => {});
+    writeVolatileValue(conversationMemoryKey(sidRef.current), completedMessages.slice(-200));
     // Auto-open the inline preview for the first previewable HTML build.
     const firstHtml = built.find((f) => /\.html?$/i.test(f.name));
     if (firstHtml) setInlinePreview((p) => ({ ...p, [msgIndex]: firstHtml.relPath }));
@@ -490,46 +423,31 @@ export default function CodexView() {
     // Refresh project list — Codex may have written files into the active project
     refreshProjects();
   }
-  function stopChat() { ctrlRef.current?.abort(); setStreaming(false); }
+  async function stopChat() {
+    const run = activeRunRef.current;
+    if (!run || stopState === "stopping") return;
+    setStopState("stopping");
+    try {
+      const snapshot = await cancelWorkbenchRun(run, (next) => {
+        activeRunRef.current = next.run;
+        setActiveRun(next.run);
+        setStopState(next.stop.state);
+      });
+      activeRunRef.current = snapshot.run;
+      setActiveRun(snapshot.run);
+      setStopState(snapshot.stop.state);
+    } catch (error) {
+      setStopState("failed_to_stop");
+      setPartial(describeWorkbenchError(error, false));
+    }
+  }
   function clearChat() {
     if (streaming) return;
     setMsgs([]); setPartial("");
-    if (typeof window !== "undefined") window.localStorage.removeItem(STORAGE_KEY);
+    clearVolatileValue(conversationMemoryKey(sidRef.current));
   }
 
-  // ─── Goals: create / stop / delete / open log ───
-  async function createGoal() {
-    const title = goalTitle.trim() || goalPrompt.split("\n")[0].slice(0, 80);
-    const prompt = goalPrompt.trim();
-    if (!prompt || !activeProjectRoot || goalSubmitting) return;
-    setGoalSubmitting(true);
-    setGoalError("");
-    try {
-      const response = await fetch("/api/codex/goals", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, prompt, approvalMode, engine, cwd: activeProjectRoot }),
-      });
-      const payload = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || `Goal launch failed (${response.status})`);
-      setGoalTitle("");
-      setGoalPrompt("");
-      await refreshGoals();
-    } catch (error) {
-      setGoalError(error instanceof Error ? error.message : "Goal launch failed");
-    } finally {
-      setGoalSubmitting(false);
-    }
-  }
-  async function stopGoal(id: string) {
-    await fetch(`/api/codex/goals?id=${encodeURIComponent(id)}&action=stop`, { method: "PATCH" });
-    refreshGoals();
-  }
-  async function deleteGoal(id: string) {
-    await fetch(`/api/codex/goals?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (openGoalId === id) { setOpenGoalId(null); setOpenGoalLog(""); }
-    refreshGoals();
-  }
+  // ─── Goals: read-only history until Workbench owns the lifecycle ───
   async function openGoal(id: string) {
     setOpenGoalId(id);
     try {
@@ -553,25 +471,7 @@ export default function CodexView() {
     return () => clearInterval(t);
   }, [openGoalId, goals]);
 
-  // ─── Workspace: create / select project + open file ───
-  async function createProject() {
-    const name = newProjectName.trim();
-    if (!name) return;
-    setNewProjectName("");
-    try {
-      const r = await fetch("/api/codex/workspace", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const j = await r.json();
-      if (j.name) {
-        setActiveProject(j.name);
-        await refreshProjects();
-      }
-    } catch {}
-  }
-
+  // ─── Workspace: read-only project and artifact browser ───
   async function selectProject(p: CdxProject) {
     setSelected(p); setOpen(null);
     try {
@@ -615,9 +515,9 @@ export default function CodexView() {
           <>
             {(msgs.length > 0 || streaming) && <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-2.5 border-b" style={{ borderColor: "var(--line-soft)" }}>
               <div className="flex items-center gap-2 scroll-rail" tabIndex={0} aria-label="Codex connection details">
-                <span className="action-tag" style={{ color: ACCENT }}>Codex · Direct</span>
-                <span className="pill" style={{ color: ACCENT, borderColor: `${ACCENT}30`, background: `${ACCENT}0c` }}>codex exec --json</span>
-                <span className="pill" style={{ color: engine === "gpt56" ? "#cdd3f7" : engine === "hy3" ? "#9dffd8" : "var(--cream-dim)", borderColor: engine === "gpt56" ? "rgba(205,211,247,.5)" : engine === "hy3" ? "rgba(90,184,150,.5)" : "var(--line-soft)", background: "rgba(255,255,255,0.02)" }}>{engine === "gpt56" ? "via OpenAI · gpt-5.6-sol · your ChatGPT OAuth" : engine === "hy3" ? "via OpenRouter · tencent/hy3:free · 295B · free" : "via OmniRoute · oc/big-pickle · free"}</span>
+                <span className="action-tag" style={{ color: ACCENT }}>Codex · Workbench</span>
+                <span className="pill" style={{ color: ACCENT, borderColor: `${ACCENT}30`, background: `${ACCENT}0c` }}>durable restricted pilot</span>
+                <span className="pill" style={{ color: "#cdd3f7", borderColor: "rgba(205,211,247,.5)", background: "rgba(255,255,255,0.02)" }}>Server-managed runtime</span>
               </div>
               <div className="flex items-center gap-1 relative shrink-0">
                 {msgs.length > 0 && !streaming && (
@@ -644,10 +544,10 @@ export default function CodexView() {
                     </div>
                     <div className="sr-only">
                     <p className="text-base text-[var(--cream)]">Codex — project-scoped native task.</p>
-                    <p className="mt-2">The first message starts <code className="mono text-[var(--cream)]">codex exec --json</code>; later messages use <code className="mono text-[var(--cream)]">codex exec resume</code> on <strong>{engine === "gpt56" ? "GPT 5.6 (Sol) — OpenAI's frontier Codex on your ChatGPT login (OAuth, no API key)" : engine === "hy3" ? "HY3 — Tencent\u2019s 295B agentic model, free on OpenRouter" : "OmniRoute — 90+ free providers"}</strong>.</p>
+                    <p className="mt-2">The first message starts the server-managed restricted Codex runtime; later messages resume the verified native Codex thread.</p>
                     <ul className="mt-3 text-xs text-[var(--cream-mute)] space-y-1">
                       <li>• Native multi-turn memory: the active Codex thread id is resumed</li>
-                      <li>• Free: HY3 295B via OpenRouter (default, free window) or the OmniRoute gateway — switch in the dropdown below</li>
+                      <li>• Runtime and model selection are owned and verified by the server in this pilot</li>
                       <li>• For long-running work, switch to <strong>Goal Mode</strong></li>
                       <li>• Esc to abort an in-flight call</li>
                     </ul>
@@ -663,7 +563,7 @@ export default function CodexView() {
                     }`}>
                     <div className="text-[10px] tracking-widest uppercase mb-1 opacity-60 flex items-center gap-2">
                       {m.role === "user" ? "you" : "codex"}
-                      {m.role === "assistant" && <span className="normal-case tracking-normal text-emerald-400/70">{engine === "gpt56" ? "via GPT 5.6 (Sol) · OAuth" : engine === "hy3" ? "via HY3 295B · free" : "via OmniRoute · free"}</span>}
+                      {m.role === "assistant" && <span className="normal-case tracking-normal text-emerald-400/70">via server-managed restricted pilot</span>}
                     </div>
                     <div className="whitespace-pre-wrap font-[var(--font-geist-mono)]">{m.text}</div>
                     {m.role === "assistant" && m.files && m.files.length > 0 && (
@@ -719,36 +619,27 @@ export default function CodexView() {
               </AnimatePresence>
             </div>
             <div className="border-t p-2 flex items-end gap-2" style={{ borderColor: "var(--line-soft)" }}>
-              <select value={approvalMode} onChange={(e) => changeApprovalMode(e.target.value as "auto" | "readonly" | "yolo")}
-                title="How Codex handles approvals. It runs headlessly, so it can't show a popup — Auto-approve keeps it sandboxed to the workspace; Ask (read-only) lets it plan but never write; YOLO removes the sandbox entirely."
-                className="self-stretch bg-transparent border rounded-lg px-2 text-xs text-[var(--cream-mute)] outline-none cursor-pointer"
+              <span className="self-stretch border rounded-lg px-2 text-xs text-[var(--cream-mute)] flex items-center" style={{ borderColor: "var(--line-soft)" }} title="Workbench enforces a read-only sandbox and denies tool approvals.">Tools restricted · {workbenchRunLabel(activeRun, stopState)}</span>
+              <span
+                title="The restricted pilot runtime and model are selected and verified by the server."
+                className="self-stretch border rounded-lg px-2 text-xs text-[var(--cream-mute)] flex items-center"
                 style={{ borderColor: "var(--line-soft)" }}>
-                <option value="auto">✅ Auto-approve</option>
-                <option value="readonly">👀 Ask (read-only)</option>
-                <option value="yolo">🚀 YOLO</option>
-              </select>
-              <select value={engine} onChange={(e) => changeEngine(e.target.value as "omniroute" | "hy3" | "gpt56")}
-                title="Which brain drives Codex. OmniRoute = the local free gateway (90+ providers). HY3 = Tencent's 295B agentic model, free on OpenRouter. GPT 5.6 = the real OpenAI Codex on your ChatGPT login (OAuth, no API key) — needs a plan with gpt-5.6 Codex access."
-                className="self-stretch bg-transparent border rounded-lg px-2 text-xs text-[var(--cream-mute)] outline-none cursor-pointer"
-                style={{ borderColor: "var(--line-soft)" }}>
-                <option value="omniroute">🕸 OmniRoute free</option>
-                <option value="hy3">🐉 HY3 295B (free)</option>
-                <option value="gpt56">⚡ GPT 5.6 (OpenAI · OAuth)</option>
-              </select>
+                Server-managed Codex pilot
+              </span>
               <VoiceButton onTranscript={handleVoice} size={34} className="self-end" />
               <textarea value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendChat(); }
-                  if (e.key === "Escape" && streaming) stopChat();
+                  if (e.key === "Escape" && streaming) void stopChat();
                 }}
                 rows={2}
                 disabled={!hasConversationContext}
                 placeholder={hasConversationContext ? "Ask Codex…  (⌘+Enter to send)" : "Choose a workspace and start a new task"}
                 className="flex-1 bg-transparent outline-none resize-none px-3 py-2 text-sm text-[var(--cream)] placeholder:text-[var(--cream-mute)]" />
               {streaming ? (
-                <button onClick={stopChat}
+                <button onClick={() => void stopChat()} disabled={stopState === "stopping"}
                   className="px-3 py-2 rounded-lg bg-[rgba(248,113,113,0.15)] border border-[rgba(248,113,113,0.4)] text-rose-300 text-sm flex items-center gap-1.5 hover:bg-[rgba(248,113,113,0.22)]">
-                  <Square size={14} /> Stop
+                  <Square size={14} /> {stopState === "stopping" ? "Stopping…" : "Stop"}
                 </button>
               ) : (
                 <button onClick={sendChat} disabled={!input.trim() || !hasConversationContext}
@@ -773,20 +664,16 @@ export default function CodexView() {
                   style={{ borderColor: "var(--line-soft)" }} />
                 <textarea value={goalPrompt} onChange={(e) => setGoalPrompt(e.target.value)}
                   rows={6}
-                  placeholder="What should Codex achieve? Be specific. It runs auto-approved in a dedicated scratch dir until the goal is met or stopped."
+                  placeholder="What should Codex achieve? Be specific. It runs in the selected project's sandbox until the goal is met or stopped."
                   className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream)] outline-none mb-2"
                   style={{ borderColor: "var(--line-soft)" }} />
-                <select value={approvalMode} onChange={(e) => changeApprovalMode(e.target.value as "auto" | "readonly" | "yolo")}
-                  title="How Codex handles approvals during the goal run. Auto-approve stays sandboxed to the scratch dir; YOLO removes the sandbox."
-                  className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream-mute)] outline-none mb-2 cursor-pointer"
-                  style={{ borderColor: "var(--line-soft)" }}>
-                  <option value="auto">✅ Auto-approve (sandboxed to the scratch dir)</option>
-                  <option value="readonly">👀 Ask (read-only — plans but won't write)</option>
-                  <option value="yolo">🚀 YOLO (no sandbox — full access)</option>
-                </select>
+                <div title="Long-running goals remain read-only until their own Workbench cutover."
+                  className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream-mute)] mb-2"
+                  style={{ borderColor: "var(--line-soft)" }}>Read-only · goal execution restricted</div>
                 <select value={engine} onChange={(e) => changeEngine(e.target.value as "omniroute" | "hy3" | "gpt56")}
-                  title="The exact provider used by this goal. OmniRoute is a local gateway that can send prompts to upstream model providers."
-                  className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream-mute)] outline-none mb-2 cursor-pointer"
+                  disabled
+                  title="Goal runtime selection is unavailable until Goal Mode is owned by Workbench."
+                  className="w-full bg-transparent border rounded-md px-3 py-2 text-sm text-[var(--cream-mute)] outline-none mb-2 cursor-not-allowed opacity-50"
                   style={{ borderColor: "var(--line-soft)" }}>
                   <option value="omniroute">OmniRoute gateway</option>
                   <option value="hy3">HY3 via OpenRouter</option>
@@ -795,11 +682,14 @@ export default function CodexView() {
                 <div className="mb-2 truncate text-[10px] text-[var(--cream-mute)]" title={activeProjectRoot || "Choose a workspace from the Codex sidebar"}>
                   Workspace: {activeProjectRoot || "Choose a workspace first"}
                 </div>
-                {goalError && <div role="alert" className="mb-2 rounded-md border px-2.5 py-2 text-[10px] text-rose-300" style={{ borderColor: "rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)" }}>{goalError}</div>}
-                <button onClick={createGoal} disabled={!goalPrompt.trim() || !activeProjectRoot || goalSubmitting}
+                <div role="status" className="mb-2 rounded-md border px-2.5 py-2 text-[10px] text-amber-200" style={{ borderColor: "rgba(251,191,36,0.35)", background: "rgba(251,191,36,0.08)" }}>
+                  Read-only: existing goal history is visible. Launch, Stop, and Delete are unavailable until Goal Mode uses the verified Workbench lifecycle.
+                </div>
+                <button disabled
+                  title="Unavailable until Goal Mode is owned by Workbench"
                   className="w-full px-3 py-2 rounded-md text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: `${ACCENT}28`, border: `1px solid ${ACCENT}66`, color: ACCENT }}>
-                  <Play size={14} /> {goalSubmitting ? "Launching…" : "Launch goal"}
+                  <Play size={14} /> Launch unavailable
                 </button>
               </div>
               <div className="pt-3 border-t" style={{ borderColor: "var(--line-soft)" }}>
@@ -840,14 +730,14 @@ export default function CodexView() {
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="action-tag" style={{ color: statusColor(goal.status) }}>● {goal.status}</span>
                         {goal.status === "running" && (
-                          <button onClick={() => stopGoal(goal.id)} className="px-2 py-1 rounded-md text-[11px] flex items-center gap-1"
+                          <button disabled title="Stop unavailable until ACTIVE_PROCESS_ZERO can be verified" className="px-2 py-1 rounded-md text-[11px] flex items-center gap-1 opacity-40 cursor-not-allowed"
                             style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.35)", color: "#fca5a5" }}>
-                            <Square size={10} /> Stop
+                            <Square size={10} /> Stop unavailable
                           </button>
                         )}
-                        <button onClick={() => deleteGoal(goal.id)} className="px-2 py-1 rounded-md text-[11px] flex items-center gap-1"
+                        <button disabled title="Delete unavailable while Goal Mode is read-only" className="px-2 py-1 rounded-md text-[11px] flex items-center gap-1 opacity-40 cursor-not-allowed"
                           style={{ color: "var(--cream-mute)" }}>
-                          <Trash2 size={10} /> Delete
+                          <Trash2 size={10} /> Delete unavailable
                         </button>
                       </div>
                     </div>
@@ -870,9 +760,8 @@ export default function CodexView() {
               })() : (
                 <div className="p-8 text-[var(--cream-soft)] text-sm leading-relaxed max-w-prose">
                   <div className="action-title mb-2">Goal Mode</div>
-                  <p className="mb-3">Hand Codex a long-horizon objective. It runs <code className="mono text-[var(--cream)]">codex exec</code> auto-approved (sandboxed to a dedicated scratch dir) until the goal is met — or until you stop it.</p>
-                  <p className="mb-3">Each goal has its own working directory under <code className="mono">AGENT-OS-FOLDERS/codex-goals/&lt;id&gt;/</code> so artefacts don&apos;t collide.</p>
-                  <p className="text-[var(--cream-mute)]">Pick or start a goal on the left.</p>
+                  <p className="mb-3">Existing native goal records are available for inspection. New goal execution is unavailable until this surface uses the same durable Workbench start, resume, and verified Stop contract as Chat.</p>
+                  <p className="text-[var(--cream-mute)]">Pick an existing goal on the left to inspect its historical record.</p>
                 </div>
               )}
             </main>
@@ -1133,16 +1022,16 @@ export default function CodexView() {
                 <input
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") createProject(); }}
-                  placeholder="new-project-name"
+                  placeholder="Project creation unavailable"
                   className="flex-1 bg-transparent outline-none text-[11px] mono"
                   style={{ color: "var(--cream)" }} />
-                <button onClick={createProject} disabled={!newProjectName.trim()}
+                <button disabled title="Project creation is unavailable until it is routed through Workbench"
                   className="px-2 py-1 rounded-md text-[10px] uppercase tracking-widest disabled:opacity-40 transition"
                   style={{ background: `${ACCENT}28`, border: `1px solid ${ACCENT}66`, color: ACCENT }}>
-                  <FilePlus size={10} className="inline mr-0.5" /> Add
+                  <FilePlus size={10} className="inline mr-0.5" /> Unavailable
                 </button>
               </div>
+              <div className="text-[10px] text-amber-200/80">Read-only project browser · creation requires Workbench cutover</div>
 
               {projects.length === 0 && (
                 <div className="text-[11px] text-[var(--cream-mute)] italic p-2">

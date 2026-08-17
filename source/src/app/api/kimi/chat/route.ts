@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawnStream } from "@/lib/runner";
 import { ensureProject, KIMI_SCRATCH_ROOT } from "@/lib/kimiWorkspace";
 import path from "node:path";
@@ -48,6 +49,8 @@ function contentText(content: unknown): string {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/kimi/chat");
+  if (frozen) return frozen;
   const body = await req.json();
   const prompt = body.prompt;
   const model = typeof body.model === "string" && /^[A-Za-z0-9._:/-]+$/.test(body.model) ? body.model : null;

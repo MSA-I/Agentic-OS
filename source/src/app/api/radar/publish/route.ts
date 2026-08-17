@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { run } from "@/lib/runner";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -242,6 +243,8 @@ async function runPublish(sig: { headline: string; why_now: string; angle: strin
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/radar/publish");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const sig = {
     headline: String(body.headline || "").slice(0, 200),

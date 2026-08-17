@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { run } from "@/lib/runner";
 import { mkdir, writeFile, readFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -247,7 +248,9 @@ async function runSweep(): Promise<void> {
 }
 
 // POST — kick a sweep and return immediately. If one is already in flight, just report that.
-export async function POST() {
+export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/radar/scan");
+  if (frozen) return frozen;
   const st = await readStatus();
   if (st.running && st.startedAt && Date.now() - new Date(st.startedAt).getTime() < 860_000) {
     return Response.json({ ok: true, status: "running", startedAt: st.startedAt });

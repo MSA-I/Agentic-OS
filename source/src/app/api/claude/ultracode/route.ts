@@ -1,34 +1,13 @@
 import { NextResponse } from "next/server";
-import { listRuns, getRun, deleteRun, saveRun } from "@/lib/ultracodeRuns";
-import { killProc, isLive } from "@/lib/ultracodeProcs";
+import { listRuns, getRun } from "@/lib/ultracodeRuns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET  /api/claude/ultracode            — list run summaries (history)
 // GET  /api/claude/ultracode?id=<id>    — full run record (for replay)
-// POST /api/claude/ultracode { action:"stop", id } — kill a live run
-// DELETE /api/claude/ultracode?id=<id>  — remove a saved run
-
-export async function POST(req: Request) {
-  let body: unknown;
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
-  const { action, id } = (body ?? {}) as { action?: string; id?: string };
-  if (action !== "stop" || !id) {
-    return NextResponse.json({ error: "action 'stop' and id required" }, { status: 400 });
-  }
-  const wasLive = isLive(id);
-  const killed = killProc(id);
-  // Even if the process already exited (or runs on another server instance),
-  // mark the saved run stopped so the UI reflects the user's intent.
-  const run = await getRun(id);
-  if (run && run.status === "running") {
-    run.status = "stopped";
-    run.finishedAt = Date.now();
-    await saveRun(run);
-  }
-  return NextResponse.json({ ok: true, killed, wasLive });
-}
+// Lifecycle mutations intentionally have no route exports until Ultracode is
+// owned by Workbench and Stop can prove ACTIVE_PROCESS_ZERO.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
@@ -39,12 +18,4 @@ export async function GET(req: Request) {
   }
   const runs = await listRuns();
   return NextResponse.json({ runs });
-}
-
-export async function DELETE(req: Request) {
-  const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-  const ok = await deleteRun(id);
-  return NextResponse.json({ ok }, { status: ok ? 200 : 404 });
 }

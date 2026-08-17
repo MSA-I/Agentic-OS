@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
@@ -36,6 +37,8 @@ function slugify(s: string): string {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/opencode/build");
+  if (frozen) return frozen;
   const { prompt, project, model } = await req.json();
   if (typeof prompt !== "string" || !prompt.trim()) {
     return new Response(JSON.stringify({ error: "missing prompt" }), { status: 400 });

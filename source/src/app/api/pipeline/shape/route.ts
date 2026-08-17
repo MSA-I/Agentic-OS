@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readItem, writeItem, classifyIdea, draftPlan } from "@/lib/pipeline";
 
@@ -7,6 +8,8 @@ export const maxDuration = 120;
 
 // Agents shape the idea: classify → route → (for projects) draft a proposed plan.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/pipeline/shape");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const slug = String(body.slug || "");
   const item = await readItem(slug);

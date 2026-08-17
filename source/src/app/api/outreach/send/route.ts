@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import {
   readState, writeState, computeStats, newId, renderTemplate,
@@ -17,6 +18,8 @@ const FROM = "hermes@goldie.agency";
 // Sends (or drafts) the next batch for a campaign through gmail_cli.py.
 // Guardrails: circuit breaker, per-day cap, and valid-only recipients.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/outreach/send");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const mode: "send" | "draft" = body.mode === "send" ? "send" : "draft";
   const step = Math.max(0, Number(body.step) || 0);

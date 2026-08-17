@@ -1,10 +1,12 @@
-import { spawnStream, terminateChildProcessTree } from "@/lib/runner";
-import { CLAUDE_MODEL } from "@/lib/config";
-import { ensureProject, CLAUDE_SCRATCH_ROOT } from "@/lib/claudeWorkspace";
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
+import { providerChildEnvironment, spawnStream, terminateChildProcessTree } from "@/lib/runner";
+import { CLAUDE_MODEL, config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
+import { resolveRegisteredProjectLaunchDirectory, ProjectRegistryError } from "@/lib/control-plane/projectRegistry";
+import { RuntimeContainmentError } from "@/lib/control-plane/runtimeContainment";
 import { newRun, applyEvent, saveRun, getRun, makeRunId, type UltracodeRun } from "@/lib/ultracodeRuns";
 import { logTokens } from "@/lib/tokenLog";
 import { registerProc, unregisterProc, isStopped } from "@/lib/ultracodeProcs";
-import path from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,12 +41,17 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 }
 
 export async function POST(req: Request) {
-  const { prompt, cwd, ultracode, project, resumeRunId, history, sessionId, newSessionId, sessionName } = await req.json();
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/claude/chat");
+  if (frozen) return frozen;
+  const { prompt, cwd, ultracode, project, projectId, resumeRunId, history, sessionId, newSessionId, sessionName } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return new Response("missing prompt", { status: 400 });
   }
   if (prompt.length > 16_000) {
     return new Response("prompt too long", { status: 413 });
+  }
+  if (cwd !== undefined) {
+    return new Response("client-supplied cwd is not accepted; select a project", { status: 400 });
   }
 
   // ── Resume path ──────────────────────────────────────────────────────────
@@ -63,13 +70,18 @@ export async function POST(req: Request) {
   }
 
   // Pin cwd. On resume, reuse the original run's project so files land together.
-  let runCwd: string | undefined = typeof cwd === "string" && cwd ? cwd : undefined;
-  if (!runCwd) {
-    const projName =
-      (resumeRun?.project && /^[A-Za-z0-9_.-]+$/.test(resumeRun.project)) ? resumeRun.project
-      : (typeof project === "string" && /^[A-Za-z0-9_.-]+$/.test(project)) ? project
-      : "claude-default";
-    runCwd = (await ensureProject(projName)) ?? path.join(CLAUDE_SCRATCH_ROOT, projName);
+  const requestedProject = typeof projectId === "string"
+    ? projectId
+    : typeof project === "string"
+      ? project
+      : resumeRun?.project;
+  let runCwd;
+  try { runCwd = await resolveRegisteredProjectLaunchDirectory("claude", requestedProject); }
+  catch (error) {
+    const code = error instanceof ProjectRegistryError ? error.code : "project_directory_invalid";
+    return new Response(JSON.stringify({ type: "error", code, message: "Claude project is not an approved launch target." }) + "\n", {
+      status: 400, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
   }
 
   // Ultracode = xhigh effort → dynamic workflows. When on, we ALSO capture the
@@ -92,7 +104,23 @@ export async function POST(req: Request) {
     effectivePrompt,
   );
 
-  const child = spawnStream("claude", args, { cwd: runCwd });
+  let executableIdentity;
+  try {
+    executableIdentity = await assertProviderLaunch("claude", config.claude, args, providerChildEnvironment("claude"));
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return new Response(JSON.stringify({ type: "error", code, message: "Claude executable identity could not be verified." }) + "\n", {
+      status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
+  }
+  let child;
+  try { child = spawnStream("claude", args, { cwd: runCwd, verifiedExecutable: executableIdentity }); }
+  catch (error) {
+    const code = error instanceof RuntimeContainmentError ? error.code : "runtime_containment_unavailable";
+    return new Response(JSON.stringify({ type: "error", code, message: "Claude start is disabled until runtime containment is available." }) + "\n", {
+      status: 503, headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
+  }
   req.signal.addEventListener("abort", () => { void terminateChildProcessTree(child); }, { once: true });
 
   // Register the live process so the Stop button (a separate request) can kill
@@ -121,7 +149,7 @@ export async function POST(req: Request) {
       prompt,
       model: CLAUDE_MODEL,
       ultracode: true,
-      project: runCwd ? path.basename(runCwd) : undefined,
+      project: runCwd.projectId,
     });
   }
   // Make this run killable by the Stop button (a separate request).

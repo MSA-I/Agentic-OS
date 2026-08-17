@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { AGENT_OS_FOLDERS_ROOT, workspacePath } from "@/lib/workspaceRoot";
+import { isSensitivePath, resolveContainedExistingPathSync } from "@/lib/control-plane/pathSecurity";
 
 const HOME = os.homedir();
 export const OPENCLAW_ROOT = path.join(HOME, ".openclaw");
@@ -219,7 +220,7 @@ async function walkBucket(def: BucketDef, maxFiles: number): Promise<HmFile[]> {
         const full = path.join(dir, it.name);
         if (it.isDirectory()) {
           await walk(full, depth + 1, base);
-        } else if (it.isFile()) {
+        } else if (it.isFile() && !isSensitivePath(path.relative(base, full))) {
           const kind = fileKind(it.name);
           if (allowedKinds && !allowedKinds.has(kind)) continue;
           if (allowedExts) {
@@ -277,14 +278,13 @@ export async function listBucketFiles(id: string, maxFiles = 200): Promise<{ buc
 // Resolve a (bucket, relPath) pair → absolute file path on disk, with strict
 // containment check so callers can't escape the bucket roots.
 export function resolveBucketFile(id: string, relPath: string): string | null {
+  if (isSensitivePath(relPath)) return null;
   const def = BUCKETS.find((b) => b.id === id);
   if (!def) return null;
   for (const root of def.paths) {
     if (!existsSync(root)) continue;
-    const abs = path.resolve(root, relPath);
-    if (abs === root || abs.startsWith(root + path.sep)) {
-      if (existsSync(abs)) return abs;
-    }
+    const resolved = resolveContainedExistingPathSync(root, relPath);
+    if (resolved.ok) return resolved.absolutePath;
   }
   return null;
 }

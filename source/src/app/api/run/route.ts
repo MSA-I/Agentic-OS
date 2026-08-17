@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run, validateFlagArgs, type AgentName } from "@/lib/runner";
 
@@ -66,6 +67,8 @@ function safe(agent: AgentName, args: string[]) {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/run");
+  if (frozen) return frozen;
   const body = await req.json();
   const agent = body.agent as AgentName;
   const args: string[] = Array.isArray(body.args) ? body.args : [];

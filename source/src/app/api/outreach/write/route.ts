@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import fs from "node:fs";
 import path from "node:path";
 import { hermesHome, config } from "@/lib/config";
@@ -26,6 +27,8 @@ function orKey(): string | null {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/outreach/write");
+  if (frozen) return frozen;
   const { brief, fromName } = (await req.json().catch(() => ({}))) as { brief?: string; fromName?: string };
   if (!brief?.trim()) return Response.json({ error: "Tell me what the campaign is about first." }, { status: 400 });
   const key = orKey();

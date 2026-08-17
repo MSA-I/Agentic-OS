@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 
@@ -15,6 +16,8 @@ export async function GET(req: Request) {
 
 // Create a new NotebookLM notebook (server-side, not a link import).
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/notebooks");
+  if (frozen) return frozen;
   try {
     const body = await req.json();
     const title: string = body.title?.trim() || `Notebook ${new Date().toISOString().slice(0, 10)}`;

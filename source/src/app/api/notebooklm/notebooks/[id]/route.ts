@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 
@@ -13,6 +14,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const frozen = await denyFrozenExecutionMutation(req, "PATCH /api/notebooklm/notebooks/[id]");
+  if (frozen) return frozen;
   const { id } = await params;
   const body = await req.json();
   try {
@@ -25,6 +28,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const frozen = await denyFrozenExecutionMutation(_req, "DELETE /api/notebooklm/notebooks/[id]");
+  if (frozen) return frozen;
   const { id } = await params;
   try {
     const result = await callTool("notebook_delete", { notebook_id: id, confirm: true });

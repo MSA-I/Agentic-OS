@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawnStream } from "@/lib/runner";
 import { fccSpawnEnv, probeReachable } from "@/lib/fcc";
 import { withSteer } from "@/lib/omniroute";
@@ -43,6 +44,8 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 // If fcc-server isn't reachable on :8082 we surface that clearly instead of
 // letting the CLI fail with a confusing connection error.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/freeclaude/chat");
+  if (frozen) return frozen;
   const body = await req.json();
   const prompt = body.prompt;
   const history: ChatMsg[] = Array.isArray(body.history) ? body.history : [];

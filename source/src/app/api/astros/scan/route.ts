@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { run } from "@/lib/runner";
 import { mkdir, writeFile, readFile, appendFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -336,7 +337,9 @@ async function runSweep(): Promise<void> {
 }
 
 // POST — kick a sweep, return immediately (fire-and-forget; survives page navigation).
-export async function POST() {
+export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/astros/scan");
+  if (frozen) return frozen;
   const st = await readStatus();
   if (st.running && st.startedAt && Date.now() - new Date(st.startedAt).getTime() < 500_000) {
     return Response.json({ ok: true, status: "running", startedAt: st.startedAt });

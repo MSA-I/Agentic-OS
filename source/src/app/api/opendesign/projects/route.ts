@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -22,6 +23,8 @@ interface ODProject {
 // Delete a project from Open Design's workspace (daemon removes the DB row + the
 // rendered project dir). Called from the Workspace gallery's per-card trash button.
 export async function DELETE(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "DELETE /api/opendesign/projects");
+  if (frozen) return frozen;
   const id = new URL(req.url).searchParams.get("id");
   if (!id || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return Response.json({ ok: false, error: "bad id" }, { status: 400 });
   try {

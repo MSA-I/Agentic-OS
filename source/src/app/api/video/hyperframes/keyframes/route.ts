@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -45,6 +46,8 @@ function pickMovingSelector(tweens: Tween[]): string | null {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/hyperframes/keyframes");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const slug = String(body.slug ?? "").trim();
   const wantShot = Boolean(body.shot);

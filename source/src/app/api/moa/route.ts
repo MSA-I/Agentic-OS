@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import fs from "node:fs";
 import path from "node:path";
 import { hermesHome } from "@/lib/config";
@@ -70,6 +71,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/moa");
+  if (frozen) return frozen;
   const { prompt } = (await req.json().catch(() => ({}))) as { prompt?: string };
   if (!prompt?.trim()) return Response.json({ error: "Empty prompt" }, { status: 400 });
   const key = moaKey();

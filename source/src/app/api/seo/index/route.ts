@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -80,6 +81,8 @@ export async function GET() {
 
 // POST { urls: string[] } → submit a drip-index order (1 credit per URL, max 500)
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/seo/index");
+  if (frozen) return frozen;
   const c = creds();
   if (!c) return NextResponse.json({ error: "Indexceptional credentials not set" }, { status: 400 });
 

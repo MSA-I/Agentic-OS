@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-14T20:17:15.7793981+03:00",
+  "wave": 3,
+  "subtask": "restricted-codex-claude-pilot",
+  "overallStatus": "blocked",
+  "waveState": "in-progress-blocked-on-claude-quota",
+  "plan": "C:\\Users\\art1\\.codex\\visualizations\\2026\\08\\13\\019ffc17-3c91-77f1-898c-6c2ba49d666e\\AGENT-OS-CONTROL-PLANE-REPAIR-PLAN.md",
+  "repository": "D:\\משה פרוייקטים\\פיתוח אתרים\\AGENT-OS\\source",
+  "gitHead": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
+  "runtime": {
+    "node": "v24.15.0",
+    "npm": "11.12.1",
+    "next": "16.2.6",
+    "playwright": "1.62.1",
+    "platform": "win32"
+  },
+  "static-contract": {
+    "status": "pass",
+    "mutationInventory": {
+      "refreshCommand": "node scripts/control-plane/inventory-mutations.mjs",
+      "checkCommand": "node scripts/control-plane/inventory-mutations.mjs --check",
+      "status": "pass",
+      "routeHandlers": 153,
+      "frontendMutationCallers": 163,
+      "sourceFileCount": 598,
+      "sourceDigestSha256": "9c44f30ad2f5d88236c3e7f5fb1578aebbe3e0bb3406f6a3a52e810651050c21",
+      "generatorDigestSha256": "5546b88e34e71837bc5c462e423956382cde4abb9e19739e4c9d629f7d2d35a7",
+      "releaseInputFileCount": 713,
+      "releaseInputDigestSha256": "b55e6325fff639b16e6c32e2c72644230ac9440fde56e94de34b6e87918d3f36",
+      "inventoryFileSha256": "08206d62938e93e423ccfe9cde1e3654d220196aa37d3a3c1a503af352b6db7c"
+    },
+    "executionFreeze": {
+      "command": "node scripts/control-plane/verify-wave1-execution-freeze.mjs",
+      "status": "pass",
+      "inventoryFreshnessStatus": "pass",
+      "frozenRoutes": 106,
+      "directExecutionCallers": 115,
+      "uiDirectExecutionStatus": "blocked",
+      "missingFrozenRoutes": 0,
+      "unguardedFrozenRoutes": 0,
+      "unclassifiedExecutionCandidates": 0,
+      "falsePositiveClassifications": 0
+    },
+    "codexClaudeCutover": {
+      "status": "pass",
+      "codexLegacyUiPostRoute": "/api/codex/chat",
+      "claudeLegacyUiPostRoute": "/api/claude/chat",
+      "directUiPostsToLegacyRoutes": 0,
+      "legacyRouteDisposition": "frozen",
+      "canonicalMutationPath": "/api/workbench/runs",
+      "codexProviderPolicy": "read-only-tools-restricted",
+      "claudeProviderPolicy": "tools-mcp-hooks-skills-disabled",
+      "clientDraftPersistence": "volatile-memory-only"
+    },
+    "routeDistribution": {
+      "command": "npm.cmd run verify:workbench-route",
+      "status": "pass"
+    },
+    "typecheck": {
+      "command": "npx.cmd tsc --noEmit",
+      "status": "pass"
+    },
+    "build": {
+      "command": "npm.cmd run build",
+      "status": "pass",
+      "durationSeconds": 47.8
+    }
+  },
+  "fake-runtime": {
+    "status": "pass",
+    "targetedNodeTests": {
+      "status": "pass",
+      "passed": 183,
+      "failed": 0,
+      "skipped": 0
+    },
+    "fullNodeTests": {
+      "command": "node --experimental-strip-types --test",
+      "status": "pass",
+      "passed": 467,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 423.064,
+      "countBasis": "Current 467-test manifest plus exit 0; RTK suppressed the aggregate count line."
+    },
+    "playwrightSecurityProviderSecretFreezeUi": {
+      "status": "pass",
+      "passed": 27,
+      "failed": 0
+    },
+    "uiScreenshotGate": {
+      "status": "pass",
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "live-runtime": {
+    "status": "blocked",
+    "diagnosticCommand": "node scripts/control-plane/inspect-wave3-live-evidence.mjs --limit=20",
+    "observedAt": "2026-08-14T17:16:55.201Z",
+    "databaseModifiedAt": "2026-08-14T17:15:54.701Z",
+    "codex": {
+      "status": "pass",
+      "standardPilot": {
+        "status": "pass",
+        "command": "node scripts/control-plane/run-wave3-live-pilot.mjs",
+        "durationSeconds": 72.2,
+        "start": {
+          "runId": "8b8293de-38dd-4c7f-baca-e424995b299f",
+          "status": "succeeded",
+          "nativeSessionId": "01a00135-bc08-70f0-bf23-6bebaadc8e1d",
+          "providerAttemptCount": 1,
+          "terminationVerified": true
+        },
+        "resume": {
+          "runId": "9a191fbf-8897-411a-9587-3d55386c6dbd",
+          "status": "succeeded",
+          "nativeSessionId": "01a00135-bc08-70f0-bf23-6bebaadc8e1d",
+          "providerAttemptCount": 1,
+          "terminationVerified": true
+        },
+        "cancel": {
+          "runId": "4c6ebc24-9e2d-4d2a-83d9-9cd8c1145745",
+          "status": "cancelled",
+          "pid": null,
+          "providerAttemptCount": 1,
+          "terminationVerified": true
+        },
+        "startResumeNativeSessionMatches": true
+      },
+      "restartPilot": {
+        "status": "pass",
+        "command": "node scripts/control-plane/run-wave3-live-restart-pilot.mjs --provider=codex",
+        "durationSeconds": 131.1,
+        "serverRestarts": 2,
+        "startBeforeRestart": {
+          "runId": "25c78f3a-23ed-4790-b648-0e29054fc10f",
+          "status": "succeeded",
+          "nativeSessionId": "01a00144-9513-7830-8915-15ffcf666efa",
+          "terminationVerified": true
+        },
+        "resumeAfterRestart": {
+          "runId": "01791c25-22c6-4d02-bf07-b8b9b5f34733",
+          "status": "succeeded",
+          "nativeSessionId": "01a00144-9513-7830-8915-15ffcf666efa",
+          "terminationVerified": true
+        },
+        "activeRunInterruptedByRestart": {
+          "runId": "996d3e21-ea3a-4fce-b9f4-b912b75c7afe",
+          "status": "blocked",
+          "pid": null,
+          "errorCode": "windows_job_blocked",
+          "errorMessage": "Control-plane parent exited before Windows Job completion.",
+          "terminationVerified": true,
+          "meaning": "Fail-closed restart containment; the active provider tree did not survive the control-plane parent."
+        },
+        "cancelAfterRestart": {
+          "runId": "b43ad2d3-825c-4619-8982-15ed690f6c75",
+          "status": "cancelled",
+          "pid": null,
+          "terminationVerified": true
+        },
+        "startResumeNativeSessionMatches": true,
+        "duplicateExecutionObserved": false,
+        "orphanProcessObserved": false
+      }
+    },
+    "claude": {
+      "status": "blocked",
+      "providerVersion": "2.1.227",
+      "auth": {
+        "loggedIn": true,
+        "provider": "firstParty",
+        "subscriptionType": "max"
+      },
+      "start": {
+        "runId": "d4e40fc8-45db-4bf3-ad0d-8c1292d5cb0c",
+        "status": "blocked",
+        "nativeSessionId": "83511442-a5f9-5b22-af95-e9c63bc89f0c",
+        "pid": null,
+        "providerAttemptCount": 1,
+        "errorCode": "quota",
+        "errorMessage": "Claude quota is unavailable."
+      },
+      "resume": {
+        "status": "not-run",
+        "reason": "Start did not succeed because the provider quota was unavailable."
+      },
+      "cancel": {
+        "status": "not-run",
+        "reason": "No active Claude provider process existed after the blocked start."
+      },
+      "restart": {
+        "status": "not-run",
+        "reason": "The start prerequisite is blocked by provider quota."
+      }
+    },
+    "standardLivePilotDurationSeconds": 72.2,
+    "wholeGateStatus": "blocked"
+  },
+  "visual-runtime": {
+    "status": "pass",
+    "codex": {
+      "path": ".next/playwright-results/wave3-pilot-ui-Wave-3-rest-06bb0-ts-to-the-legacy-chat-route-chromium/wave3-codex-control-plane.png",
+      "sha256": "948869f08d7d2ab9432949e00d5d60a9974c19f654ae90d6e25e14f05a703d5b",
+      "observed": [
+        "Mission Control return",
+        "agent and project identity",
+        "server-managed pilot label",
+        "read-only tools-restricted policy"
+      ]
+    },
+    "claude": {
+      "path": ".next/playwright-results/wave3-pilot-ui-Wave-3-rest-7759d-fts-in-volatile-memory-only-chromium/wave3-claude-control-plane.png",
+      "sha256": "4843bb9e6b7f0a3f7b891bcafb8fa42855e20c8f8dfa595da67a2df3945f6aeb",
+      "observed": [
+        "Mission Control return",
+        "agent and project identity",
+        "tools disabled policy",
+        "volatile draft retained in the UI"
+      ]
+    }
+  },
+  "deferredScopeObservations": {
+    "status": "recorded-not-implemented",
+    "agentOrchestrator": {
+      "plannedWave": 7,
+      "scanTotal": 2252,
+      "scanActive": 2252,
+      "matchQueryScope": "Codex Claude Hermes OpenClaw Ruflo MCP skills hooks sessions processes start resume cancel health logs approvals",
+      "matchedCount": 5,
+      "matchedSkills": [
+        "analyze-project",
+        "claude-ally-health",
+        "monte-carlo-prevent",
+        "production-audit",
+        "sexual-health-analyzer"
+      ],
+      "providerRuntimeMatches": 0,
+      "status": "fail",
+      "reason": "The matcher treated the generic token health as sufficient evidence and routed unrelated medical and data-observability skills. It does not discover provider runtimes, MCP servers, hooks, processes, or sessions as control-plane capabilities."
+    },
+    "toolGateway": {
+      "plannedWave": 4,
+      "status": "not-started",
+      "scope": "namespaced MCP and invokable tool discovery, health, policy approval, invocation, and audit"
+    },
+    "hermesOpenClawAntigravity": {
+      "plannedWave": 5,
+      "status": "not-started",
+      "scope": "live lifecycle parity, profile or actor binding, verified stop, and truthful availability"
+    },
+    "rufloAndCompleteCatalog": {
+      "plannedWave": 7,
+      "status": "not-started",
+      "scope": "complete provenance-aware inventory across skills, MCP, apps, plugins, hooks, automations, models, gateways, and Ruflo"
+    }
+  },
+  "exitGate": {
+    "status": "blocked",
+    "passed": [
+      "Codex live start",
+      "Codex native resume",
+      "Codex verified active-process cancel",
+      "Codex native resume after server restart",
+      "Codex fail-closed active-run containment during server restart",
+      "Codex verified active-process cancel after server restart",
+      "Codex and Claude UI cutover to the Workbench",
+      "no direct UI POST to legacy Codex or Claude chat routes",
+      "provider-native tool restrictions",
+      "no client-persistent draft or transcript",
+      "verified Stop semantics",
+      "current static, fake-runtime, build, typecheck, and visual gates"
+    ],
+    "missing": [
+      "Claude live start",
+      "Claude native resume",
+      "Claude verified active-process cancel",
+      "Claude restart recovery"
+    ],
+    "basis": "Codex now passes live start, native resume, verified cancel, restart resume, fail-closed active-run interruption, and verified cancel after restart. Claude authentication is current and the installed provider was reached through the canonical durable control plane, but it returned quota unavailable on attempt one. Blocked is not PASS, and no evidence exists for Claude resume, cancel, or restart.",
+    "nextWave": 4,
+    "nextWaveStatus": "closed",
+    "waivers": []
+  },
+  "blocked": [
+    "Wave 3 cannot close until Claude live start, resume, verified cancel, and restart pass after quota becomes available. Codex now satisfies the complete Wave 3 live lifecycle gate.",
+    "Wave 4 must not start while the Wave 3 exit gate is blocked.",
+    "Hermes and OpenClaw lifecycle parity remains Wave 5 and is not claimed by this evidence.",
+    "Ruflo and complete tool, skill, MCP, app, plugin, hook, automation, model, and gateway inventory remain Wave 7 and are not claimed by this evidence."
+  ],
+  "worktree": {
+    "staged": false,
+    "committed": false,
+    "preservedUntrackedPath": "../e2e-final/",
+    "broadStagingProhibited": true
+  }
+}

@@ -9,7 +9,7 @@ import {
 import { usePollWhileVisible } from "@/lib/usePollWhileVisible";
 
 // Hermes Goal Mode — set a long-horizon goal, walk away, Hermes loops until done.
-// Mirrors the Codex Goal pattern but spawns `hermes chat -q ... --yolo --max-turns 50`.
+// Mirrors the Codex Goal pattern but keeps Hermes bounded and never auto-approves tools or hooks.
 
 const ACCENT = "#60a5fa"; // Hermes blue
 
@@ -202,8 +202,8 @@ export default function HermesGoals() {
           </div>
         </div>
         <p className="text-[12px] text-[var(--cream-dim)] max-w-[640px]">
-          Hand Hermes a long-horizon goal. It runs <code className="px-1 rounded" style={{ background: "rgba(255,255,255,0.06)" }}>hermes chat --yolo --max-turns 50</code> in
-          its own scratch dir. Close your laptop, go to sleep, come back to finished work.
+          Hand Hermes a long-horizon goal. It runs in bounded quiet mode with checkpoints in
+          its own scratch dir. Approval-required work stops safely instead of bypassing policy.
         </p>
       </div>
 

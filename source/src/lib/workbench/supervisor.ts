@@ -3,7 +3,16 @@ import "server-only";
 import type { ChildProcess } from "node:child_process";
 import { execFile } from "node:child_process";
 import { EventEmitter } from "node:events";
+import {
+  assertWave1ControlPlaneCommandUnavailable,
+  ControlPlaneCommandDeniedError,
+} from "@/lib/control-plane/executionFreeze";
+import {
+  createControlPlaneIdentity,
+  type ControlPlaneIdentity,
+} from "@/lib/control-plane/identity";
 import { getWorkbenchAdapter, listWorkbenchAgents } from "./adapters";
+import { TERMINAL_RUN_STATUSES } from "./stateMachine";
 import { WorkbenchStore, type CreateRunInput, type ListRunsInput } from "./store";
 import type {
   AdapterResult,
@@ -20,12 +29,20 @@ import type {
   RunEventType,
   RunStatus,
 } from "./types";
+import {
+  WorkbenchConflictError,
+  WorkbenchNotFoundError,
+  WorkbenchUnsupportedError,
+} from "./errors";
 
-const TERMINAL_STATUSES = new Set<RunStatus>(["succeeded", "failed", "cancelled", "orphaned"]);
+const TERMINAL_STATUSES = TERMINAL_RUN_STATUSES;
 
-export class WorkbenchConflictError extends Error {}
-export class WorkbenchNotFoundError extends Error {}
-export class WorkbenchUnsupportedError extends Error {}
+export {
+  WorkbenchConflictError,
+  WorkbenchNotFoundError,
+  WorkbenchUnsupportedError,
+} from "./errors";
+export { ControlPlaneCommandDeniedError };
 
 interface ManagedProcess {
   child: ChildProcess;
@@ -49,8 +66,10 @@ async function terminateProcessTree(pid: number, child?: ChildProcess): Promise<
 export class RunSupervisor {
   private readonly events = new EventEmitter();
   private readonly processes = new Map<string, ManagedProcess>();
+  readonly store: WorkbenchStore;
 
-  constructor(readonly store = new WorkbenchStore()) {
+  constructor(store = new WorkbenchStore()) {
+    this.store = store;
     this.events.setMaxListeners(0);
     for (const run of this.store.orphanActiveRuns()) {
       this.publish(run.id, "error", {
@@ -73,11 +92,30 @@ export class RunSupervisor {
     return this.store.listRuns(input);
   }
 
-  async create(input: CreateRunInput): Promise<{ run: Run; start: AdapterResult<void> }> {
+  async create(
+    input: CreateRunInput,
+    commandIdentity: ControlPlaneIdentity,
+  ): Promise<{ run: Run; start: AdapterResult<void> }> {
     const adapter = getWorkbenchAdapter(input.adapterId);
     if (!adapter || adapter.descriptor.provider !== input.provider) {
       throw new WorkbenchNotFoundError("Unknown or mismatched Workbench adapter.");
     }
+
+    const expectedIdentity = createControlPlaneIdentity({
+      callerSessionId: commandIdentity.callerSessionId,
+      actorId: input.context.actorId,
+      projectId: input.context.projectId,
+      worktreeId: input.context.environment,
+      provider: input.provider,
+      profileId: input.provider === "hermes" ? input.context.actorId : null,
+      nativeSessionId: input.context.sessionId,
+      runId: commandIdentity.runId,
+    });
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: input.context.sessionId ? "resume" : "start",
+      expectedIdentity,
+      actualIdentity: commandIdentity,
+    });
 
     if ((input.provider === "hermes" || input.provider === "openclaw") && input.context.sessionId) {
       const boundActor = this.store.sessionActor(input.provider, input.context.sessionId);
@@ -104,12 +142,22 @@ export class RunSupervisor {
     return { run, start: result };
   }
 
-  async message(runId: string, mode: MessageMode, content: string): Promise<{
+  async message(
+    runId: string,
+    mode: MessageMode,
+    content: string,
+    commandIdentity: ControlPlaneIdentity,
+  ): Promise<{
     run: Run;
     message: QueuedMessage;
     delivery: "queued" | "delivered";
   }> {
     const run = this.requireRun(runId);
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: "steer",
+      expectedIdentity: this.identityForRun(run, commandIdentity.callerSessionId),
+      actualIdentity: commandIdentity,
+    });
     if (TERMINAL_STATUSES.has(run.status)) throw new WorkbenchConflictError("Cannot message a finished run.");
     if (mode === "steer" && run.status !== "running" && run.status !== "awaiting_approval") {
       throw new WorkbenchConflictError("Steer is available only while a run is active.");
@@ -132,8 +180,13 @@ export class RunSupervisor {
     return { run: this.requireRun(run.id), message: persisted, delivery: delivered ? "delivered" : "queued" };
   }
 
-  async cancel(runId: string): Promise<Run> {
+  async cancel(runId: string, commandIdentity: ControlPlaneIdentity): Promise<Run> {
     const run = this.requireRun(runId);
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: "cancel",
+      expectedIdentity: this.identityForRun(run, commandIdentity.callerSessionId),
+      actualIdentity: commandIdentity,
+    });
     if (TERMINAL_STATUSES.has(run.status)) return run;
     const managed = this.processes.get(run.id);
     const pid = managed?.child.pid ?? run.pid;
@@ -147,8 +200,19 @@ export class RunSupervisor {
     return this.setStatus(run.id, "cancelled", null);
   }
 
-  requestApproval(runId: string, risk: ApprovalRisk, summary: string, redactedAction: string): ApprovalRequest {
+  requestApproval(
+    runId: string,
+    risk: ApprovalRisk,
+    summary: string,
+    redactedAction: string,
+    commandIdentity: ControlPlaneIdentity,
+  ): ApprovalRequest {
     const run = this.requireRun(runId);
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: "tool.invoke",
+      expectedIdentity: this.identityForRun(run, commandIdentity.callerSessionId),
+      actualIdentity: commandIdentity,
+    });
     if (TERMINAL_STATUSES.has(run.status)) throw new WorkbenchConflictError("Cannot approve a finished run.");
     const approval = this.store.createApproval(run.id, risk, summary, redactedAction);
     this.setStatus(run.id, "awaiting_approval");
@@ -162,8 +226,18 @@ export class RunSupervisor {
     return approval;
   }
 
-  async decideApproval(runId: string, approvalId: string, decision: ApprovalDecision): Promise<ApprovalRequest> {
+  async decideApproval(
+    runId: string,
+    approvalId: string,
+    decision: ApprovalDecision,
+    commandIdentity: ControlPlaneIdentity,
+  ): Promise<ApprovalRequest> {
     const run = this.requireRun(runId);
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: "approval.resolve",
+      expectedIdentity: this.identityForRun(run, commandIdentity.callerSessionId),
+      actualIdentity: commandIdentity,
+    });
     const approval = this.store.getApproval(approvalId);
     if (!approval || approval.runId !== run.id) throw new WorkbenchNotFoundError("Approval request not found.");
     if (approval.status !== "pending") throw new WorkbenchConflictError("Approval request was already resolved.");
@@ -176,8 +250,18 @@ export class RunSupervisor {
     return resolved;
   }
 
-  registerProcess(runId: string, child: ChildProcess, timeoutMs = 10 * 60_000): Run {
+  registerProcess(
+    runId: string,
+    child: ChildProcess,
+    commandIdentity: ControlPlaneIdentity,
+    timeoutMs = 10 * 60_000,
+  ): Run {
     const run = this.requireRun(runId);
+    assertWave1ControlPlaneCommandUnavailable({
+      operation: "start",
+      expectedIdentity: this.identityForRun(run, commandIdentity.callerSessionId),
+      actualIdentity: commandIdentity,
+    });
     if (!child.pid) throw new WorkbenchConflictError("Cannot supervise a process without a PID.");
     if (this.processes.has(runId)) throw new WorkbenchConflictError("A process is already registered for this run.");
 
@@ -217,6 +301,8 @@ export class RunSupervisor {
       start: (controller) => {
         let closed = false;
         let cursor = Math.max(0, after);
+        let replaying = true;
+        const pendingLiveEvents: RunEvent[] = [];
         const close = () => {
           if (closed) return;
           closed = true;
@@ -232,6 +318,10 @@ export class RunSupervisor {
           const status = event.type === "status" ? event.payload.status : null;
           if (typeof status === "string" && TERMINAL_STATUSES.has(status as RunStatus)) close();
         };
+        const onEvent = (event: RunEvent) => {
+          if (replaying) pendingLiveEvents.push(event);
+          else send(event);
+        };
         const heartbeat = setInterval(() => {
           if (!closed) controller.enqueue(encoder.encode(": heartbeat\n\n"));
         }, 15_000);
@@ -239,12 +329,26 @@ export class RunSupervisor {
         const onAbort = () => close();
         cleanup = () => {
           clearInterval(heartbeat);
-          this.events.off(eventName, send);
+          this.events.off(eventName, onEvent);
           signal?.removeEventListener("abort", onAbort);
         };
-        this.events.on(eventName, send);
+        this.events.on(eventName, onEvent);
         signal?.addEventListener("abort", onAbort, { once: true });
-        for (const event of this.store.eventsAfter(runId, cursor)) send(event);
+        let page = this.store.eventPage(runId, cursor, 500);
+        if (page.gap) {
+          cursor = page.gap.availableAfter;
+          controller.enqueue(encoder.encode(
+            `id: ${cursor}\nevent: snapshot\ndata: ${JSON.stringify({ runId, gap: page.gap, bounds: page.bounds })}\n\n`,
+          ));
+        }
+        while (!closed) {
+          for (const event of page.events) send(event);
+          if (!page.hasMore) break;
+          page = this.store.eventPage(runId, page.nextCursor, 500);
+        }
+        replaying = false;
+        pendingLiveEvents.sort((left, right) => left.sequence - right.sequence);
+        for (const event of pendingLiveEvents) send(event);
       },
       cancel: () => cleanup?.(),
     });
@@ -306,6 +410,19 @@ export class RunSupervisor {
     const adapter = getWorkbenchAdapter(adapterId);
     if (!adapter) throw new WorkbenchNotFoundError("Workbench adapter not found.");
     return adapter;
+  }
+
+  private identityForRun(run: Run, callerSessionId: string): ControlPlaneIdentity {
+    return createControlPlaneIdentity({
+      callerSessionId,
+      actorId: run.context.actorId,
+      projectId: run.context.projectId,
+      worktreeId: run.context.environment,
+      provider: run.provider,
+      profileId: run.provider === "hermes" ? run.context.actorId : null,
+      nativeSessionId: run.context.sessionId,
+      runId: run.id,
+    });
   }
 }
 

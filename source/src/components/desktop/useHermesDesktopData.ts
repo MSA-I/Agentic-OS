@@ -453,7 +453,7 @@ export function useHermesDesktopData() {
         body: JSON.stringify({
           prompt,
           ...(lockedProfile !== "default" ? { profile: lockedProfile } : {}),
-          cwd: group?.root || undefined,
+          projectId: group?.id || undefined,
           sessionId: session.source === "native" || session.nativeStarted ? (session.nativeId || session.id) : undefined,
           history: before.slice(-24).map((message) => ({ role: message.role, text: message.text })),
         }),

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import path from "node:path";
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 // Workspace's `apps`/canvas buckets so the Workspace tab can preview anything
 // Studio generates too.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/image");
+  if (frozen) return frozen;
   const { prompt, aspectRatio, resolution, count } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return NextResponse.json({ error: "missing prompt" }, { status: 400 });

@@ -2,11 +2,11 @@ import {
   authorizeWorkbenchMutation,
   readWorkbenchJson,
   validateApprovalDecision,
+  validateCommandIdentity,
   validateRunId,
   workbenchError,
-  workbenchJson,
 } from "@/lib/workbench/http";
-import { getRunSupervisor } from "@/lib/workbench/supervisor";
+import { WorkbenchUnsupportedError } from "@/lib/workbench/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,15 +16,18 @@ export async function POST(
   context: { params: Promise<{ id: string; approvalId: string }> },
 ) {
   try {
-    authorizeWorkbenchMutation(request);
+    const callerSessionId = authorizeWorkbenchMutation(request);
     const { id, approvalId } = await context.params;
-    const decision = validateApprovalDecision(await readWorkbenchJson(request));
-    const approval = await getRunSupervisor().decideApproval(
-      validateRunId(id),
-      validateRunId(approvalId),
-      decision,
+    const body = await readWorkbenchJson(request);
+    const decision = validateApprovalDecision(body);
+    const identity = validateCommandIdentity(body, callerSessionId);
+    validateRunId(id);
+    validateRunId(approvalId);
+    void decision;
+    void identity;
+    throw new WorkbenchUnsupportedError(
+      "Interactive approvals remain disabled until the enforceable Tool Gateway is available in Wave 4.",
     );
-    return workbenchJson({ approval, run: getRunSupervisor().get(id) });
   } catch (error) {
     return workbenchError(error);
   }

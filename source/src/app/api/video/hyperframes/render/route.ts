@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
@@ -20,6 +21,8 @@ export const dynamic = "force-dynamic";
 const HYPERFRAMES_BIN = path.join(os.homedir(), "local", "node", "bin", "hyperframes");
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/hyperframes/render");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const slug = String(body.slug ?? "").trim();
   if (!/^[A-Za-z0-9_.-]+$/.test(slug)) {

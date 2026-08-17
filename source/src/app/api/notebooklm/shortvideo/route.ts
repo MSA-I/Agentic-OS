@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listNotebooks, createShort, nlmAuthOk } from "@/lib/nlm";
 
@@ -12,6 +13,8 @@ export async function GET() {
 
 // POST { notebookId, focus? } → kick off a vertical short video
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/shortvideo");
+  if (frozen) return frozen;
   const { notebookId, focus } = await req.json().catch(() => ({}));
   if (typeof notebookId !== "string" || !/^[a-f0-9-]{36}$/i.test(notebookId)) {
     return NextResponse.json({ error: "Pick a notebook first." }, { status: 400 });

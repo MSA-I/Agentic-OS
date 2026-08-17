@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 import { mkdir, stat } from "node:fs/promises";
@@ -60,6 +61,8 @@ function slugify(s: string): string {
 // POST → call download_artifact, write to vault assets dir, return the saved path.
 // GET ?path=... → stream a saved asset file with Range support.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/artifact/download");
+  if (frozen) return frozen;
   try {
     const body = await req.json();
     const notebook_id: string = body.notebook_id;

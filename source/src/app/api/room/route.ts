@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { roomAgents, roomReply, roomContext, executeRoomActions, mentionedIds, getAgent, type RoomTurn } from "@/lib/agentRoom";
 import { config } from "@/lib/config";
 
@@ -14,6 +15,8 @@ export async function GET() {
 // POST { message, history:[{speaker,text}], agents:[ids] }
 // Streams NDJSON: {t:"typing",id} … {t:"msg",id,name,color,text} … {t:"done"}
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/room");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const message = String(body.message || "").trim();
   if (!message) return new Response("empty message", { status: 400 });

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import fs from "node:fs";
 import { hermesHome } from "@/lib/config";
 import path from "node:path";
@@ -34,6 +35,8 @@ function fusionKey(): string | null {
 interface ChatMsg { role: "user" | "assistant"; text: string; }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/fusion/chat");
+  if (frozen) return frozen;
   const { prompt, history = [] } = (await req.json()) as { prompt: string; history?: ChatMsg[] };
   const key = fusionKey();
   const enc = new TextEncoder();

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 
@@ -13,6 +14,8 @@ const ALLOWED_TYPES = new Set([
 
 // POST → studio_create (kick off generation). Must pass `confirm: true` or the MCP refuses.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/studio");
+  if (frozen) return frozen;
   try {
     const body = await req.json();
     const notebook_id: string = body.notebook_id;

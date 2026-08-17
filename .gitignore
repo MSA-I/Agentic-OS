@@ -35,6 +35,12 @@
 **/runtime/
 **/runtime-data/
 **/sessions/
+# The Workbench sessions endpoint is application code, not runtime session data.
+# Re-open only this exact dynamic route directory, keep every other entry ignored,
+# and publish the Route Handler itself.
+!source/src/app/api/workbench/agents/\[id\]/sessions/
+source/src/app/api/workbench/agents/\[id\]/sessions/**
+!source/src/app/api/workbench/agents/\[id\]/sessions/route.ts
 **/session-data/
 **/vault-data/
 

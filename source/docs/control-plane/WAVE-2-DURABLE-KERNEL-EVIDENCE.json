@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-14T19:12:06.0493638+03:00",
+  "wave": 2,
+  "subtask": "durable-workbench-kernel",
+  "overallStatus": "pass",
+  "plan": "C:\\Users\\art1\\.codex\\visualizations\\2026\\08\\13\\019ffc17-3c91-77f1-898c-6c2ba49d666e\\AGENT-OS-CONTROL-PLANE-REPAIR-PLAN.md",
+  "repository": "D:\\משה פרוייקטים\\פיתוח אתרים\\AGENT-OS\\source",
+  "gitHead": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
+  "runtime": {
+    "node": "v24.15.0",
+    "npm": "11.12.1",
+    "next": "16.2.6",
+    "playwright": "1.62.1",
+    "platform": "win32"
+  },
+  "static-contract": {
+    "status": "pass",
+    "mutationInventory": {
+      "refreshCommand": "node scripts/control-plane/inventory-mutations.mjs",
+      "checkCommand": "node scripts/control-plane/inventory-mutations.mjs --check",
+      "status": "pass",
+      "routeHandlers": 153,
+      "frontendMutationCallers": 163,
+      "sourceFileCount": 598,
+      "sourceDigestSha256": "3eb4bac28282709c87e2bb3bf359cee31fe47c9d7dca1995d5b58d3816b7199e",
+      "generatorDigestSha256": "5546b88e34e71837bc5c462e423956382cde4abb9e19739e4c9d629f7d2d35a7",
+      "releaseInputFileCount": 709,
+      "releaseInputDigestSha256": "226faa518036199b9368df6708dc232b078fce14533b94e1ffa2875fbc18e900"
+    },
+    "executionFreeze": {
+      "command": "node scripts/control-plane/verify-wave1-execution-freeze.mjs",
+      "status": "pass",
+      "inventoryFreshnessStatus": "pass",
+      "frozenRoutes": 106,
+      "directExecutionCallers": 115,
+      "uiDirectExecutionStatus": "blocked",
+      "missingFrozenRoutes": 0,
+      "unguardedFrozenRoutes": 0,
+      "unclassifiedExecutionCandidates": 0,
+      "falsePositiveClassifications": 0
+    },
+    "routeDistribution": {
+      "command": "npm.cmd run verify:workbench-route",
+      "status": "pass"
+    },
+    "typecheck": {
+      "command": "npx.cmd tsc --noEmit",
+      "status": "pass"
+    },
+    "powerShellParser": {
+      "target": "src/lib/control-plane/windowsJobLauncher.ps1",
+      "status": "pass"
+    },
+    "build": {
+      "command": "npm.cmd run build",
+      "status": "pass",
+      "durationSeconds": 67,
+      "warning": "Existing Turbopack NFT whole-project trace warning from next.config.ts to musecoder/chat remains non-blocking."
+    },
+    "whitespace": {
+      "trackedDiffCheck": "pass",
+      "untrackedFilesChecked": 105,
+      "untrackedWhitespaceCheck": "pass"
+    }
+  },
+  "fake-runtime": {
+    "status": "pass",
+    "nodeTests": {
+      "command": "node --experimental-strip-types --test",
+      "passed": 467,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 433.484
+    },
+    "artifactStore": {
+      "passed": 74,
+      "failed": 0,
+      "coverage": [
+        "atomic multi-process quotas and durable write intents",
+        "content-addressed deduplication and metadata quotas",
+        "ENOSPC and crash-boundary recovery",
+        "handle-pinned Windows containment",
+        "10 rounds by 4 concurrent first-open processes",
+        "checksummed migrations, integrity, backup, restore, retention and garbage collection"
+      ]
+    },
+    "durableKernel": {
+      "coverage": [
+        "atomic queue admission",
+        "keyset claim pagination beyond 200 candidates",
+        "lease, fencing and generation CAS",
+        "event count, byte and store quotas",
+        "snapshot, gap, replay and compaction",
+        "recovery-first supervisor startup",
+        "restart-persistent provider circuit breaker",
+        "external status high-water predecessor chain and terminal outcome binding",
+        "forward-only checksummed migrations and backup restore"
+      ]
+    },
+    "httpSecurity": {
+      "command": "playwright test workbench-security provider-execution-safety workbench-secret-path-policy wave1-execution-freeze",
+      "status": "pass",
+      "passed": 25,
+      "failed": 0,
+      "bootstrapSecret": "fresh private random value generated in memory and removed after the run"
+    }
+  },
+  "live-runtime": {
+    "status": "pass",
+    "windowsJobObject": {
+      "processTestsPassed": 29,
+      "driverTestsPassed": 31,
+      "crashBoundaries": [
+        "after_dequeue",
+        "after_spawn",
+        "after_register",
+        "before_complete",
+        "after_complete"
+      ],
+      "spawnCountPerBoundary": 1,
+      "orphanCountPerBoundary": 0,
+      "proof": [
+        "CREATE_SUSPENDED and atomic Job assignment before resume",
+        "root and helper PID creation-time identity",
+        "ACTIVE_PROCESS_ZERO before verified cancellation or completion",
+        "encrypted recovery specification and streams",
+        "signed append-only status journal with durable rollback and fork rejection",
+        "provider recovery key omitted from provider environment",
+        "immutable launch authorization receipt bound to the authenticated descriptor before spawn",
+        "exclusive helper/controller claim arbitration with verified controller no-process terminal",
+        "output, CPU, memory and process-tree containment"
+      ]
+    },
+    "realProviderInvocation": false,
+    "realProviderStatus": "blocked-by-design-until-wave-3"
+  },
+  "independentReview": {
+    "status": "pass",
+    "openP0": 0,
+    "openP1": 0,
+    "p2": [
+      "Defense in depth: carry authorization ID, launch generation, journal generation and descriptor HMAC through SpawnObservationInput and re-check the full receipt at observation time; current exact descriptor receipt check plus repository identity and attempt binding prevents bypass.",
+      "Freeze verifier has no dedicated regression that mutates only the copied inventory generator; implementation and baseline generator-digest checks are present.",
+      "Node emits MODULE_TYPELESS_PACKAGE_JSON performance warnings for TypeScript modules during tests.",
+      "Next build retains the existing MuseCoder NFT broad-trace warning."
+    ]
+  },
+  "exitGate": {
+    "status": "pass",
+    "basis": "Atomic durable state, immutable launch authorization, repository-level process-observation enforcement, recovery-first execution, event replay and quotas, versioned adapters, Windows Job Object containment, helper/controller claim arbitration, disk-pressure behavior, crash recovery, cancellation verification and external status fencing passed fresh static, fake-runtime and live-process gates. Independent review found no open P0 or P1.",
+    "executionExposure": "disabled",
+    "waivers": []
+  },
+  "blocked": [
+    "Production Workbench still uses the legacy RunSupervisor; the durable worker cutover is Wave 3.",
+    "109 direct execution routes and 128 UI callers remain frozen by design.",
+    "Real Codex and Claude start, resume and cancel through the canonical Workbench are not claimed until Wave 3.",
+    "Tool invocation and enforceable approvals are not claimed until Wave 4.",
+    "Hermes, OpenClaw and Antigravity parity are not claimed until Wave 5."
+  ],
+  "worktree": {
+    "staged": false,
+    "committed": false,
+    "preservedUntrackedPath": "../e2e-final/"
+  }
+}

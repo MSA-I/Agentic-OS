@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { writeFile, mkdir, readdir, stat, copyFile } from "node:fs/promises";
@@ -299,6 +300,8 @@ function validate(html: string): string[] {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/hyperframes/init");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const prompt = String(body.prompt ?? "").trim();
   const customSlug = typeof body.slug === "string" ? body.slug : undefined;

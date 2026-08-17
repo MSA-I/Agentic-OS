@@ -135,7 +135,8 @@ export async function GET() {
       "Codex CLI, Kimi Code CLI, or a running Ollama GLM bridge",
     ),
     "/jcode": cliStatus(jcodeInstalled(), "jcode"),
-    "/grok": cliStatus(Boolean(config.grok), "Grok Build CLI"),
+        "/graphify": cliStatus(fs.existsSync("D:\\משה פרוייקטים\\פיתוח אתרים\\AI\\graphify\\.venv\\Scripts\\graphify.exe"), "Graphify CLI"),
+        "/grok": cliStatus(Boolean(config.grok), "Grok Build CLI"),
     "/freeclaude": cliStatus(
       Boolean(config.claude) && freeClaudeState.enabled && freeClaudeState.reachable,
       "Claude CLI and an active free router",

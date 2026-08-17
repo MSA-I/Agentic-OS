@@ -8,6 +8,11 @@ import {
   type NativeSessionRow,
 } from "@/lib/nativeAgentHistory";
 import { listNativeArtifacts } from "./nativeArtifacts";
+import {
+  assertAdapterConformance,
+  WORKBENCH_ADAPTER_API_VERSION,
+  WORKBENCH_CAPABILITY_SCHEMA_VERSION,
+} from "./adapterContract";
 import type {
   AdapterResult,
   AdapterRuntime,
@@ -24,23 +29,25 @@ import type {
   WorkContext,
 } from "./types";
 
-const EXECUTION_BRIDGE_REASON = "The native route still owns this runtime lifecycle; it has not been extracted into a shared supervisor service.";
+const EXECUTION_BRIDGE_REASON = "This provider has not passed the Workbench execution cutover gate yet.";
+const QUEUE_BRIDGE_REASON = "Durable follow-up delivery is not exposed until a provider message bridge is verified.";
 const APPROVAL_BRIDGE_REASON = "This runtime does not expose an interactive approval bridge to Workbench.";
 
-function capabilities(): AgentCapabilities {
+function capabilities(provider: WorkbenchProvider): AgentCapabilities {
+  const restrictedPilot = provider === "codex" || provider === "claude";
   return {
     list: { status: "supported", detail: "Reads the provider's native session index in place." },
     load: { status: "supported", detail: "Reads the native transcript in place without copying it to Workbench SQLite." },
-    start: { status: "unsupported", reason: EXECUTION_BRIDGE_REASON },
-    resume: { status: "unsupported", reason: EXECUTION_BRIDGE_REASON },
-    queue: {
-      status: "supported",
-      detail: "Messages are held durably until a native runtime bridge claims them.",
-    },
-    cancel: {
-      status: "supported",
-      detail: "Queued work and any registered local process can be cancelled.",
-    },
+    start: restrictedPilot
+      ? { status: "supported", detail: "Starts through the restricted durable Workbench pilot." }
+      : { status: "unsupported", reason: EXECUTION_BRIDGE_REASON },
+    resume: restrictedPilot
+      ? { status: "supported", detail: "Resumes a server-bound native session through the restricted durable Workbench pilot." }
+      : { status: "unsupported", reason: EXECUTION_BRIDGE_REASON },
+    queue: { status: "unsupported", reason: QUEUE_BRIDGE_REASON },
+    cancel: restrictedPilot
+      ? { status: "supported", detail: "Stops the owned Windows Job and reports success only after ACTIVE_PROCESS_ZERO." }
+      : { status: "unsupported", reason: EXECUTION_BRIDGE_REASON },
     approval: { status: "unsupported", reason: APPROVAL_BRIDGE_REASON },
     artifacts: { status: "supported", detail: "Reads native workspace artifacts through the provider's existing filesystem service." },
   };
@@ -102,7 +109,7 @@ class NativeReadThroughAdapter implements WorkbenchAdapter {
       provider,
       label,
       runtime,
-      capabilities: capabilities(),
+      capabilities: capabilities(provider),
     };
   }
 
@@ -199,7 +206,18 @@ const adapters = new Map<string, WorkbenchAdapter>([
   ["antigravity", new NativeReadThroughAdapter("antigravity", "Antigravity", "antigravity")],
 ]);
 
+function assertBuiltInAdapter(adapter: WorkbenchAdapter): void {
+  assertAdapterConformance(adapter, {
+    apiVersion: WORKBENCH_ADAPTER_API_VERSION,
+    capabilitySchemaVersion: WORKBENCH_CAPABILITY_SCHEMA_VERSION,
+    provider: adapter.descriptor.provider,
+  });
+}
+
+for (const adapter of adapters.values()) assertBuiltInAdapter(adapter);
+
 export function registerWorkbenchAdapter(adapter: WorkbenchAdapter): void {
+  assertBuiltInAdapter(adapter);
   adapters.set(adapter.descriptor.id, adapter);
 }
 

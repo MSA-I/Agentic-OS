@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -168,6 +169,8 @@ ${capTweens}
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/auto/assemble");
+  if (frozen) return frozen;
   const origin = new URL(req.url).origin;
   const body = await req.json().catch(() => ({}));
   const title = String(body.title ?? "").trim() || "Untitled video";

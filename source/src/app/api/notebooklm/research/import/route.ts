@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 // Import the sources a research task discovered into the notebook, so you can then
 // query them in Chat or generate visual studio outputs from them.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/research/import");
+  if (frozen) return frozen;
   try {
     const { notebook_id, task_id, indices } = await req.json();
     if (!notebook_id) return NextResponse.json({ error: "notebook_id required" }, { status: 400 });

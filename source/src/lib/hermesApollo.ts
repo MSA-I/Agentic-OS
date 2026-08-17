@@ -11,7 +11,8 @@
 // to the browser.
 
 import { readFileSync, existsSync } from "node:fs";
-import { hermesHome } from "@/lib/config";
+import { config, hermesHome } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
@@ -291,7 +292,14 @@ async function agent(prompt: string, history: ApolloMsg[]): Promise<ApolloResult
   const started = Date.now();
   const ctx = history.slice(-4).map((m) => `${m.role === "user" ? "Me" : "You"}: ${m.content}`).join("\n");
   const full = `${AGENT_PERSONA}\n\n${ctx ? ctx + "\n\n" : ""}Command: ${prompt}`;
-  const out = await run("hermes", ["-z", full, "--yolo", "--accept-hooks"], { timeoutMs: 6 * 60 * 1000 });
+  const args = ["-z", full];
+  try {
+    await assertProviderLaunch("hermes", config.hermes, args);
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return { ok: false, text: "", ms: Date.now() - started, mode: "agent", error: code };
+  }
+  const out = await run("hermes", args, { timeoutMs: 6 * 60 * 1000 });
   const text = out.stdout.replace(/\x1b\[[0-9;?]*[a-zA-Z]|\x1b\]\d+;[^\x07\x1b]*(\x07|\x1b\\)/g, "").trim();
   return { ok: out.ok && !!text, text: text || "(no reply — check `hermes status`)", ms: Date.now() - started, mode: "agent", error: text ? undefined : out.stderr.slice(-300) };
 }

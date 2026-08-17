@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "agent-os-wave-1-provider-execution-safety/v2",
+  "collectedAt": "2026-08-13T22:58:12.9188159+03:00",
+  "gitHead": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
+  "worktree": "dirty-preserved-no-stage-no-commit",
+  "scopeStatus": "static-and-fake-runtime-passed",
+  "wave1ExitGate": "not-claimed",
+  "evidenceLevels": [
+    "static-contract",
+    "fake-runtime",
+    "blocked"
+  ],
+  "liveProviderInvocation": false,
+  "claims": {
+    "hermesBypassFlagsRemoved": true,
+    "hermesBypassEnvironmentRemoved": true,
+    "allFiveChatRoutesRejectClientCwd": true,
+    "providerClientsSendProjectId": true,
+    "serverResolvesApprovedProjectDirectory": true,
+    "minimalProviderChildEnvironment": true,
+    "workbenchAndSessionSecretsOmittedFromChildEnvironment": true,
+    "absoluteExecutableIdentity": true,
+    "windowsShimRuntimeAndPayloadPinned": true,
+    "executableRevalidatedImmediatelyBeforeSpawn": true,
+    "canonicalCwdAndFilesystemIdentityBound": true,
+    "uncDeviceAndReparseLaunchesDenied": true,
+    "antigravityPermissionBypassDenied": true,
+    "windowsProviderStartsFailClosedWithoutJobObject": true
+  },
+  "identityContract": {
+    "schemaVersion": 2,
+    "fields": [
+      "provider",
+      "configuredPath",
+      "absolutePath",
+      "launchPath",
+      "launchArgsPrefix",
+      "version",
+      "sha256",
+      "sizeBytes",
+      "modifiedAt",
+      "observedAt",
+      "components"
+    ],
+    "windowsCommandShimBinding": [
+      "command shim",
+      "Node runtime",
+      "JavaScript payload"
+    ],
+    "changeBehavior": "deny-current-launch-and-invalidate-provider-until-process-restart-or-explicit-test-reset"
+  },
+  "containmentContract": {
+    "clientCwdAccepted": false,
+    "launchInput": "server-resolved projectId",
+    "pathChecks": [
+      "canonical absolute path",
+      "approved project root",
+      "UNC and device path denial",
+      "reparse point denial",
+      "device and inode binding",
+      "pre-spawn binding revalidation"
+    ],
+    "childEnvironment": "provider-specific allowlist; no blanket process.env inheritance in shared runner",
+    "windowsProcessContainment": "blocked until a verified Job Object launcher exists"
+  },
+  "verification": [
+    {
+      "command": "npx.cmd tsc --noEmit --pretty false",
+      "evidenceLevel": "static-contract",
+      "status": "passed"
+    },
+    {
+      "command": "node --experimental-strip-types --test src/lib/control-plane/*.test.mjs",
+      "evidenceLevel": "fake-runtime",
+      "status": "passed",
+      "testsPassed": 35,
+      "testsFailed": 0
+    },
+    {
+      "command": "npx.cmd playwright test tests/e2e/provider-execution-safety.spec.ts --project=chromium",
+      "evidenceLevel": "fake-runtime",
+      "status": "passed",
+      "testsPassed": 11,
+      "testsFailed": 0,
+      "realProviderSpawned": false
+    },
+    {
+      "command": "npm.cmd run build",
+      "evidenceLevel": "static-contract",
+      "status": "passed",
+      "durationSeconds": 55.6,
+      "warning": "Existing Turbopack NFT whole-project trace warning from next.config.ts to musecoder/chat remains."
+    },
+    {
+      "command": "git diff --check",
+      "evidenceLevel": "static-contract",
+      "status": "passed"
+    },
+    {
+      "command": "protected provider start on Windows",
+      "evidenceLevel": "blocked",
+      "status": "blocked",
+      "code": "windows_job_object_launcher_unavailable"
+    }
+  ],
+  "fileHashes": {
+    "src/lib/control-plane/childEnvironment.ts": "b553cbd10b12ac61c59bc7821844b372d8547634fc5d5c193fdc25b8b6b5056d",
+    "src/lib/control-plane/executableIdentity.ts": "3eff1bd7c8f0cf00ee302ad9962b3efac424ce7de4ba1651bd9c85f0cba4c451",
+    "src/lib/control-plane/runtimeContainment.ts": "b33615c29203d0a508f18677fcb72211990a7a979c4d84f730065260042c044b",
+    "src/lib/control-plane/projectRegistry.ts": "208d6cbde34aa6cf2cc4fb0c6e1dae42f0be42d3f8ca7eebc9c0dc00f7641c41",
+    "src/lib/runner.ts": "5bdbfb9eebe47c3d6243d8578a7cb483c50e576da3012dceb078adcd36ca3039",
+    "tests/e2e/provider-execution-safety.spec.ts": "e2e7ee5c13660ab97c74ea6d1f1d095538800b7a0084bec189719c5f06ae18da"
+  },
+  "blocked": [
+    {
+      "code": "windows_job_object_launcher_unavailable",
+      "impact": "Codex, Claude, Hermes, OpenClaw, and Antigravity starts remain disabled on Windows."
+    },
+    {
+      "code": "legacy_frozen_provider_handlers_not_migrated",
+      "impact": "Several frozen Hermes provider handlers still construct launch environments from process.env. They cannot be unfrozen before migration to the shared contained runner."
+    }
+  ],
+  "limitations": [
+    "The full Wave 1 exit gate is not claimed; integrated policy, approval, HTTP, and secret-channel evidence is owned by separate work items.",
+    "No live provider job was started because Windows process-tree containment is unavailable.",
+    "Static and fake-runtime tests prove fail-closed contracts, not successful live provider execution.",
+    "The pre-existing e2e-final directory was preserved and no files were staged or committed."
+  ]
+}

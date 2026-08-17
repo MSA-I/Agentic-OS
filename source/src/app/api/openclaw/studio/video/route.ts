@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import path from "node:path";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 // Body: { prompt: string, aspectRatio?: string, duration?: number, resolution?: "480P"|"720P"|"768P"|"1080P", audio?: boolean }
 // Wraps `openclaw infer video generate --model xai/grok-imagine-video`.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/video");
+  if (frozen) return frozen;
   const { prompt, aspectRatio, duration, resolution, audio } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return NextResponse.json({ error: "missing prompt" }, { status: 400 });

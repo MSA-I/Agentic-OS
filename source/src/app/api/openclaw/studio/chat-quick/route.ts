@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 
@@ -26,6 +27,8 @@ function formatHistory(history: { role: "you" | "grok"; text: string }[] = []): 
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/chat-quick");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const message = String(body.message ?? "").trim();
   const history = Array.isArray(body.history) ? body.history : [];

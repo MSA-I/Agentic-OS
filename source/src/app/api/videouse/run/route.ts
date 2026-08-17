@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 // POST { job, instruction } → spawn a detached Claude Code run with the
 // video-use skill in the job folder. Returns immediately; poll /status.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/videouse/run");
+  if (frozen) return frozen;
   const { job, instruction } = await req.json();
   if (typeof job !== "string" || typeof instruction !== "string" || !instruction.trim()) {
     return NextResponse.json({ error: "need job + instruction" }, { status: 400 });

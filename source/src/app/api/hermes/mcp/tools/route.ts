@@ -8,6 +8,7 @@
 // the include filter entirely (matches docs: "If you select everything, no
 // filter is written").
 
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { getToolsInclude, setToolsInclude } from "@/lib/hermesMcp";
 
@@ -26,6 +27,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/mcp/tools");
+  if (frozen) return frozen;
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 }); }

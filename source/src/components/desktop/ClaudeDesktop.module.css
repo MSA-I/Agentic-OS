@@ -470,6 +470,24 @@
   font-size: 14px;
 }
 
+.missionLink {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--claude-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.missionLink:hover,
+.missionLink:focus-visible {
+  color: var(--claude-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .contextTitle > span,
 .contextTitle > strong {
   overflow: hidden;

@@ -15,6 +15,7 @@ import path from "node:path";
 import os from "node:os";
 import { isSafeProjectName } from "./projectName";
 import { AGENT_OS_FOLDERS_ROOT } from "./workspaceRoot";
+import { isSensitivePath, resolveContainedExistingPathSync } from "./control-plane/pathSecurity";
 
 const HOME = os.homedir();
 export const CLAUDE_SCRATCH_ROOT = process.env.AGENTIC_OS_CLAUDE_SCRATCH
@@ -110,7 +111,7 @@ export async function listProjectFiles(project: string, maxFiles = 200): Promise
       const full = path.join(dir, it.name);
       if (it.isDirectory()) {
         await walk(full, depth + 1);
-      } else if (it.isFile()) {
+      } else if (it.isFile() && !isSensitivePath(path.relative(projectRoot, full))) {
         const st = await safeStat(full);
         if (!st) continue;
         const kind = fileKind(it.name);
@@ -133,8 +134,9 @@ export async function listProjectFiles(project: string, maxFiles = 200): Promise
 export async function readProjectFile(project: string, relPath: string): Promise<{ path: string; content: string; bytes: number; mtime: number; truncated: boolean } | null> {
   if (!isSafeProjectName(project)) return null;
   const base = path.join(CLAUDE_SCRATCH_ROOT, project);
-  const abs = path.resolve(base, relPath);
-  if (abs !== base && !abs.startsWith(base + path.sep)) return null;
+  const resolved = resolveContainedExistingPathSync(base, relPath);
+  if (!resolved.ok) return null;
+  const abs = resolved.absolutePath;
 
   const st = await safeStat(abs);
   if (!st || !st.isFile()) return null;

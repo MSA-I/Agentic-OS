@@ -3,6 +3,7 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowLeft,
   Archive,
   Bot,
   CheckCircle2,
@@ -34,6 +35,8 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { workbenchRunLabel } from "@/lib/workbench/uiClient";
+import { readVolatileText, writeVolatileText } from "@/lib/workbench/volatileClientState";
 import styles from "./ClaudeDesktop.module.css";
 import {
   type ClaudeProjectGroup,
@@ -70,6 +73,12 @@ function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function projectDisplayName(label?: string | null, root?: string | null): string {
+  const value = label?.trim() || root?.trim() || "claude-default";
+  const segments = value.split(/[\\/]/u).filter(Boolean);
+  return segments.at(-1) || value;
 }
 
 function isRtl(value: string): boolean {
@@ -122,6 +131,16 @@ export default function ClaudeDesktop() {
   const paneRef = useRef<HTMLElement>(null);
   const paneTriggerRef = useRef<HTMLButtonElement | null>(null);
   const hydratingUrlRef = useRef(false);
+  const draftKey = `draft:claude:${data.activeGroup?.id ?? data.workspaceProject?.name ?? "claude-default"}:${data.activeSession?.id ?? "new"}`;
+
+  useEffect(() => {
+    setInput(readVolatileText(draftKey));
+  }, [draftKey]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => writeVolatileText(draftKey, input), 180);
+    return () => window.clearTimeout(timeout);
+  }, [draftKey, input]);
 
   useFocusContainment(drawerOpen, drawerRef, () => setDrawerOpen(false), drawerTriggerRef);
   useFocusContainment(Boolean(pane), paneRef, () => setPane(null), paneTriggerRef, true);
@@ -226,7 +245,10 @@ export default function ClaudeDesktop() {
     const prompt = input.trim();
     if (!prompt || data.sending || !data.activeSession) return;
     setInput("");
-    void data.sendMessage(prompt);
+    void data.sendMessage(prompt).then((succeeded) => {
+      if (!succeeded) setInput((current) => current || prompt);
+      else writeVolatileText(draftKey, "");
+    });
   }
 
   function composerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -341,13 +363,18 @@ export default function ClaudeDesktop() {
       <main className={styles.main}>
         <div className={styles.titlebar}>
           <div className={styles.contextTitle}>
-            <span>{data.activeGroup?.label ?? data.workspaceProject?.name ?? "Claude Code"}</span>
+            <a className={styles.missionLink} href="/" aria-label="Return to Mission Control"><ArrowLeft size={14} />Mission Control</a>
+            <span>Claude</span>
+            <ChevronRight size={14} />
+            <span title={data.activeGroup?.root || data.workspaceProject?.root || undefined}>{projectDisplayName(data.activeGroup?.label ?? data.workspaceProject?.name, data.activeGroup?.root ?? data.workspaceProject?.root)}</span>
             <ChevronRight size={14} />
             <strong>{data.activeSession?.name ?? (view === "code" ? "New conversation" : PANE_LABELS[(view === "files" ? "files" : view === "tasks" ? "tasks" : "artifacts")])}</strong>
           </div>
           <div className={styles.contextBadges}>
+            <span title="Server-owned local project target"><Code2 size={14} />Local worktree</span>
             <span title="Model is controlled by the Claude CLI"><Bot size={14} />{data.model || "Claude CLI model"}</span>
-            <span title="Permissions are enforced by the native Claude runtime"><ShieldCheck size={14} />Runtime permissions</span>
+            <span title="Wave 3 disables Claude tools until the Tool Gateway enforces approvals."><ShieldCheck size={14} />Tools disabled</span>
+            <span>{workbenchRunLabel(data.activeRun, data.stopState)}</span>
           </div>
         </div>
 
@@ -397,11 +424,11 @@ export default function ClaudeDesktop() {
                   aria-label="Message Claude"
                 />
                 <div className={styles.composerFoot}>
-                  <span><Code2 size={14} />{data.activeGroup?.root || data.workspaceProject?.root || "Claude-managed working directory"}</span>
-                  {data.sending ? <button type="button" className={styles.stopButton} onClick={data.stopRun}><Square size={15} fill="currentColor" />Stop</button> : <button type="submit" className={styles.sendButton} disabled={!input.trim() || !data.activeSession}><Send size={16} />Send</button>}
+                  <span title={data.activeGroup?.root || data.workspaceProject?.root || "Server-owned working directory"}><Code2 size={14} />Claude · {projectDisplayName(data.activeGroup?.label ?? data.workspaceProject?.name, data.activeGroup?.root ?? data.workspaceProject?.root)}</span>
+                  {data.sending ? <button type="button" className={styles.stopButton} onClick={() => void data.stopRun()} disabled={data.stopState === "stopping"}><Square size={15} fill="currentColor" />{data.stopState === "stopping" ? "Stopping…" : "Stop"}</button> : <button type="submit" className={styles.sendButton} disabled={!input.trim() || !data.activeSession}><Send size={16} />Send</button>}
                 </div>
               </div>
-              <p>Claude can inspect and change files according to native runtime permissions.</p>
+              <p>Wave 3 keeps Claude tools disabled; this pilot currently supports conversation lifecycle only.</p>
             </form>
           </>
         ) : (

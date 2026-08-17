@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawnStream } from "@/lib/runner";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -23,6 +24,8 @@ function articleFromPath(filePath: string, slug: string): ArticleWritten | null 
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/seo/generate");
+  if (frozen) return frozen;
   const { keyword, transcriptSlug, transcriptText, slug } = await req.json();
   if (typeof keyword !== "string" || !keyword.trim()) {
     return new Response("missing keyword", { status: 400 });

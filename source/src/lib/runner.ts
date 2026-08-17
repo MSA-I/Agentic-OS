@@ -4,6 +4,20 @@ import os from "node:os";
 import path from "node:path";
 import { config } from "./config";
 import { ensureWorkspaceRootSync } from "./workspaceRoot";
+import {
+  assertExecutableIdentityBindingSync,
+  assertProviderLaunch,
+  ExecutableIdentityError,
+  type ExecutableIdentity,
+  type GuardedProvider,
+} from "./control-plane/executableIdentity";
+import { buildProviderChildEnvironment } from "./control-plane/childEnvironment";
+import {
+  assertLaunchDirectoryBindingSync,
+  assertRuntimeContainmentAvailable,
+  RuntimeContainmentError,
+  type ApprovedLaunchDirectory,
+} from "./control-plane/runtimeContainment";
 
 // "fcc" is the Free Claude Code agent — it runs the same `claude` CLI but with
 // the local fcc-server proxy env vars injected, routing requests to OpenRouter
@@ -42,7 +56,7 @@ function openClawCredentialEnv(base: NodeJS.ProcessEnv): Record<string, string> 
   return {};
 }
 
-function agentEnv(agent: AgentName, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+function legacyAgentEnv(agent: AgentName, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const base = process.env;
   const home = base.HOME || os.homedir();
   const ensurePath = [
@@ -129,6 +143,22 @@ export interface RunResult {
   durationMs: number;
 }
 
+function guardedProvider(agent: AgentName): GuardedProvider | null {
+  if (agent === "fcc") return "claude";
+  return ["codex", "claude", "hermes", "openclaw", "antigravity"].includes(agent)
+    ? agent as GuardedProvider
+    : null;
+}
+
+export function providerChildEnvironment(
+  provider: GuardedProvider,
+  extra: Record<string, string> = {},
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const explicit = provider === "openclaw" ? { ...openClawCredentialEnv(base), ...extra } : extra;
+  return buildProviderChildEnvironment(provider, base, explicit);
+}
+
 /** Stop the complete process tree. On Windows, killing the CLI shim alone can
  * leave its node/python/tool children running after the UI says Stop. */
 export async function terminateChildProcessTree(child: ChildProcess): Promise<void> {
@@ -146,7 +176,7 @@ export async function terminateChildProcessTree(child: ChildProcess): Promise<vo
 export async function run(
   agent: AgentName,
   args: readonly string[],
-  opts: { timeoutMs?: number; cwd?: string; input?: string; extraEnv?: Record<string, string>; signal?: AbortSignal } = {}
+  opts: { timeoutMs?: number; cwd?: string | ApprovedLaunchDirectory; input?: string; extraEnv?: Record<string, string>; signal?: AbortSignal } = {}
 ): Promise<RunResult> {
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
   const started = Date.now();
@@ -157,11 +187,48 @@ export async function run(
     return { ok: false, code: -1, stdout: "", stderr: String(e), durationMs: 0 };
   }
 
+  const provider = guardedProvider(agent);
+  let launchEnv: NodeJS.ProcessEnv;
+  let identity: ExecutableIdentity | null = null;
+  try {
+    launchEnv = provider
+      ? providerChildEnvironment(provider, opts.extraEnv ?? {})
+      : legacyAgentEnv(agent, opts.extraEnv ?? {});
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "forbidden_provider_environment";
+    return { ok: false, code: -1, stdout: "", stderr: `Provider launch denied: ${code}`, durationMs: Date.now() - started };
+  }
+  if (provider) {
+    try {
+      identity = await assertProviderLaunch(provider, bin, cleanArgs, launchEnv);
+      assertExecutableIdentityBindingSync(identity);
+      if (!opts.cwd || typeof opts.cwd === "string" || opts.cwd.provider !== provider) {
+        throw new RuntimeContainmentError("launch_cwd_invalid", "Provider launch requires a server-approved project directory identity.");
+      }
+      assertLaunchDirectoryBindingSync(opts.cwd);
+      assertRuntimeContainmentAvailable(provider);
+    } catch (error) {
+      const code = error instanceof ExecutableIdentityError || error instanceof RuntimeContainmentError
+        ? error.code
+        : "executable_identity_unavailable";
+      return {
+        ok: false,
+        code: -1,
+        stdout: "",
+        stderr: `Provider launch denied: ${code}`,
+        durationMs: Date.now() - started,
+      };
+    }
+  }
+
   return new Promise<RunResult>((resolve) => {
-    const resolved = resolveWinScript(bin, cleanArgs);
+    const resolved = identity
+      ? { bin: identity.launchPath, args: [...identity.launchArgsPrefix, ...cleanArgs] }
+      : resolveWinScript(bin, cleanArgs);
     const child = spawn(resolved.bin, resolved.args, {
-      cwd: opts.cwd ?? ensureWorkspaceRootSync(),
-      env: agentEnv(agent, opts.extraEnv ?? {}),
+      cwd: typeof opts.cwd === "string" ? opts.cwd : opts.cwd?.absolutePath ?? ensureWorkspaceRootSync(),
+      env: launchEnv,
+      windowsHide: true,
     });
     let stdout = "";
     let stderr = "";
@@ -195,14 +262,30 @@ export async function run(
 export function spawnStream(
   agent: AgentName,
   args: readonly string[],
-  opts: { cwd?: string; input?: string; extraEnv?: Record<string, string> } = {}
+  opts: { cwd?: string | ApprovedLaunchDirectory; input?: string; extraEnv?: Record<string, string>; verifiedExecutable?: ExecutableIdentity } = {}
 ): ChildProcessWithoutNullStreams {
-  const bin = binFor(agent);
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
-  const resolved = resolveWinScript(bin, cleanArgs);
+  const provider = guardedProvider(agent);
+  let resolved: { bin: string; args: string[] };
+  let launchEnv: NodeJS.ProcessEnv;
+  if (provider) {
+    const identity = opts.verifiedExecutable;
+    if (!identity || identity.provider !== provider || !opts.cwd || typeof opts.cwd === "string" || opts.cwd.provider !== provider) {
+      throw new RuntimeContainmentError("runtime_containment_unavailable", "Protected provider stream launch lacks verified executable or project identity.");
+    }
+    assertExecutableIdentityBindingSync(identity);
+    assertLaunchDirectoryBindingSync(opts.cwd);
+    assertRuntimeContainmentAvailable(provider);
+    resolved = { bin: identity.launchPath, args: [...identity.launchArgsPrefix, ...cleanArgs] };
+    launchEnv = providerChildEnvironment(provider, opts.extraEnv ?? {});
+  } else {
+    resolved = resolveWinScript(binFor(agent), cleanArgs);
+    launchEnv = legacyAgentEnv(agent, opts.extraEnv ?? {});
+  }
   const child = spawn(resolved.bin, resolved.args, {
-    cwd: opts.cwd ?? ensureWorkspaceRootSync(),
-    env: agentEnv(agent, opts.extraEnv ?? {}),
+    cwd: typeof opts.cwd === "string" ? opts.cwd : opts.cwd?.absolutePath ?? ensureWorkspaceRootSync(),
+    env: launchEnv,
+    windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
   }) as ChildProcessWithoutNullStreams;
   if (typeof opts.input === "string" && opts.input.length > 0) {
@@ -216,14 +299,30 @@ export function spawnStream(
 export function spawnDetached(
   agent: AgentName,
   args: readonly string[],
-  opts: { cwd?: string; extraEnv?: Record<string, string> } = {},
+  opts: { cwd?: string | ApprovedLaunchDirectory; extraEnv?: Record<string, string>; verifiedExecutable?: ExecutableIdentity } = {},
 ): ChildProcessWithoutNullStreams {
-  const bin = binFor(agent);
   const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
-  const resolved = resolveWinScript(bin, cleanArgs);
+  const provider = guardedProvider(agent);
+  let resolved: { bin: string; args: string[] };
+  let launchEnv: NodeJS.ProcessEnv;
+  if (provider) {
+    const identity = opts.verifiedExecutable;
+    if (!identity || identity.provider !== provider || !opts.cwd || typeof opts.cwd === "string" || opts.cwd.provider !== provider) {
+      throw new RuntimeContainmentError("runtime_containment_unavailable", "Protected provider detached launch lacks verified executable or project identity.");
+    }
+    assertExecutableIdentityBindingSync(identity);
+    assertLaunchDirectoryBindingSync(opts.cwd);
+    assertRuntimeContainmentAvailable(provider);
+    resolved = { bin: identity.launchPath, args: [...identity.launchArgsPrefix, ...cleanArgs] };
+    launchEnv = providerChildEnvironment(provider, opts.extraEnv ?? {});
+  } else {
+    resolved = resolveWinScript(binFor(agent), cleanArgs);
+    launchEnv = legacyAgentEnv(agent, opts.extraEnv ?? {});
+  }
   const child = spawn(resolved.bin, resolved.args, {
-    cwd: opts.cwd ?? ensureWorkspaceRootSync(),
-    env: agentEnv(agent, opts.extraEnv ?? {}),
+    cwd: typeof opts.cwd === "string" ? opts.cwd : opts.cwd?.absolutePath ?? ensureWorkspaceRootSync(),
+    env: launchEnv,
+    windowsHide: true,
     detached: true,
     stdio: ["pipe", "pipe", "pipe"],
   }) as ChildProcessWithoutNullStreams;

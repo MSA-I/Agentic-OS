@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { spawn } from "node:child_process";
@@ -53,6 +54,8 @@ async function transcribeWith(model: string, audioPath: string, timeoutMs: numbe
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/stt");
+  if (frozen) return frozen;
   let form: FormData;
   try { form = await req.formData(); }
   catch { return NextResponse.json({ error: "expected multipart/form-data" }, { status: 400 }); }

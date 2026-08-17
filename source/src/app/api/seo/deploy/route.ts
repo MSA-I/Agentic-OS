@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, stat, mkdir, writeFile } from "node:fs/promises";
@@ -59,6 +60,8 @@ function findNetlifyUrl(text: string): string | undefined {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/seo/deploy");
+  if (frozen) return frozen;
   const { siteId } = await req.json();
   const site = SITES.find((s) => s.id === siteId);
   if (!site) return new Response("unknown site", { status: 400 });

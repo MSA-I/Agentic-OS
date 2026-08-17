@@ -1,6 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  cancelWorkbenchRun,
+  createWorkbenchIdempotencyKey,
+  describeWorkbenchError,
+  executeWorkbenchRun,
+  isVerifiedCancellation,
+  type WorkbenchStopState,
+} from "@/lib/workbench/uiClient";
+import type { Run } from "@/lib/workbench/types";
+import { purgeLegacySensitiveBrowserState, readVolatileValue, writeVolatileValue } from "@/lib/workbench/volatileClientState";
 
 export interface ClaudeSession {
   id: string;
@@ -69,7 +79,7 @@ export interface ClaudeArtifact {
 type LoadState = "loading" | "ready" | "empty" | "error" | "offline";
 
 const PINS_KEY = "agentic-os:claude:pins:v1";
-const chatStorageKey = (path: string) => `agentic-os-chat-v3:claude:${path}`;
+const conversationMemoryKey = (path: string) => `conversation:claude:${path}`;
 
 function readPins(): string[] {
   try {
@@ -111,6 +121,9 @@ export function useClaudeDesktopData() {
   const [partial, setPartial] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [activeRun, setActiveRun] = useState<Run | null>(null);
+  const activeRunRef = useRef<Run | null>(null);
+  const [stopState, setStopState] = useState<WorkbenchStopState>("not_requested");
   const [pins, setPins] = useState<string[]>([]);
   const [online, setOnline] = useState(true);
   const [runtimeReady, setRuntimeReady] = useState<boolean | null>(null);
@@ -134,6 +147,10 @@ export function useClaudeDesktopData() {
   }, []);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  useEffect(() => {
+    purgeLegacySensitiveBrowserState();
+  }, []);
 
   useEffect(() => {
     setPins(readPins());
@@ -262,9 +279,7 @@ export function useClaudeDesktopData() {
     if (updateUrl) syncUrl(group, session);
     try {
       if (session.source === "local" || session.path.startsWith("local:")) {
-        const stored = localStorage.getItem(chatStorageKey(session.path));
-        const parsed = stored ? JSON.parse(stored) : [];
-        const next = Array.isArray(parsed) ? parsed : [];
+        const next = readVolatileValue<ClaudeMessage[]>(conversationMemoryKey(session.path)) ?? [];
         setMessages(next);
         setTranscriptState(next.length ? "ready" : "empty");
       } else {
@@ -300,7 +315,7 @@ export function useClaudeDesktopData() {
           const id = requestedSession.slice("local:claude:".length);
           const projectName = requestedProject?.replace(/^draft:/, "") || "claude-default";
           const project = projects.find((item) => item.name === projectName);
-          const group: ClaudeProjectGroup = { id: requestedProject || `draft:${projectName}`, label: projectName, root: project?.root || "", sessions: [] };
+          const group: ClaudeProjectGroup = { id: projectName, label: projectName, root: project?.root || "", sessions: [] };
           const session: ClaudeSession = { id, nativeId: id, name: "Claude draft", path: requestedSession, mtime: Date.now(), bytes: 0, source: "local", resumable: true };
           if (activeSession?.path !== requestedSession) void openSession(session, group, false);
           return;
@@ -319,15 +334,15 @@ export function useClaudeDesktopData() {
 
   useEffect(() => {
     if (!activeSession?.path || activeSession.source !== "local") return;
-    try { localStorage.setItem(chatStorageKey(activeSession.path), JSON.stringify(messages.slice(-200))); } catch { /* storage is optional */ }
+    writeVolatileValue(conversationMemoryKey(activeSession.path), messages.slice(-200));
   }, [activeSession?.path, activeSession?.source, messages]);
 
   const createSession = useCallback((project?: ClaudeProject) => {
     const id = makeUuid();
     const selectedProject = project ?? workspaceProject ?? projects[0] ?? null;
     const group: ClaudeProjectGroup = selectedProject
-      ? { id: `draft:${selectedProject.name}`, label: selectedProject.name, root: selectedProject.root, sessions: [] }
-      : { id: "draft:claude-default", label: "claude-default", root: "", sessions: [] };
+      ? { id: selectedProject.name, label: selectedProject.name, root: selectedProject.root, sessions: [] }
+      : { id: "claude-default", label: "claude-default", root: "", sessions: [] };
     const session: ClaudeSession = {
       id,
       nativeId: id,
@@ -353,9 +368,9 @@ export function useClaudeDesktopData() {
     setActiveSession((current) => current ? { ...current, nativeId, nativeStarted: true } : current);
   }, []);
 
-  const sendMessage = useCallback(async (raw: string) => {
+  const sendMessage = useCallback(async (raw: string): Promise<boolean> => {
     const prompt = raw.trim();
-    if (!prompt || sending || !activeSession) return;
+    if (!prompt || sending || !activeSession) return false;
     const before = messagesRef.current;
     const userMessage: ClaudeMessage = { role: "user", text: prompt, ts: Date.now() };
     setMessages([...before, userMessage]);
@@ -363,71 +378,82 @@ export function useClaudeDesktopData() {
     setSendError("");
     setPartial("");
     setSending(true);
+    setStopState("not_requested");
     const controller = new AbortController();
     abortRef.current = controller;
     let accumulated = "";
     try {
-      const response = await fetch("/api/claude/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          cwd: activeGroup?.root || workspaceProject?.root || undefined,
-          project: workspaceProject?.name,
-          sessionId: activeSession.source === "native" || activeSession.nativeStarted ? (activeSession.nativeId || activeSession.id) : undefined,
-          newSessionId: activeSession.source === "local" && !activeSession.nativeStarted ? activeSession.nativeId : undefined,
-          sessionName: activeSession.name,
-          history: before.slice(-24).map((message) => ({ role: message.role, text: message.text })),
-        }),
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error((await response.text()) || `${response.status} ${response.statusText}`);
-      if (!response.body) throw new Error("Claude returned no response stream.");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line) as Record<string, unknown>;
-            const streamEvent = event.event as { delta?: { text?: unknown } } | undefined;
-            if (event.type === "stream_event" && typeof streamEvent?.delta?.text === "string") {
-              accumulated += streamEvent.delta.text;
-              setPartial(accumulated);
-            } else if (event.type === "result" && typeof event.result === "string" && !accumulated) {
-              accumulated = event.result;
-              setPartial(accumulated);
-            }
-            const nativeId = typeof event.session_id === "string" ? event.session_id : typeof event.sessionId === "string" ? event.sessionId : null;
-            if (nativeId) rememberNativeId(nativeId);
-          } catch { /* stream can contain non-json diagnostic lines */ }
-        }
+      const sessionId = activeSession.source === "native" || activeSession.nativeStarted
+        ? (activeSession.nativeId || activeSession.id)
+        : null;
+      const result = await executeWorkbenchRun({
+        agentId: "claude",
+        prompt,
+        projectId: activeGroup?.id || workspaceProject?.name || "claude-default",
+        sessionId,
+        idempotencyKey: createWorkbenchIdempotencyKey("claude"),
+      }, {
+        onStarted: ({ run }) => {
+          activeRunRef.current = run;
+          setActiveRun(run);
+        },
+        onOutput: (text) => {
+          accumulated += text;
+          setPartial(accumulated);
+        },
+      }, controller.signal);
+      activeRunRef.current = result.run;
+      setActiveRun(result.run);
+      setStopState(result.stop.state);
+      if (result.run.context.sessionId) rememberNativeId(result.run.context.sessionId);
+      if (result.run.status === "succeeded") {
+        if (!accumulated.trim()) accumulated = "Run completed without a text response.";
+        setMessages((current) => [...current, { role: "assistant", text: accumulated, ts: Date.now() }]);
+        setPartial("");
+        void Promise.all([loadHistory(), loadSecondaryData(), loadWorkspace()]);
+        return true;
       }
-      if (!accumulated.trim()) throw new Error("Claude finished without readable output.");
-      setMessages((current) => [...current, { role: "assistant", text: accumulated, ts: Date.now() }]);
-      setPartial("");
-      void Promise.all([loadHistory(), loadSecondaryData(), loadWorkspace()]);
-    } catch (error) {
-      if ((error as { name?: string }).name === "AbortError") {
-        setSendError("Run stopped. Claude process received a cancellation request.");
+      if (isVerifiedCancellation(result)) {
+        setSendError("Stopped and verified. The process tree is no longer running.");
       } else {
-        setSendError(error instanceof Error ? error.message : String(error));
+        setSendError(`${result.run.error?.message ?? `Run ended as ${result.run.status}.`} Your draft was kept.`);
       }
       if (accumulated.trim()) setMessages((current) => [...current, { role: "assistant", text: accumulated, ts: Date.now() }]);
       setPartial("");
+      return false;
+    } catch (error) {
+      setSendError(describeWorkbenchError(error));
+      if (accumulated.trim()) setMessages((current) => [...current, { role: "assistant", text: accumulated, ts: Date.now() }]);
+      setPartial("");
+      return false;
     } finally {
       abortRef.current = null;
       setSending(false);
     }
-  }, [activeGroup?.root, activeSession, loadHistory, loadSecondaryData, loadWorkspace, rememberNativeId, sending, workspaceProject?.name, workspaceProject?.root]);
+  }, [activeGroup?.id, activeSession, loadHistory, loadSecondaryData, loadWorkspace, rememberNativeId, sending, workspaceProject?.name]);
 
-  const stopRun = useCallback(() => abortRef.current?.abort(), []);
+  const stopRun = useCallback(async () => {
+    const run = activeRunRef.current;
+    if (!run || stopState === "stopping") return;
+    setStopState("stopping");
+    setSendError("Stop requested. Waiting for verified process-tree termination.");
+    try {
+      const snapshot = await cancelWorkbenchRun(run, (next) => {
+        activeRunRef.current = next.run;
+        setActiveRun(next.run);
+        setStopState(next.stop.state);
+      });
+      activeRunRef.current = snapshot.run;
+      setActiveRun(snapshot.run);
+      setStopState(snapshot.stop.state);
+      setSendError(isVerifiedCancellation(snapshot)
+        ? "Stopped and verified. The process tree is no longer running."
+        : `Run ended as ${snapshot.run.status}.`);
+    } catch (error) {
+      setStopState("failed_to_stop");
+      setSendError(describeWorkbenchError(error, false));
+    }
+  }, [stopState]);
 
   const togglePin = useCallback((path: string) => {
     setPins((current) => {
@@ -442,6 +468,7 @@ export function useClaudeDesktopData() {
   return {
     groups, historyState, historyError, source, totalSessions, activeGroup, setActiveGroup,
     activeSession, messages, transcriptState, transcriptError, model, partial, sending, sendError,
+    activeRun, stopState,
     pins, online, runtimeReady, runtimeVersion, projects, workspaceState, workspaceError,
     workspaceProject, selectWorkspaceProject, workspaceFiles, runs, artifacts,
     loadHistory, loadWorkspace, loadSecondaryData, openSession, createSession, sendMessage, stopRun, togglePin,

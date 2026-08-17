@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -101,6 +102,8 @@ async function minimaxTts(text: string, voiceId: string): Promise<NextResponse> 
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/tts");
+  if (frozen) return frozen;
   const { text, voiceId, provider } = await req.json();
   if (typeof text !== "string" || !text.trim()) {
     return NextResponse.json({ error: "missing text" }, { status: 400 });

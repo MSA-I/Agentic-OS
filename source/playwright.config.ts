@@ -1,4 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
+import { randomBytes } from "node:crypto";
+
+// Keep Workbench bootstrap credentials out of commands and test output. The
+// app and Playwright read the same local environment file in-process.
+loadEnvConfig(process.cwd());
+process.env.AGENT_OS_WORKBENCH_BOOTSTRAP_SECRET ||= randomBytes(32).toString("base64url");
 
 const port = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;

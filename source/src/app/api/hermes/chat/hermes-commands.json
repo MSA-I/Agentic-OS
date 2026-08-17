@@ -109,6 +109,5 @@
 "version": "Show Hermes Agent version",
 "voice": "Toggle voice mode",
 "wake": "Toggle the 'Hey Hermes' wake word listener",
-"whoami": "Show your slash command access (admin / user)",
-"yolo": "Toggle YOLO mode (skip all dangerous command approvals)"
+"whoami": "Show your slash command access (admin / user)"
 }

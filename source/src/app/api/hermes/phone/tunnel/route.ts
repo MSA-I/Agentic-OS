@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { startTunnel, stopTunnel, tunnelStatus } from "@/lib/hermesPhone";
 
@@ -5,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/phone/tunnel");
+  if (frozen) return frozen;
   let action = "start";
   try { action = (await req.json())?.action ?? "start"; } catch { /* default */ }
 

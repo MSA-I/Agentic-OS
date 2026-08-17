@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { runSetupAction, SetupRuntimeError } from "@/lib/setupRuntime";
 import { authorizeSetupMutation } from "@/lib/setupRequestSecurity";
 
@@ -40,6 +41,8 @@ async function readLimitedBody(request: Request): Promise<string> {
 }
 
 export async function POST(request: Request) {
+  const frozen = await denyFrozenExecutionMutation(request, "POST /api/setup/action");
+  if (frozen) return frozen;
   const authorization = authorizeSetupMutation(request);
   if (!authorization.allowed) {
     return Response.json({ error: authorization.error }, { status: 403 });

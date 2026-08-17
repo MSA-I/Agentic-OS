@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { saveSearch } from "@/lib/studioHistory";
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 // Wraps `openclaw infer web search --provider grok` — Grok's live X-search.
 // "grok" is the provider id (not "xai"). Returns structured results.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/xsearch");
+  if (frozen) return frozen;
   const { query, limit } = await req.json();
   if (typeof query !== "string" || query.length === 0) {
     return NextResponse.json({ error: "missing query" }, { status: 400 });

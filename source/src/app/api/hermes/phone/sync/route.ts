@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { syncAgent } from "@/lib/hermesPhone";
 
@@ -5,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/phone/sync");
+  if (frozen) return frozen;
   let phoneNumberId: string | undefined;
   try { phoneNumberId = (await req.json())?.phoneNumberId; } catch { /* optional */ }
   try {

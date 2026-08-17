@@ -355,7 +355,7 @@ export default function OpenClawOfficialView() {
         body: JSON.stringify({
           prompt,
           agent: activeAgent,
-          cwd: activeRoot,
+          projectId: groups.find((group) => group.root === activeRoot)?.id,
           history: prior.slice(-24).map(({ role, text }) => ({ role, text })),
           sessionId: activeSession?.sessionKey ? undefined : activeSession?.nativeId ?? activeSession?.id,
           sessionKey: activeSession?.sessionKey,

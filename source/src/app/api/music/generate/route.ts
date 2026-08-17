@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { generateMusic, type SunoModel } from "@/lib/suno";
 
@@ -10,6 +11,8 @@ const MODELS = new Set<SunoModel>(["V5", "V4_5PLUS", "V4_5", "V4", "V3_5"]);
 //   { description, title?, instrumental?, model? }  →  { ok, taskId }
 // Kicks off a Suno generation. The UI then polls /api/music/status?taskId=.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/music/generate");
+  if (frozen) return frozen;
   let payload: { description?: string; title?: string; instrumental?: boolean; model?: string };
   try { payload = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
 

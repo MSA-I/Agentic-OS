@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readItem, writeItem, breakIntoTasks } from "@/lib/pipeline";
 
@@ -8,6 +9,8 @@ export const maxDuration = 120;
 // The one human checkpoint: approve → PM breaks the plan into subagent tasks and
 // the project moves to Execute. Reject → archived.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/pipeline/decide");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const slug = String(body.slug || "");
   const approve = body.approve !== false;

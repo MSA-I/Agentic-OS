@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 // GET  /api/ruflo/swarm           → live swarm + agents (the node-graph state)
 // POST /api/ruflo/swarm { objective } → launch an SEO swarm (init + spawn roster + start)
 //
@@ -16,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/ruflo/swarm");
+  if (frozen) return frozen;
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 }); }

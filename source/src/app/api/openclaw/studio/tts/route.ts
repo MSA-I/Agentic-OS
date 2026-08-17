@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import path from "node:path";
@@ -15,6 +16,8 @@ const XAI_VOICES = new Set(["eve", "ara", "rex", "sal", "leo", "una"]);
 // Body: { text: string, voice?: string }
 // Wraps `openclaw infer tts convert` with the xAI provider.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/studio/tts");
+  if (frozen) return frozen;
   const { text, voice } = await req.json();
   if (typeof text !== "string" || text.length === 0) {
     return NextResponse.json({ error: "missing text" }, { status: 400 });

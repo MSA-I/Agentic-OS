@@ -222,6 +222,8 @@
 .codex-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: 48px 39px minmax(0, 1fr) auto; overflow: hidden; background: var(--codex-bg); }
 .codex-topbar { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 16px; border-bottom: 1px solid var(--codex-line); }
 .codex-breadcrumb { min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--codex-faint); font-size: 13px; }
+.codex-mission-link { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--codex-muted); font-size: 12px; font-weight: 650; text-decoration: none; }
+.codex-mission-link:hover, .codex-mission-link:focus-visible { color: #ededed; text-decoration: underline; text-underline-offset: 3px; }
 .codex-breadcrumb strong { overflow: hidden; color: #e5e5e5; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
 .codex-context-badges { display: flex; align-items: center; gap: 6px; }
 .codex-context-badges span { min-height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--codex-muted); background: #202020; border: 1px solid var(--codex-line); border-radius: 5px; font-size: 12px; }

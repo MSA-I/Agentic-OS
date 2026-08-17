@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -10,6 +11,8 @@ const PYTHON = process.env.AGENTIC_OS_PY_BIN || (process.platform === "win32" ? 
 // The Python pipeline (OpenRouter cinematic images → ffmpeg Ken Burns + grade) runs
 // detached and writes live progress to a job json that /api/openmontage/status reads.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openmontage/generate");
+  if (frozen) return frozen;
   const { prompt, shots, mode } = await req.json().catch(() => ({}));
   if (!prompt || typeof prompt !== "string" || prompt.trim().length < 4) {
     return Response.json({ error: "Describe the video you want (a few words)." }, { status: 400 });

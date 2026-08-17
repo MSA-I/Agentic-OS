@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { apolloReply, type ApolloMsg } from "@/lib/hermesApollo";
 
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 //   fast  -> direct OpenRouter completion, chat only (~2s)
 //   agent -> full Hermes CLI, runs tools (~28s)
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/apollo");
+  if (frozen) return frozen;
   let body: { prompt?: string; mode?: string; history?: ApolloMsg[] };
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, text: "", error: "bad json" }, { status: 400 }); }

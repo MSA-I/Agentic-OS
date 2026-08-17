@@ -1,10 +1,12 @@
 import {
-  authorizeWorkbenchRead,
+  authorizeWorkbenchStream,
   validateRunId,
   WorkbenchValidationError,
   workbenchError,
+  workbenchJson,
 } from "@/lib/workbench/http";
-import { getRunSupervisor } from "@/lib/workbench/supervisor";
+import { getDurableWorkbenchControlPlane } from "@/lib/workbench/durableControlPlane";
+import { createRedactingTextStream } from "@/lib/workbench/redaction";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,11 +21,37 @@ function parseCursor(request: Request): number {
   return cursor;
 }
 
+function parseLimit(request: Request): number {
+  const raw = new URL(request.url).searchParams.get("limit") ?? "500";
+  const limit = Number(raw);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
+    throw new WorkbenchValidationError("limit must be an integer from 1 through 1000.");
+  }
+  return limit;
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    authorizeWorkbenchRead(request);
+    authorizeWorkbenchStream(request);
     const { id } = await context.params;
-    const stream = getRunSupervisor().subscribe(validateRunId(id), parseCursor(request), request.signal);
+    const runId = validateRunId(id);
+    const url = new URL(request.url);
+    if (url.searchParams.get("mode") === "page") {
+      const page = getDurableWorkbenchControlPlane().eventPage(
+        runId,
+        parseCursor(request),
+        parseLimit(request),
+      );
+      return workbenchJson(page, {
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+    const stream = getDurableWorkbenchControlPlane()
+      .subscribe(runId, parseCursor(request), request.signal)
+      .pipeThrough(createRedactingTextStream());
     return new Response(stream, {
       headers: {
         "Cache-Control": "no-cache, no-transform",

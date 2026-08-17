@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -10,6 +11,7 @@ import { run } from "@/lib/runner";
 import { hermesHome } from "@/lib/config";
 import { saveThumbnailSession } from "@/lib/thumbnailLog";
 import { workspacePath } from "@/lib/workspaceRoot";
+import { assertProviderLaunch } from "@/lib/control-plane/executableIdentity";
 
 const exec = promisify(execFile);
 export const runtime = "nodejs";
@@ -192,6 +194,8 @@ function parseConcepts(raw: string): Concept[] {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/thumbnails/research");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const topic = String(body.topic || "").trim();
   const faceless = body.faceless !== false; // default: faceless
@@ -206,7 +210,9 @@ export async function POST(req: Request) {
   let concepts: Concept[] = [];
   let dbg = "";
   try {
-    const res = await run("hermes", ["-p", "grok-4-5", "-z", researchPrompt(topic, faceless, comps, analysis), "--yolo", "--accept-hooks"], {
+    const launchArgs = ["-p", "grok-4-5", "-z", researchPrompt(topic, faceless, comps, analysis)];
+    await assertProviderLaunch("hermes", config.hermes, launchArgs);
+    const res = await run("hermes", launchArgs, {
       cwd: workspacePath("thumbnail-research"),
       timeoutMs: 300_000,
     });

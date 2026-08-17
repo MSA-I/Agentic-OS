@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { run } from "@/lib/runner";
 import { config } from "@/lib/config";
 import { AGENT_OS_FOLDERS_ROOT } from "@/lib/workspaceRoot";
@@ -39,6 +40,8 @@ function formatTweet(raw: string): string {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/radar/draft");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const headline = String(body.headline || "").slice(0, 200);
   const why = String(body.why_now || "").slice(0, 600);

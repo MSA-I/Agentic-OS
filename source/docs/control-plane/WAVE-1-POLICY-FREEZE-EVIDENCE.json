@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-13T23:21:12.4870119+03:00",
+  "wave": 1,
+  "subtask": "identity-policy-approval-capability execution freeze",
+  "overallStatus": "pass",
+  "plan": "C:\\Users\\art1\\.codex\\visualizations\\2026\\08\\13\\019ffc17-3c91-77f1-898c-6c2ba49d666e\\AGENT-OS-CONTROL-PLANE-REPAIR-PLAN.md",
+  "repository": "D:\\משה פרוייקטים\\פיתוח אתרים\\AGENT-OS\\source",
+  "gitHead": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
+  "runtime": {
+    "node": "v24.15.0",
+    "npm": "11.12.1",
+    "next": "16.2.6"
+  },
+  "static-contract": {
+    "status": "pass",
+    "mutationInventory": {
+      "command": "node scripts/control-plane/inventory-mutations.mjs --check",
+      "status": "pass",
+      "routeHandlers": 161,
+      "frontendMutationCallers": 181
+    },
+    "freezeManifest": {
+      "command": "node scripts/control-plane/verify-wave1-execution-freeze.mjs",
+      "status": "pass",
+      "frozenRoutes": 109,
+      "missingFrozenRoutes": 0,
+      "unguardedFrozenRoutes": 0,
+      "guardPositionContract": "denyFrozenExecutionMutation and its immediate fail-closed return are the first two statements of every frozen handler",
+      "unclassifiedExecutionCandidates": [],
+      "falsePositiveClassifications": []
+    },
+    "ui": {
+      "status": "blocked",
+      "directExecutionCallers": 128,
+      "reason": "Frontend controls still call frozen execution routes directly. Several composers clear their local input before the 503 response, so draft preservation is not proven.",
+      "serverSideEffectProtection": "pass",
+      "clientControlTruthfulness": "blocked"
+    },
+    "typecheck": {
+      "command": "npx.cmd tsc --noEmit --pretty false",
+      "status": "pass"
+    },
+    "build": {
+      "command": "npm.cmd run build",
+      "status": "pass",
+      "note": "Next production build completed. Turbopack reported one existing broad NFT trace warning for the MuseCoder route; it did not fail the build."
+    }
+  },
+  "fake-runtime": {
+    "status": "pass",
+    "unitTests": {
+      "status": "pass",
+      "passed": 45,
+      "failed": 0,
+      "scope": "identity, policy, capability, approval contracts, runtime containment, redaction, secret storage, route freeze, and supervisor pre-side-effect denial"
+    }
+  },
+  "live-runtime": {
+    "status": "partial",
+    "httpBoundary": {
+      "command": "npx.cmd playwright test tests/e2e/wave1-execution-freeze.spec.ts --project=chromium",
+      "server": "Next.js production server on 127.0.0.1:3191",
+      "status": "pass",
+      "passed": 3,
+      "failed": 0,
+      "proof": [
+        "Thirteen representative direct execution routes, including POST /api/room, returned 503 control_plane_execution_unavailable with runCreated false.",
+        "Cross-origin, non-JSON, and oversized direct requests were rejected with 403, 415, and 413.",
+        "Matching and mismatched Workbench create requests returned 503 and 403; run IDs before and after were identical."
+      ]
+    },
+    "combinedProductionSuite": {
+      "command": "npx.cmd playwright test tests/e2e/provider-execution-safety.spec.ts tests/e2e/workbench-secret-path-policy.spec.ts tests/e2e/workbench-security.spec.ts tests/e2e/wave1-execution-freeze.spec.ts --project=chromium",
+      "status": "pass",
+      "passed": 25,
+      "failed": 0
+    },
+    "providerExecution": {
+      "status": "blocked",
+      "reason": "Provider execution was intentionally not attempted while Wave 1 containment and durable approval gates are unavailable."
+    }
+  },
+  "historical": {
+    "status": "not-used"
+  },
+  "exitGate": {
+    "status": "pass",
+    "basis": "Every AGENT-OS execution path is fail-closed before its original handler or supervisor side effect. No start is available while identity, policy, containment, secret, executable, capability, and durable approval guards are incomplete. Sentinel tests passed across storage, response/export, stream, artifact, and log boundaries.",
+    "executionExposure": "disabled",
+    "waivers": []
+  },
+  "blocked": [
+    "128 frontend mutation callers still target frozen execution routes directly; truthful disabled controls and draft preservation are incomplete.",
+    "Durable approval grants and atomic allow_once enforcement are unavailable.",
+    "The Tool Gateway pre-execution hook is unavailable.",
+    "Windows Job Object containment is unavailable.",
+    "Start, resume, steer, cancel, approval decisions, process registration, and tool invocation remain unavailable by design."
+  ],
+  "worktree": {
+    "staged": false,
+    "committed": false,
+    "preservedUntrackedPath": "../e2e-final/"
+  }
+}

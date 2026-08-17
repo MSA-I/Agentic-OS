@@ -6,10 +6,10 @@ import {
   workbenchJson,
 } from "@/lib/workbench/http";
 import {
-  getRunSupervisor,
   WorkbenchNotFoundError,
   WorkbenchUnsupportedError,
-} from "@/lib/workbench/supervisor";
+} from "@/lib/workbench/errors";
+import { getDurableWorkbenchControlPlane } from "@/lib/workbench/durableControlPlane";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,8 +19,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     authorizeWorkbenchRead(request);
     const { id } = await context.params;
-    const run = getRunSupervisor().get(validateRunId(id));
-    if (!run) throw new WorkbenchNotFoundError("Run not found.");
+    const run = getDurableWorkbenchControlPlane().get(validateRunId(id)).run;
     const adapter = getWorkbenchAdapter(run.adapterId);
     if (!adapter) throw new WorkbenchNotFoundError("Workbench adapter not found.");
     const result = await adapter.artifacts(run);

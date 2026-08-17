@@ -1,8 +1,10 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { CLAUDE_MODEL, config } from "@/lib/config";
 import { run } from "@/lib/runner";
 import { workspacePath } from "@/lib/workspaceRoot";
+import { assertProviderLaunch } from "@/lib/control-plane/executableIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,7 +99,9 @@ async function authorWithOllama(system: string, topic: string): Promise<string |
 async function authorWithGrok(system: string, topic: string): Promise<string | null> {
   try {
     const prompt = `${system}\n\nTOPIC: ${topic}\n\nOutput ONLY the JSON object, nothing before or after it.`;
-    const res = await run("hermes", ["-p", "grok-4-5", "-z", prompt, "--yolo", "--accept-hooks"], {
+    const launchArgs = ["-p", "grok-4-5", "-z", prompt];
+    await assertProviderLaunch("hermes", config.hermes, launchArgs);
+    const res = await run("hermes", launchArgs, {
       cwd: workspacePath("video-script-workspace"),
       timeoutMs: 300_000,
     });
@@ -132,6 +136,8 @@ function extractJson(raw: string): Script | null {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/auto/script");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const topic = String(body.topic ?? "").trim();
   if (!topic) return NextResponse.json({ error: "topic required" }, { status: 400 });

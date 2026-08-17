@@ -1,6 +1,8 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 
 // Lifecycle for the Hermes web dashboard (FastAPI on :9119). Agent OS embeds it
 // in the Hermes → Manage tab so you can configure model/provider, API keys,
@@ -28,23 +30,29 @@ export async function GET() {
   return NextResponse.json({ running: await isUp(), url: DASH_URL });
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/dashboard");
+  if (frozen) return frozen;
   if (await isUp()) {
     return NextResponse.json({ running: true, url: DASH_URL, started: false });
   }
 
-  const bin = config.hermes ?? "hermes";
+  const args = ["dashboard", "--no-open", "--port", "9119"];
+  const launchEnv = { ...process.env };
+  let bin: string;
   try {
+    bin = (await assertProviderLaunch("hermes", config.hermes, args, launchEnv)).absolutePath;
     // --no-open keeps it headless (we frame it). Note: Hermes ≥0.16 dropped the
     // old --tui flag, so passing it errors — keep the args minimal.
-    const child = spawn(bin, ["dashboard", "--no-open", "--port", "9119"], {
+    const child = spawn(bin, args, {
       detached: true,
       stdio: "ignore",
-      env: { ...process.env },
+      env: launchEnv,
     });
     child.unref();
   } catch (e) {
-    return NextResponse.json({ running: false, url: DASH_URL, error: String(e) }, { status: 500 });
+    const code = e instanceof ExecutableIdentityError ? e.code : "spawn_failed";
+    return NextResponse.json({ running: false, url: DASH_URL, code, error: "Hermes dashboard launch was denied or failed." }, { status: 503 });
   }
 
   // First launch may build the frontend; poll up to ~30s.

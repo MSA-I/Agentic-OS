@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { resolveModel, OLLAMA, LOCAL_OPENAI_BASE, LOCAL_OPENAI_MODEL, MAPLE_BASE, MAPLE_MODEL, MAPLE_LABEL, ensureMaple, mapleUp } from "@/lib/localModel";
 
 export const runtime = "nodejs";
@@ -12,6 +13,8 @@ const CHAT_ENDPOINT = `${OLLAMA}/api/chat`;
 interface ChatMsg { role: "user" | "assistant"; text: string; }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/local/chat");
+  if (frozen) return frozen;
   const { prompt, history = [], engine = "auto" } = (await req.json()) as { prompt: string; history?: ChatMsg[]; engine?: "auto" | "maple" };
   const { model } = engine === "maple" ? { model: MAPLE_LABEL } : await resolveModel();
   const enc = new TextEncoder();

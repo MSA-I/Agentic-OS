@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { writeFile, mkdir } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { APPLAB_STATE, appBySlug, appRunning, pidFile, startApp } from "@/lib/appslab";
@@ -6,6 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/appslab/run");
+  if (frozen) return frozen;
   const { slug } = await req.json();
   const app = appBySlug(String(slug));
   if (!app) return NextResponse.json({ error: "unknown app" }, { status: 404 });

@@ -5,7 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
+  cancelWorkbenchRun,
+  createWorkbenchIdempotencyKey,
+  describeWorkbenchError,
+  executeWorkbenchRun,
+  isVerifiedCancellation,
+  workbenchRunLabel,
+  type WorkbenchStopState,
+} from "@/lib/workbench/uiClient";
+import type { Run, RunEvent } from "@/lib/workbench/types";
+import { purgeLegacySensitiveBrowserState, readVolatileText, writeVolatileText } from "@/lib/workbench/volatileClientState";
+import {
   Archive,
+  ArrowLeft,
   ChevronDown,
   CircleDot,
   Code2,
@@ -87,7 +99,7 @@ function isTerminalTool(name: string) {
 
 const PAGE_SIZE = 50;
 const PIN_KEY = "agentic-os:codex:pinned-sessions:v3";
-const DRAFT_PREFIX = "agentic-os:codex:draft:v3:";
+const DRAFT_PREFIX = "draft:codex:";
 
 function formatAge(value: number) {
   const delta = Date.now() - value;
@@ -137,9 +149,10 @@ export default function CodexDesktop() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
+  const [activeRun, setActiveRun] = useState<Run | null>(null);
+  const activeRunRef = useRef<Run | null>(null);
+  const [stopState, setStopState] = useState<WorkbenchStopState>("not_requested");
   const [nativeSessionId, setNativeSessionId] = useState<string | null>(null);
-  const [approvalMode, setApprovalMode] = useState<"readonly" | "auto" | "yolo">("auto");
-  const [engine, setEngine] = useState<"gpt56" | "omniroute" | "hy3">("gpt56");
 
   const projectParam = searchParams.get("project");
   const sessionParam = searchParams.get("session");
@@ -245,16 +258,12 @@ export default function CodexDesktop() {
   }, [searchParams]);
 
   useEffect(() => {
-    try { setDraft(localStorage.getItem(draftKey) || ""); } catch { setDraft(""); }
+    purgeLegacySensitiveBrowserState();
+    setDraft(readVolatileText(draftKey));
   }, [draftKey]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      try {
-        if (draft) localStorage.setItem(draftKey, draft);
-        else localStorage.removeItem(draftKey);
-      } catch { /* local drafts are best effort */ }
-    }, 180);
+    const timeout = window.setTimeout(() => writeVolatileText(draftKey, draft), 180);
     return () => window.clearTimeout(timeout);
   }, [draft, draftKey]);
 
@@ -335,85 +344,105 @@ export default function CodexDesktop() {
     if (!prompt || running || !activeProject) return;
     const previousTurns = turns;
     setTurns((current) => [...current, { role: "user", text: prompt }]);
-    setEvents([{ id: `queued-${Date.now()}`, kind: "status", title: "Queued", detail: "Waiting for Codex" }]);
+    setEvents([{ id: `requested-${Date.now()}`, kind: "status", title: "Requesting run", detail: "Codex · Workbench control plane" }]);
     setDraft("");
     setRunning(true);
+    setStopState("not_requested");
     const controller = new AbortController();
     controllerRef.current = controller;
     let assistant = "";
 
     try {
-      const response = await fetch("/api/codex/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          history: previousTurns.filter((turn) => turn.role === "user" || turn.role === "assistant"),
-          cwd: activeProject.root || undefined,
-          sessionId: nativeSessionId || undefined,
-          approvalMode,
-          engine,
-        }),
-        signal: controller.signal,
-      });
-      if (!response.body) throw new Error(`Codex HTTP ${response.status}`);
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || `Codex HTTP ${response.status}`);
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let event: Record<string, unknown>;
-          try { event = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
-          const type = String(event.type ?? "");
-          const item = event.item && typeof event.item === "object" ? event.item as Record<string, unknown> : null;
-          if (type === "thread.started" && typeof event.thread_id === "string") setNativeSessionId(event.thread_id);
-          if ((type === "item.delta" || type === "item.completed") && item?.type === "agent_message") {
-            const text = eventText(item);
-            if (type === "item.delta") assistant += text;
-            else if (!assistant) assistant = text;
-            setTurns([...previousTurns, { role: "user", text: prompt }, { role: "assistant", text: assistant }]);
-          } else if (type === "item.completed" && item?.type === "reasoning") {
-            setEvents((current) => [...current, { id: `reason-${current.length}`, kind: "reasoning", title: "Reasoned", detail: eventText(item).slice(0, 480) }]);
-          } else if ((type === "item.started" || type === "item.completed") && typeof item?.type === "string" && item.type !== "agent_message") {
-            setEvents((current) => [...current, { id: `tool-${current.length}`, kind: "tool", title: String(item.type).replaceAll("_", " "), detail: eventText(item).slice(0, 800) }]);
-          } else if (type === "error") {
-            setEvents((current) => [...current, { id: `error-${current.length}`, kind: "error", title: "Run failed", detail: String(event.message ?? "Unknown error") }]);
+      const result = await executeWorkbenchRun({
+        agentId: "codex",
+        prompt,
+        projectId: activeProject.id,
+        sessionId: nativeSessionId,
+        idempotencyKey: createWorkbenchIdempotencyKey("codex"),
+      }, {
+        onStarted: ({ run }) => {
+          activeRunRef.current = run;
+          setActiveRun(run);
+          setEvents((current) => [...current, {
+            id: `run-${run.id}`,
+            kind: "status",
+            title: run.status,
+            detail: `Run ${run.id} · ${run.context.projectId ?? activeProject.id}`,
+          }]);
+        },
+        onOutput: (text) => {
+          assistant += text;
+          setTurns([...previousTurns, { role: "user", text: prompt }, { role: "assistant", text: assistant }]);
+        },
+        onEvent: (event: RunEvent) => {
+          if (event.type === "reasoning") {
+            setEvents((current) => [...current, { id: event.id, kind: "reasoning", title: "Reasoning", detail: String(event.payload.text ?? event.payload.message ?? "").slice(0, 480) }]);
+          } else if (event.type === "tool") {
+            setEvents((current) => [...current, { id: event.id, kind: "tool", title: String(event.payload.name ?? "Restricted tool event"), detail: String(event.payload.text ?? event.payload.message ?? "").slice(0, 800) }]);
+          } else if (event.type === "error") {
+            setEvents((current) => [...current, { id: event.id, kind: "error", title: "Run error", detail: String(event.payload.message ?? event.payload.code ?? "Unknown error") }]);
           }
-        }
-      }
-      if (!assistant) assistant = "Run completed without a text response.";
-      setTurns([...previousTurns, { role: "user", text: prompt }, { role: "assistant", text: assistant }]);
-      setEvents((current) => [...current, { id: `done-${Date.now()}`, kind: "status", title: "Completed" }]);
-      try { localStorage.removeItem(draftKey); } catch { /* draft already cleared in memory */ }
-      void loadHistory();
-    } catch (error) {
-      if (controller.signal.aborted) {
-        setEvents((current) => [...current, { id: `cancelled-${Date.now()}`, kind: "status", title: "Cancelled" }]);
+        },
+        onStatus: (status, event) => {
+          setEvents((current) => [...current, { id: event.id, kind: "status", title: status }]);
+        },
+      }, controller.signal);
+      activeRunRef.current = result.run;
+      setActiveRun(result.run);
+      setStopState(result.stop.state);
+      if (result.run.context.sessionId) setNativeSessionId(result.run.context.sessionId);
+      if (result.run.status === "succeeded") {
+        if (!assistant.trim()) assistant = "Run completed without a text response.";
+        setTurns([...previousTurns, { role: "user", text: prompt }, { role: "assistant", text: assistant }]);
+        writeVolatileText(draftKey, "");
+        void loadHistory();
+      } else if (isVerifiedCancellation(result)) {
+        setEvents((current) => [...current, { id: `cancelled-${Date.now()}`, kind: "status", title: "Stopped and verified" }]);
       } else {
-        setEvents((current) => [...current, { id: `error-${Date.now()}`, kind: "error", title: "Run failed", detail: error instanceof Error ? error.message : String(error) }]);
+        setDraft(prompt);
+        writeVolatileText(draftKey, prompt);
+        setEvents((current) => [...current, {
+          id: `terminal-${Date.now()}`,
+          kind: "error",
+          title: result.run.status,
+          detail: result.run.error?.message ?? "The run did not complete. Your draft was kept.",
+        }]);
       }
+    } catch (error) {
+      setDraft(prompt);
+      writeVolatileText(draftKey, prompt);
+      setEvents((current) => [...current, { id: `error-${Date.now()}`, kind: "error", title: "Run failed", detail: describeWorkbenchError(error) }]);
     } finally {
       setRunning(false);
       controllerRef.current = null;
     }
   }
 
-  function stopRun() {
-    controllerRef.current?.abort();
+  async function stopRun() {
+    const run = activeRunRef.current;
+    if (!run || stopState === "stopping") return;
+    setStopState("stopping");
+    setEvents((current) => [...current, { id: `stop-${Date.now()}`, kind: "status", title: "Stop requested", detail: `Run ${run.id}` }]);
+    try {
+      const snapshot = await cancelWorkbenchRun(run, (next) => {
+        activeRunRef.current = next.run;
+        setActiveRun(next.run);
+        setStopState(next.stop.state);
+      });
+      activeRunRef.current = snapshot.run;
+      setActiveRun(snapshot.run);
+      setStopState(snapshot.stop.state);
+      if (isVerifiedCancellation(snapshot)) {
+        setEvents((current) => [...current, { id: `stopped-${Date.now()}`, kind: "status", title: "Stopped and verified" }]);
+      }
+    } catch (error) {
+      setStopState("failed_to_stop");
+      setEvents((current) => [...current, { id: `stop-failed-${Date.now()}`, kind: "error", title: "Failed to stop", detail: describeWorkbenchError(error, false) }]);
+    }
   }
 
   const activeTitle = activeSession?.name || "New conversation";
-  const modelLabel = engine === "gpt56" ? "GPT-5.6" : engine === "hy3" ? "HY3" : "OmniRoute";
+  const modelLabel = "Server-managed Codex pilot";
   const changeTools = detail?.toolCalls?.filter((tool) => isChangeTool(tool.name)) ?? [];
   const terminalTools = detail?.toolCalls?.filter((tool) => isTerminalTool(tool.name)) ?? [];
 
@@ -491,6 +520,9 @@ export default function CodexDesktop() {
       <main className="codex-main">
         <header className="codex-topbar">
           <div className="codex-breadcrumb">
+            <a className="codex-mission-link" href="/" aria-label="Return to Mission Control"><ArrowLeft size={14} /> Mission Control</a>
+            <span>Codex</span>
+            <span>/</span>
             <span>{activeProject?.label || "No project"}</span>
             <span>/</span>
             <strong>{activeTitle}</strong>
@@ -498,7 +530,8 @@ export default function CodexDesktop() {
           <div className="codex-context-badges">
             <span><GitBranch size={13} /> Local</span>
             <span>{modelLabel}</span>
-            <span data-running={running ? "true" : "false"}>{running ? "Running" : activeSession ? "Ready" : "Draft"}</span>
+            <span>Read-only · tools restricted</span>
+            <span data-running={running ? "true" : "false"}>{activeRun ? workbenchRunLabel(activeRun, stopState) : activeSession ? "Ready" : "Draft"}</span>
           </div>
         </header>
 
@@ -517,7 +550,7 @@ export default function CodexDesktop() {
                 <div className="codex-empty">
                   <span className="codex-empty-mark"><Code2 size={24} /></span>
                   <h1>What should Codex work on?</h1>
-                  <p>Start a conversation in <strong>{activeProject?.label || "a local project"}</strong>. Changes, commands, and review stay attached to this session.</p>
+                  <p>Start a restricted conversation in <strong>{activeProject?.label || "a local project"}</strong>. The Workbench keeps the run, target, and lifecycle attached to this session.</p>
                 </div>
               )}
               {turns.map((turn, index) => (
@@ -531,7 +564,7 @@ export default function CodexDesktop() {
             </section>
             <aside className="codex-activity" aria-label="Session activity">
               <div className="codex-activity-title"><PanelRightOpen size={14} /> Activity</div>
-              {events.length === 0 && <p>Commands, reasoning, and approvals appear here while Codex works.</p>}
+              {events.length === 0 && <p>Run status, reasoning, and restricted output appear here while Codex works.</p>}
               {events.map((event) => (
                 <details key={event.id} className="codex-event" open={event.kind === "error"}>
                   <summary><span data-kind={event.kind} />{event.title}</summary>
@@ -597,15 +630,11 @@ export default function CodexDesktop() {
             />
             <div className="codex-composer-controls">
               <div>
-                <select value={engine} onChange={(event) => setEngine(event.target.value as typeof engine)} aria-label="Model runtime">
-                  <option value="gpt56">GPT-5.6</option><option value="omniroute">OmniRoute</option><option value="hy3">HY3</option>
-                </select>
-                <select value={approvalMode} onChange={(event) => setApprovalMode(event.target.value as typeof approvalMode)} aria-label="Permission mode">
-                  <option value="readonly">Read-only</option><option value="auto">Workspace write</option><option value="yolo">Full access</option>
-                </select>
+                <span title="The restricted pilot runtime and model are selected by the server.">Server-managed Codex pilot</span>
+                <span title="Workbench enforces the server-side read-only sandbox and denies tool approvals.">Read-only · tools restricted</span>
               </div>
               {running ? (
-                <button type="button" className="codex-stop" onClick={stopRun}><Square size={14} /> Stop</button>
+                <button type="button" className="codex-stop" onClick={() => void stopRun()} disabled={stopState === "stopping"}><Square size={14} /> {stopState === "stopping" ? "Stopping…" : "Stop"}</button>
               ) : (
                 <button type="button" className="codex-send" onClick={() => void sendMessage()} disabled={!draft.trim() || !activeProject}><Send size={14} /> Send</button>
               )}

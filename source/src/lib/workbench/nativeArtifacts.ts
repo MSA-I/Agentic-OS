@@ -18,6 +18,8 @@ import {
   resolveBucketFile as resolveOpenClawBucketFile,
 } from "@/lib/openclawWorkspace";
 import type { NativeArtifact, Run, WorkbenchProvider } from "./types";
+import { isSensitivePath } from "@/lib/control-plane/pathSecurity";
+import { sanitizeNativeArtifact } from "@/lib/control-plane/secretChannels";
 
 function artifactId(provider: WorkbenchProvider, value: string): string {
   return `${provider}:${Buffer.from(value).toString("base64url")}`;
@@ -43,7 +45,7 @@ async function codexArtifacts(run: Run): Promise<NativeArtifact[]> {
   if (!run.context.sessionId) return [];
   const session = await readCodexSession(run.context.sessionId);
   if (!session?.cwdExists) return [];
-  return session.cwdFiles.slice(0, 120).map((file) => {
+  return session.cwdFiles.filter((file) => !isSensitivePath(file.relPath)).slice(0, 120).map((file) => {
     const absolutePath = path.resolve(session.cwd, file.relPath);
     return localArtifact("codex", absolutePath, file.kind, file.name, {
       relPath: file.relPath,
@@ -65,6 +67,7 @@ async function claudeArtifacts(run: Run): Promise<NativeArtifact[]> {
 
   const publishable = await listPublishable();
   const matches = publishable.filter((item) => {
+    if (isSensitivePath(item.path)) return false;
     if (projectId && item.source === `Claude · ${projectId}`) return true;
     if (cwd) {
       const resolved = path.resolve(item.path);
@@ -109,7 +112,7 @@ async function hermesArtifacts(run: Run): Promise<NativeArtifact[]> {
   if (!bucket) return [];
   const listing = await listHermesBucketFiles(bucket.id, 120);
   if (!listing) return [];
-  return listing.files.flatMap((file) => {
+  return listing.files.filter((file) => !isSensitivePath(file.relPath)).flatMap((file) => {
     const absolutePath = resolveHermesBucketFile(bucket.id, file.relPath);
     return absolutePath ? [localArtifact("hermes", absolutePath, file.kind, file.name, {
       relPath: file.relPath,
@@ -136,7 +139,7 @@ async function openClawArtifacts(run: Run): Promise<NativeArtifact[]> {
   if (!bucket) return [];
   const listing = await listOpenClawBucketFiles(bucket.id, 120);
   if (!listing) return [];
-  return listing.files.flatMap((file) => {
+  return listing.files.filter((file) => !isSensitivePath(file.relPath)).flatMap((file) => {
     const absolutePath = resolveOpenClawBucketFile(bucket.id, file.relPath);
     return absolutePath ? [localArtifact("openclaw", absolutePath, file.kind, file.name, {
       relPath: file.relPath,
@@ -156,7 +159,7 @@ async function antigravityArtifacts(run: Run): Promise<NativeArtifact[]> {
   if (!project) return [];
   const listing = await listAntigravityFiles(project.kind, project.name, 120);
   if (!listing) return [];
-  return listing.files.flatMap((file) => {
+  return listing.files.filter((file) => !isSensitivePath(file.relPath)).flatMap((file) => {
     const absolutePath = path.resolve(listing.root, file.relPath);
     if (!existsSync(absolutePath)) return [];
     return [localArtifact("antigravity", absolutePath, file.kind, file.name, {
@@ -173,11 +176,16 @@ export async function listNativeArtifacts(
   provider: WorkbenchProvider,
   run: Run,
 ): Promise<NativeArtifact[]> {
+  let artifacts: NativeArtifact[];
   switch (provider) {
-    case "codex": return codexArtifacts(run);
-    case "claude": return claudeArtifacts(run);
-    case "hermes": return hermesArtifacts(run);
-    case "openclaw": return openClawArtifacts(run);
-    case "antigravity": return antigravityArtifacts(run);
+    case "codex": artifacts = await codexArtifacts(run); break;
+    case "claude": artifacts = await claudeArtifacts(run); break;
+    case "hermes": artifacts = await hermesArtifacts(run); break;
+    case "openclaw": artifacts = await openClawArtifacts(run); break;
+    case "antigravity": artifacts = await antigravityArtifacts(run); break;
   }
+  return artifacts.flatMap((artifact) => {
+    const safe = sanitizeNativeArtifact(artifact);
+    return safe ? [safe] : [];
+  });
 }

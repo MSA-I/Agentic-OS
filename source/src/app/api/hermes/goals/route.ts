@@ -1,7 +1,9 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 import {
   listGoals, createGoal, updateGoal, deleteGoal, stopGoal, getGoal, readGoalLog,
   recoverOrphans,
@@ -35,6 +37,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/goals");
+  if (frozen) return frozen;
   if (!config.hermes) {
     return NextResponse.json({ error: "hermes CLI not installed" }, { status: 503 });
   }
@@ -44,32 +48,37 @@ export async function POST(req: Request) {
   const cwd = typeof body.cwd === "string" && body.cwd ? body.cwd : undefined;
   if (!prompt.trim()) return NextResponse.json({ error: "prompt required" }, { status: 400 });
 
-  const goal = await createGoal(title, prompt, cwd);
+  // Quiet programmatic mode remains bounded by max-turns and checkpoints. Agent
+  // OS never auto-approves Hermes tools or hooks; approval-required work stops.
+  const launchArgs = [
+    "chat",
+    "-q", prompt,
+    "-Q",
+    "--max-turns", "50",
+    "--checkpoints",
+  ];
+  const launchEnv = {
+    ...process.env,
+    PATH: process.env.PATH ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+    HOME: process.env.HOME ?? "",
+    SHELL: process.env.SHELL ?? "/bin/zsh",
+    NO_COLOR: "1",
+  };
+  let executablePath: string;
+  try {
+    executablePath = (await assertProviderLaunch("hermes", config.hermes, launchArgs, launchEnv)).absolutePath;
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return NextResponse.json({ code, error: "Hermes executable identity or launch policy could not be verified." }, { status: 503 });
+  }
 
-  // Launch Hermes in autonomous mode. -Q is quiet (programmatic), --yolo skips
-  // safety prompts, --accept-hooks auto-approves shell hooks. --max-turns caps
-  // the loop so it can't run forever.
+  const goal = await createGoal(title, prompt, cwd);
   const log = createWriteStream(goal.logFile, { flags: "a" });
   log.write(`\n=== START ${new Date().toISOString()} · ${goal.id} ===\n${goal.prompt}\n\n`);
 
-  const child = spawn(config.hermes, [
-    "chat",
-    "-q", goal.prompt,
-    "-Q",
-    "--yolo",
-    "--accept-hooks",
-    "--max-turns", "50",
-    "--checkpoints",
-  ], {
+  const child = spawn(executablePath, launchArgs, {
     cwd: goal.cwd,
-    env: {
-      ...process.env,
-      PATH: process.env.PATH ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
-      HOME: process.env.HOME ?? "",
-      SHELL: process.env.SHELL ?? "/bin/zsh",
-      NO_COLOR: "1",
-      HERMES_ACCEPT_HOOKS: "1",
-    },
+    env: launchEnv,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -104,6 +113,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "PATCH /api/hermes/goals");
+  if (frozen) return frozen;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const action = url.searchParams.get("action");
@@ -117,6 +128,8 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "DELETE /api/hermes/goals");
+  if (frozen) return frozen;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });

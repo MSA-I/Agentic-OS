@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, readFileSync } from "node:fs";
@@ -160,6 +161,8 @@ export async function GET() {
 
 // POST {days} → every site's queries, classified into cross-platform plays.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/seo/parasite");
+  if (frozen) return frozen;
   if (!existsSync(SCRIPT) || !existsSync(TOKEN)) {
     return Response.json({ error: "Connect Search Console first (Research tab)." }, { status: 400 });
   }

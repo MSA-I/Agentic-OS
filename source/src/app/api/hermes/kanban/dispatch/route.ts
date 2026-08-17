@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 // Run the dispatcher right now instead of waiting for the next 60s tick.
 // Returns the dispatcher's own JSON report (reclaimed, promoted, spawned, skipped_unassigned, etc.)
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/kanban/dispatch");
+  if (frozen) return frozen;
   const url = new URL(req.url);
   const board = url.searchParams.get("board");
   const baseArgs = board && /^[a-z0-9_-]{1,64}$/.test(board) ? ["--board", board] : [];

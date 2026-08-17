@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -24,6 +25,8 @@ function dataUrlToBuf(dataUrl: string): { buf: Buffer; ext: string } | null {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/thumbnails/generate");
+  if (frozen) return frozen;
   let body: { image?: string; images?: string[]; instructions?: string; count?: number; singleImage?: boolean; vary?: boolean; proMode?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
 

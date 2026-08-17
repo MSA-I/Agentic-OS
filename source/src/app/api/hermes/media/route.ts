@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { snapshot, diff, craftPrompt, extractPathsFromText, type MediaKind } from "@/lib/media";
@@ -6,6 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/media");
+  if (frozen) return frozen;
   const { kind, prompt } = await req.json();
   if (!["image", "video", "speech"].includes(kind)) {
     return NextResponse.json({ error: "kind must be image|video|speech" }, { status: 400 });

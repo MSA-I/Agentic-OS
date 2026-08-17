@@ -9,6 +9,7 @@
 // add` is a quick config-write operation, no git clone or bootstrap. We just
 // return the final result.
 
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { addCustomServer, type AddCustomSpec } from "@/lib/hermesMcp";
 
@@ -16,6 +17,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/mcp/add");
+  if (frozen) return frozen;
   let body: unknown;
   try { body = await req.json(); }
   catch { return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 }); }

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { scoreAndPersonalize, logRun, type ICP, type Lead } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 // POST {icp, leads} → leads scored 0-100 + a personalised opener & email draft each.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/leads/score");
+  if (frozen) return frozen;
   const { icp, leads } = await req.json().catch(() => ({}));
   if (!icp || typeof icp !== "object") return Response.json({ error: "Run the ICP step first." }, { status: 400 });
   if (!Array.isArray(leads) || !leads.length) return Response.json({ error: "No leads to score." }, { status: 400 });

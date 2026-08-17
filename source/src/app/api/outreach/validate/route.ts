@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readState, writeState, type LeadValidation } from "@/lib/outreach";
 import { validateEmail, hunterVerify } from "@/lib/outreachBackends";
@@ -13,6 +14,8 @@ export const maxDuration = 120;
 // falling back to the MX+SMTP probe. This gate exists because the first campaign
 // bounced 9x on guessed role addresses.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/outreach/validate");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const state = await readState();
   const useHunter = Boolean(await getHunterKey());

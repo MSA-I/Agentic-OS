@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -88,6 +89,8 @@ const VOICE_PROVIDERS = {
 const VOICE_PROVIDER = (process.env.APOLLO_VOICE_PROVIDER === "xai" ? "xai" : "openai") as keyof typeof VOICE_PROVIDERS;
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/realtime/session");
+  if (frozen) return frozen;
   const provider = VOICE_PROVIDERS[VOICE_PROVIDER];
   const key = provider.key();
   if (!key) return NextResponse.json({ error: provider.missingKeyMsg }, { status: 400 });

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -37,6 +38,8 @@ function isLocal(req: Request): boolean {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/translate/gemini-live");
+  if (frozen) return frozen;
   if (!isLocal(req)) return NextResponse.json({ error: "local only" }, { status: 403 });
 
   const key = await readKey();

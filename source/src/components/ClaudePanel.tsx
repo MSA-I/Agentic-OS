@@ -4,6 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Square, Sparkles, Zap, AlertTriangle } from "lucide-react";
 import Panel from "./Panel";
+import {
+  cancelWorkbenchRun,
+  createWorkbenchIdempotencyKey,
+  describeWorkbenchError,
+  executeWorkbenchRun,
+  isVerifiedCancellation,
+  workbenchRunLabel,
+  type WorkbenchStopState,
+} from "@/lib/workbench/uiClient";
+import type { Run } from "@/lib/workbench/types";
+import { purgeLegacySensitiveBrowserState, readVolatileText, writeVolatileText } from "@/lib/workbench/volatileClientState";
 
 interface Msg { role: "user" | "assistant" | "system"; text: string; }
 
@@ -12,22 +23,42 @@ export default function ClaudePanel() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [partial, setPartial] = useState("");
-  const [ultracode, setUltracode] = useState(false);
+  const [error, setError] = useState("");
+  const [activeRun, setActiveRun] = useState<Run | null>(null);
+  const activeRunRef = useRef<Run | null>(null);
+  const [stopState, setStopState] = useState<WorkbenchStopState>("not_requested");
+  const [nativeSessionId, setNativeSessionId] = useState<string | null>(null);
   const ctrlRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const draftKey = "draft:claude:claude-default:new";
+  const nativeSessionKey = "agent-os:workbench:native-session:v1:claude:claude-default";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs, partial]);
 
+  useEffect(() => {
+    try {
+      purgeLegacySensitiveBrowserState();
+      setInput(readVolatileText(draftKey));
+      setNativeSessionId(localStorage.getItem(nativeSessionKey));
+    } catch { /* optional */ }
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => writeVolatileText(draftKey, input), 180);
+    return () => window.clearTimeout(timeout);
+  }, [input]);
+
   async function send() {
     const prompt = input.trim();
     if (!prompt || streaming) return;
-    const history = msgs; // prior turns — sent so `claude -p` (stateless per call) keeps context
     setMsgs((m) => [...m, { role: "user", text: prompt }]);
     setInput("");
     setPartial("");
+    setError("");
     setStreaming(true);
+    setStopState("not_requested");
 
     const ctrl = new AbortController();
     ctrlRef.current = ctrl;
@@ -35,67 +66,87 @@ export default function ClaudePanel() {
     let acc = "";
 
     try {
-      const r = await fetch("/api/claude/chat", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt, ultracode, history }),
-        signal: ctrl.signal,
-      });
-      if (!r.body) throw new Error("no body");
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const evt = JSON.parse(line);
-            // Claude stream-json: assistant messages have nested content
-            if (evt.type === "assistant" && evt.message?.content) {
-              for (const part of evt.message.content) {
-                if (part.type === "text" && typeof part.text === "string") {
-                  acc += part.text;
-                  setPartial(acc);
-                }
-              }
-            } else if (evt.type === "stream_event" && evt.event?.delta?.text) {
-              acc += evt.event.delta.text;
-              setPartial(acc);
-            } else if (evt.type === "result" && typeof evt.result === "string") {
-              if (!acc) { acc = evt.result; setPartial(acc); }
-            }
-          } catch { /* skip non-JSON */ }
-        }
+      const result = await executeWorkbenchRun({
+        agentId: "claude",
+        prompt,
+        projectId: "claude-default",
+        sessionId: nativeSessionId,
+        idempotencyKey: createWorkbenchIdempotencyKey("claude"),
+      }, {
+        onStarted: ({ run }) => {
+          activeRunRef.current = run;
+          setActiveRun(run);
+        },
+        onOutput: (text) => {
+          acc += text;
+          setPartial(acc);
+        },
+      }, ctrl.signal);
+      activeRunRef.current = result.run;
+      setActiveRun(result.run);
+      setStopState(result.stop.state);
+      if (result.run.context.sessionId) {
+        setNativeSessionId(result.run.context.sessionId);
+        try { localStorage.setItem(nativeSessionKey, result.run.context.sessionId); } catch { /* state remains authoritative */ }
       }
-    } catch (e) {
-      acc += `\n\n[error: ${String(e)}]`;
+      if (result.run.status !== "succeeded") {
+        if (!isVerifiedCancellation(result)) setInput(prompt);
+        setError(result.run.error?.message ?? `Run ended as ${result.run.status}. Your draft was kept.`);
+      }
+    } catch (caught) {
+      setInput(prompt);
+      setError(describeWorkbenchError(caught));
     }
 
     setMsgs((m) => [...m, { role: "assistant", text: acc || "(no output)" }]);
     setPartial("");
     setStreaming(false);
+    ctrlRef.current = null;
   }
 
-  function stop() {
-    ctrlRef.current?.abort();
-    setStreaming(false);
+  async function stop() {
+    const run = activeRunRef.current;
+    if (!run || stopState === "stopping") return;
+    setStopState("stopping");
+    setError("Stop requested. Waiting for verified process-tree termination.");
+    try {
+      const snapshot = await cancelWorkbenchRun(run, (next) => {
+        activeRunRef.current = next.run;
+        setActiveRun(next.run);
+        setStopState(next.stop.state);
+      });
+      activeRunRef.current = snapshot.run;
+      setActiveRun(snapshot.run);
+      setStopState(snapshot.stop.state);
+      if (snapshot.run.context.sessionId) {
+        setNativeSessionId(snapshot.run.context.sessionId);
+        try { localStorage.setItem(nativeSessionKey, snapshot.run.context.sessionId); } catch { /* state remains authoritative */ }
+      }
+      setError(isVerifiedCancellation(snapshot) ? "Stopped and verified." : `Run ended as ${snapshot.run.status}.`);
+    } catch (caught) {
+      setStopState("failed_to_stop");
+      setError(describeWorkbenchError(caught, false));
+    }
   }
 
   return (
     <Panel
-      title="Claude — Direct Channel"
+      title="Claude — Workbench Channel"
       accent="claude"
       icon={<Sparkles size={14} />}
       actions={
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setMsgs([]); setPartial(""); }}
+            onClick={() => {
+              setMsgs([]);
+              setPartial("");
+              setError("");
+              setNativeSessionId(null);
+              activeRunRef.current = null;
+              setActiveRun(null);
+              setStopState("not_requested");
+              try { localStorage.removeItem(nativeSessionKey); } catch { /* state is already reset */ }
+            }}
             disabled={streaming || msgs.length === 0}
             title="Start a fresh conversation (clears context)"
             className="px-2.5 py-1 rounded-full border text-[11px] uppercase tracking-widest transition border-[var(--panel-border)] text-[var(--fg-dim)] hover:text-[var(--fg)] disabled:opacity-40 disabled:cursor-not-allowed"
@@ -103,21 +154,19 @@ export default function ClaudePanel() {
             New chat
           </button>
           <button
-            onClick={() => setUltracode((v) => !v)}
-            title={ultracode
-              ? "Ultracode ON — xhigh effort, dynamic workflows enabled. Uses substantially more tokens."
-              : "Turn on Ultracode — xhigh effort + dynamic workflows (parallel subagents). Heavy token use."}
+            disabled
+            title="Unavailable in Wave 3. Ultracode requires the enforceable Tool Gateway in Wave 4."
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] uppercase tracking-widest transition"
             style={{
-              borderColor: ultracode ? "#d97757" : "var(--panel-border)",
-              background: ultracode ? "rgba(217,119,87,0.18)" : "transparent",
-              color: ultracode ? "var(--claude)" : "var(--fg-dim)",
+              borderColor: "var(--panel-border)",
+              background: "transparent",
+              color: "var(--fg-dim)",
             }}
           >
-            <Zap size={11} fill={ultracode ? "currentColor" : "none"} />
-            Ultracode
+            <Zap size={11} />
+            Ultracode unavailable
           </button>
-          <span className="pill pill-info">stream-json</span>
+          <span className="pill pill-info">{workbenchRunLabel(activeRun, stopState)}</span>
         </div>
       }
       className="flex-1 min-h-[600px]"
@@ -134,14 +183,13 @@ export default function ClaudePanel() {
               >
                 <p className="text-base text-[var(--fg)]">Mission Channel open.</p>
                 <p className="mt-2">
-                  Direct line to your Claude Code CLI. Output streams here in real time —
-                  no terminal needed.
+                  Claude runs through the canonical Workbench lifecycle with a server-owned target.
                 </p>
                 <ul className="mt-3 text-xs text-[var(--fg-dimmer)] space-y-1">
                   <li>• Multi-turn — keeps context across messages (<strong>New chat</strong> resets)</li>
-                  <li>• stream-json with partial deltas</li>
-                  <li>• Esc to abort an in-flight call</li>
-                  <li>• <strong style={{ color: "var(--claude)" }}>Ultracode</strong> toggle (top-right) → xhigh effort + dynamic workflows for big jobs</li>
+                  <li>• Live output over the Workbench event ledger</li>
+                  <li>• Stop waits for verified process-tree termination</li>
+                  <li>• <strong style={{ color: "var(--claude)" }}>Ultracode</strong> remains unavailable until the Tool Gateway is live</li>
                 </ul>
               </motion.div>
             )}
@@ -183,16 +231,7 @@ export default function ClaudePanel() {
           </AnimatePresence>
         </div>
 
-        {ultracode && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-[11.5px] leading-snug border"
-               style={{ borderColor: "rgba(217,119,87,0.35)", background: "rgba(217,119,87,0.08)", color: "var(--fg)" }}>
-            <AlertTriangle size={13} className="shrink-0 mt-0.5" style={{ color: "var(--claude)" }} />
-            <div>
-              <span className="font-semibold" style={{ color: "var(--claude)" }}>Ultracode is on.</span>{" "}
-              Claude runs at <code>xhigh</code> effort and may spin up a dynamic workflow — tens to hundreds of parallel subagents, checked by adversarial reviewers before results return. Best for big jobs: codebase-wide audits, large migrations, work you want stress-tested. <span className="opacity-80">Uses substantially more tokens than a normal chat.</span>
-            </div>
-          </div>
-        )}
+        {error && <div className="mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-[11.5px] leading-snug border" role="alert" style={{ borderColor: "rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)", color: "var(--fg)" }}><AlertTriangle size={13} className="shrink-0 mt-0.5 text-rose-300" /><span>{error}</span></div>}
 
         <div className="mt-4 panel border border-[var(--panel-border)] flex items-end gap-2 p-2">
           <textarea
@@ -200,7 +239,7 @@ export default function ClaudePanel() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
-              if (e.key === "Escape" && streaming) stop();
+              if (e.key === "Escape" && streaming) void stop();
             }}
             rows={2}
             placeholder="Ask Claude anything…  (⌘+Enter to send)"
@@ -208,10 +247,11 @@ export default function ClaudePanel() {
           />
           {streaming ? (
             <button
-              onClick={stop}
+              onClick={() => void stop()}
+              disabled={stopState === "stopping"}
               className="px-3 py-2 rounded-lg bg-[rgba(248,113,113,0.15)] border border-[rgba(248,113,113,0.4)] text-rose-300 text-sm flex items-center gap-1.5 hover:bg-[rgba(248,113,113,0.22)] transition"
             >
-              <Square size={14} /> Stop
+              <Square size={14} /> {stopState === "stopping" ? "Stopping…" : "Stop"}
             </button>
           ) : (
             <button

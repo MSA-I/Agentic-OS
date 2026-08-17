@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { OMNIROUTE_BASE, OMNIROUTE_KEY } from "@/lib/omniroute";
 import { ROUTER9_BASE, ROUTER9_KEY } from "@/lib/router9";
@@ -157,6 +158,8 @@ async function tryModel(base: string, key: string, model: string, messages: Chat
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/omniroute/chat");
+  if (frozen) return frozen;
   let body: ReturnType<typeof validateBody>;
   try {
     body = validateBody(await readLimitedJson(req));

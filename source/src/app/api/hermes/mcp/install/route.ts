@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 // POST /api/hermes/mcp/install
 // Body: { name: string, envVars?: Record<string, string> }
 //
@@ -17,11 +18,14 @@ import { spawn } from "node:child_process";
 import { upsertEnv } from "@/lib/hermesMcp";
 import { config } from "@/lib/config";
 import { hermesCliArgs, resolveHermesProfile } from "@/lib/hermesProfile";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/mcp/install");
+  if (frozen) return frozen;
   let body: { name?: string; envVars?: Record<string, string>; profile?: string };
   try { body = await req.json(); }
   catch { return new Response(JSON.stringify({ error: "invalid json" }), { status: 400 }); }
@@ -32,9 +36,26 @@ export async function POST(req: Request) {
   if (!config.hermes) {
     return new Response(JSON.stringify({ error: "hermes CLI not installed or not configured" }), { status: 500 });
   }
-  const hermesBin = config.hermes;
   const envVars = body.envVars ?? {};
   const profile = await resolveHermesProfile(body.profile);
+  const launchArgs = hermesCliArgs(profile, ["mcp", "install", name]);
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...envVars,
+    NO_COLOR: "1",
+    FORCE_COLOR: "0",
+    TERM: "dumb",
+  };
+  let hermesBin: string;
+  try {
+    hermesBin = (await assertProviderLaunch("hermes", config.hermes, launchArgs, childEnv)).absolutePath;
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return new Response(JSON.stringify({ code, error: "Hermes executable identity or launch policy could not be verified." }), {
+      status: 503,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -63,17 +84,9 @@ export async function POST(req: Request) {
       // pager / spinner. Pre-set credentials in env so the CLI sees them and
       // can skip its own prompts where supported.
       emit({ type: "step", label: `Running: hermes ${profile === "default" ? "" : `-p ${profile} `}mcp install ${name}`.replace(/\s+/g, " ") });
-      const childEnv: NodeJS.ProcessEnv = {
-        ...process.env,
-        ...envVars,
-        NO_COLOR: "1",
-        FORCE_COLOR: "0",
-        TERM: "dumb",
-        // HERMES_ACCEPT_HOOKS=1 auto-approves any shell hook prompts; without
-        // it the install can hang waiting on a TTY confirm we can't satisfy.
-        HERMES_ACCEPT_HOOKS: "1",
-      };
-      const child = spawn(hermesBin, hermesCliArgs(profile, ["mcp", "install", name]), {
+      // No hook prompt is auto-approved. stdin is closed below, so a required
+      // interactive approval fails closed instead of hanging or being bypassed.
+      const child = spawn(hermesBin, launchArgs, {
         cwd: process.env.HOME,
         env: childEnv,
         stdio: ["pipe", "pipe", "pipe"],

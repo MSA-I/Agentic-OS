@@ -1,9 +1,8 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { config } from "@/lib/config";
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { AGENT_OS_FOLDERS_ROOT } from "@/lib/workspaceRoot";
+import { resolveRegisteredProjectLaunchDirectory, ProjectRegistryError } from "@/lib/control-plane/projectRegistry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,13 +36,16 @@ function buildPromptWithHistory(history: ChatMsg[], current: string): string {
 }
 
 export async function POST(req: Request) {
-  const { prompt, agent, history, sessionId, sessionKey, cwd } = await req.json();
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/openclaw/chat");
+  if (frozen) return frozen;
+  const { prompt, agent, history, sessionId, sessionKey, cwd, projectId } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) {
     return NextResponse.json({ error: "missing prompt" }, { status: 400 });
   }
   if (prompt.length > 16_000) {
     return NextResponse.json({ error: "prompt too long" }, { status: 413 });
   }
+  if (cwd !== undefined) return NextResponse.json({ error: "client-supplied cwd is not accepted; select a project" }, { status: 400 });
   const agentId = typeof agent === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(agent) ? agent : config.openclawAgent;
   if (sessionId !== undefined && (typeof sessionId !== "string" || !/^[A-Za-z0-9_.:-]{1,160}$/.test(sessionId))) {
     return NextResponse.json({ error: "bad session id" }, { status: 400 });
@@ -58,10 +60,16 @@ export async function POST(req: Request) {
   if (sessionKey) args.push("--session-key", sessionKey);
   else if (sessionId) args.push("--session-id", sessionId);
   args.push("-m", fullPrompt, "--json", "--timeout", "120");
-  const runCwd = typeof cwd === "string" && path.isAbsolute(cwd) && existsSync(cwd)
-    ? cwd
-    : AGENT_OS_FOLDERS_ROOT;
+  let runCwd;
+  try { runCwd = await resolveRegisteredProjectLaunchDirectory("openclaw", typeof projectId === "string" ? projectId : undefined); }
+  catch (error) {
+    const code = error instanceof ProjectRegistryError ? error.code : "project_directory_invalid";
+    return NextResponse.json({ code, error: "OpenClaw project is not an approved launch target." }, { status: 400 });
+  }
   const out = await run("openclaw", args, { timeoutMs: 150_000, cwd: runCwd, signal: req.signal });
+  if (out.code === -1 && /^Provider launch denied:/.test(out.stderr)) {
+    return NextResponse.json({ code: out.stderr.split(": ").at(-1), error: "OpenClaw start is disabled by runtime containment." }, { status: 503 });
+  }
 
   // Try to parse JSON payload from stdout (may include leading non-JSON log lines)
   let text = "";

@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { callTool } from "@/lib/notebooklmClient";
 
@@ -18,6 +19,8 @@ type ResearchResult = {
 
 // POST = start a research task
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/notebooklm/research");
+  if (frozen) return frozen;
   try {
     const { query, mode, title, notebook_id } = await req.json();
     if (!query || typeof query !== "string") return NextResponse.json({ error: "query required" }, { status: 400 });

@@ -1,58 +1,116 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 
-test.describe("Workbench API contract", () => {
-  test("creates, queues, replays events, and cancels without claiming unsupported native work", async ({ request, baseURL }) => {
+function bootstrapSecret(): string {
+  const secret = process.env.AGENT_OS_WORKBENCH_BOOTSTRAP_SECRET;
+  if (!secret) throw new Error("AGENT_OS_WORKBENCH_BOOTSTRAP_SECRET is required for Workbench API tests.");
+  return secret;
+}
+
+async function bootstrap(request: APIRequestContext, origin: string): Promise<void> {
+  const response = await request.post("/api/workbench/session", {
+    headers: {
+      Origin: origin,
+      "Content-Type": "application/json",
+      "X-Agent-OS-Bootstrap-Token": bootstrapSecret(),
+    },
+    data: {},
+  });
+  expect(response.status(), await response.text()).toBe(200);
+}
+
+async function runCount(request: APIRequestContext): Promise<number> {
+  const response = await request.get("/api/workbench/runs?limit=100");
+  expect(response.status()).toBe(200);
+  return ((await response.json()).runs ?? []).length;
+}
+
+async function rotate(request: APIRequestContext, origin: string): Promise<void> {
+  const response = await request.get("/api/workbench/session", { headers: { Origin: origin } });
+  expect(response.status(), await response.text()).toBe(200);
+}
+
+test.describe("Wave 3 Workbench HTTP contract", () => {
+  test("advertises only the restricted pilot and rejects option/identity overrides before a run", async ({ request, baseURL }) => {
     const origin = new URL(baseURL!).origin;
     const headers = { Origin: origin, "Content-Type": "application/json" };
+    await bootstrap(request, origin);
 
-    const listResponse = await request.get("/api/workbench/runs?agentId=codex&limit=5");
+    const listResponse = await request.get("/api/workbench/runs?limit=5");
     expect(listResponse.status()).toBe(200);
     const list = await listResponse.json();
-    expect(list.agents).toHaveLength(5);
-    expect(list.agents.find((agent: { id: string }) => agent.id === "codex").capabilities.start.status).toBe("unsupported");
+    for (const provider of ["codex", "claude"] as const) {
+      const descriptor = list.agents.find((agent: { id: string }) => agent.id === provider);
+      expect(descriptor.capabilities.start.status).toBe("supported");
+      expect(descriptor.capabilities.resume.status).toBe("supported");
+      expect(descriptor.capabilities.cancel.status).toBe("supported");
+      expect(descriptor.capabilities.queue.status).toBe("unsupported");
+    }
+    for (const provider of ["hermes", "openclaw", "antigravity"] as const) {
+      expect(list.agents.find((agent: { id: string }) => agent.id === provider).capabilities.start.status).toBe("unsupported");
+    }
 
-    const createResponse = await request.post("/api/workbench/runs", {
+    const before = await runCount(request);
+    const overrideKey = `http-options-${Date.now()}`;
+    const override = await request.post("/api/workbench/runs", {
       headers,
       data: {
         agentId: "codex",
-        title: "Workbench contract test",
-        context: {
-          actorId: "codex",
-          projectId: "qa-project",
-          environment: "local",
-          panel: "transcript",
+        prompt: "must not execute",
+        idempotencyKey: overrideKey,
+        options: { model: "caller-owned-model" },
+        context: { actorId: "codex", projectId: "agent-os/project-a", environment: "local" },
+      },
+    });
+    expect(override.status()).toBe(400);
+    await rotate(request, origin);
+
+    const mismatchKey = `http-identity-${Date.now()}`;
+    const mismatch = await request.post("/api/workbench/runs", {
+      headers,
+      data: {
+        agentId: "codex",
+        prompt: "must not execute",
+        idempotencyKey: mismatchKey,
+        context: { actorId: "codex", projectId: "agent-os/project-a", environment: "local" },
+        identity: {
+          actorId: "different-actor",
+          projectId: "agent-os/project-a",
+          worktreeId: "local",
+          provider: "codex",
+          profileId: null,
+          nativeSessionId: null,
+          runId: mismatchKey,
         },
       },
     });
-    expect(createResponse.status()).toBe(201);
-    const created = await createResponse.json();
-    expect(created.run.status).toBe("queued");
-    expect(created.start).toMatchObject({ ok: false, code: "unsupported" });
-    const runId = created.run.id as string;
+    expect(mismatch.status()).toBe(409);
+    expect(await runCount(request)).toBe(before);
+  });
 
-    const queueResponse = await request.post(`/api/workbench/runs/${runId}/messages`, {
-      headers,
-      data: { mode: "queue", content: "Safe queued QA message" },
-    });
-    expect(queueResponse.status()).toBe(202);
-    expect(await queueResponse.json()).toMatchObject({ delivery: "queued" });
+  test("legacy content and lifecycle routes are read-only", async ({ request }) => {
+    for (const route of [
+      "/api/codex/chats",
+      "/api/codex/goals",
+      "/api/codex/workspace",
+      "/api/claude/workspace",
+      "/api/claude/ultracode",
+    ]) {
+      const response = await request.post(route, {
+        headers: { "Content-Type": "application/json" },
+        data: { prompt: "must-not-persist", name: "must-not-create", action: "stop", id: "missing" },
+      });
+      expect(response.status(), `${route}: ${await response.text()}`).toBe(405);
+    }
 
-    const steerResponse = await request.post(`/api/workbench/runs/${runId}/messages`, {
-      headers,
-      data: { mode: "steer", content: "Must not steer a queued run" },
-    });
-    expect(steerResponse.status()).toBe(409);
-
-    const cancelResponse = await request.post(`/api/workbench/runs/${runId}/cancel`, { headers, data: {} });
-    expect(cancelResponse.status()).toBe(200);
-    expect((await cancelResponse.json()).run.status).toBe("cancelled");
-
-    const eventResponse = await request.get(`/api/workbench/runs/${runId}/events?after=0`);
-    expect(eventResponse.status()).toBe(200);
-    expect(eventResponse.headers()["content-type"]).toContain("text/event-stream");
-    const events = await eventResponse.text();
-    expect(events).toContain("event: status");
-    expect(events).toContain('"status":"cancelled"');
+    const chats = await request.get("/api/codex/chats");
+    expect(chats.status()).toBe(200);
+    for (const session of (await chats.json()).sessions ?? []) {
+      expect(session).not.toHaveProperty("messages");
+      expect(session).not.toHaveProperty("title");
+      expect(session).not.toHaveProperty("project");
+      expect(session).not.toHaveProperty("root");
+      expect(session.legacyContentWithheld).toBe(true);
+    }
   });
 
   test("rejects cross-origin mutations", async ({ request }) => {
@@ -62,49 +120,4 @@ test.describe("Workbench API contract", () => {
     });
     expect(response.status()).toBe(403);
   });
-
-  for (const agentId of ["hermes", "openclaw"] as const) {
-    test(`${agentId} refuses to mix actors inside one native session`, async ({ request, baseURL }) => {
-      const origin = new URL(baseURL!).origin;
-      const headers = { Origin: origin, "Content-Type": "application/json" };
-      const sessionId = `qa-${agentId}-${Date.now()}`;
-      const firstActor = agentId === "hermes" ? "profile-alpha" : "agent-alpha";
-      const secondActor = agentId === "hermes" ? "profile-beta" : "agent-beta";
-
-      const first = await request.post("/api/workbench/runs", {
-        headers,
-        data: {
-          agentId,
-          context: {
-            agentId,
-            actorId: firstActor,
-            projectId: "qa-project",
-            sessionId,
-            environment: "local",
-            panel: "transcript",
-          },
-        },
-      });
-      expect(first.status()).toBe(201);
-
-      const conflicting = await request.post("/api/workbench/runs", {
-        headers,
-        data: {
-          agentId,
-          context: {
-            agentId,
-            actorId: secondActor,
-            projectId: "qa-project",
-            sessionId,
-            environment: "local",
-            panel: "transcript",
-          },
-        },
-      });
-      expect(conflicting.status()).toBe(409);
-      expect(await conflicting.json()).toMatchObject({
-        error: "This native session is already bound to a different actor.",
-      });
-    });
-  }
 });

@@ -1,8 +1,11 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 import { workspacePath } from "@/lib/workspaceRoot";
 import path from "node:path";
 import { mkdir, readdir, stat } from "node:fs/promises";
+import { config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +18,8 @@ const WORKSPACE = workspacePath("local-hermes");
 // profile workspace, so everything it builds lands where the Engine's preview can
 // see it (the model otherwise picks its own path, e.g. ~/Sites).
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/local-hermes/run");
+  if (frozen) return frozen;
   const { prompt } = await req.json();
   if (typeof prompt !== "string" || prompt.length === 0) return NextResponse.json({ error: "missing prompt" }, { status: 400 });
   if (prompt.length > 16_000) return NextResponse.json({ error: "prompt too long" }, { status: 413 });
@@ -35,11 +40,14 @@ export async function POST(req: Request) {
   };
   const before = await snapshot();
 
-  const out = await run(
-    "hermes",
-    ["-p", "local", "-z", prompt, "--yolo", "--accept-hooks"],
-    { timeoutMs: TIMEOUT_MS, cwd: WORKSPACE },
-  );
+  const launchArgs = ["-p", "local", "-z", prompt];
+  try {
+    await assertProviderLaunch("hermes", config.hermes, launchArgs);
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return NextResponse.json({ code, error: "Hermes executable identity or launch policy could not be verified." }, { status: 503 });
+  }
+  const out = await run("hermes", launchArgs, { timeoutMs: TIMEOUT_MS, cwd: WORKSPACE });
 
   const after = await snapshot();
   const built = Object.keys(after).filter((n) => !(n in before) || after[n] !== before[n]).sort();

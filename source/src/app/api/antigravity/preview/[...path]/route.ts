@@ -1,10 +1,11 @@
 import { stat } from "node:fs/promises";
-import { existsSync, createReadStream } from "node:fs";
+import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import path from "node:path";
 import { SCRATCH_ROOT, BRAIN_ROOT } from "@/lib/antigravityWorkspace";
 import { isSafeProjectName } from "@/lib/projectName";
+import { resolveContainedExistingPathSync } from "@/lib/control-plane/pathSecurity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,12 +56,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
 
   const root = kind === "brain" ? BRAIN_ROOT : SCRATCH_ROOT;
   const base = path.join(root, project);
-  const abs = path.resolve(base, rel);
-  // Path-traversal guard: resolved path must be inside the project root.
-  if (abs !== base && !abs.startsWith(base + path.sep)) {
-    return new Response("forbidden", { status: 403 });
-  }
-  if (!existsSync(abs)) return new Response("not found", { status: 404 });
+  const resolved = resolveContainedExistingPathSync(base, rel);
+  if (!resolved.ok) return new Response("forbidden", { status: 403 });
+  const abs = resolved.absolutePath;
 
   const s = await stat(abs);
   if (!s.isFile()) return new Response("not a file", { status: 400 });

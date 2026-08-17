@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { exec } from "node:child_process";
 import path from "node:path";
@@ -22,6 +23,8 @@ function sh(script: string, timeoutMs: number): Promise<{ ok: boolean; out: stri
 
 // POST { action: "start" | "stop" }
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/opendesign/control");
+  if (frozen) return frozen;
   const { action } = await req.json().catch(() => ({}));
   if (action !== "start" && action !== "stop") return NextResponse.json({ error: "action must be start|stop" }, { status: 400 });
   const res = action === "start" ? await sh(START, 120_000) : await sh(STOP, 40_000);

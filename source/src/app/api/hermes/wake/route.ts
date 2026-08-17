@@ -1,10 +1,12 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { hermesHome } from "@/lib/config";
+import { config, hermesHome } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,26 +74,40 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/wake");
+  if (frozen) return frozen;
   const { action } = await req.json().catch(() => ({}));
   if (action !== "on" && action !== "off") {
     return NextResponse.json({ error: "action must be 'on' | 'off'" }, { status: 400 });
   }
+  const enabled = action === "on" ? "true" : "false";
+  const configArgs = ["config", "set", "wake_word.enabled", enabled];
+  const launchEnv = { ...process.env, HOME: os.homedir() };
+  let hermesBin: string;
+  try {
+    hermesBin = (await assertProviderLaunch("hermes", config.hermes, configArgs, launchEnv)).absolutePath;
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return NextResponse.json({ code, error: "Hermes executable identity or launch policy could not be verified." }, { status: 503 });
+  }
   if (action === "on") {
-    await pexec("hermes", ["config", "set", "wake_word.enabled", "true"], { timeout: 30000 });
+    await pexec(hermesBin, configArgs, { timeout: 30000, env: launchEnv });
     // retire any dev-server-hosted listener (its process context has no macOS mic
     // grant, so its stream delivers only silence — the documented TCC trap)
     try { await pexec("/usr/bin/pkill", ["-f", "hermes --tui"]); } catch { /* none */ }
     if ((await listenerPids()).length === 0) {
       // current-source desktop owns the listener (the /Applications build predates
       // the wake feature): real app bundle = real mic permission
-      const child = spawn("hermes", ["desktop", "--skip-build"], {
-        detached: true, stdio: "ignore", env: { ...process.env, HOME: os.homedir() },
+      const desktopArgs = ["desktop", "--skip-build"];
+      await assertProviderLaunch("hermes", hermesBin, desktopArgs, launchEnv);
+      const child = spawn(hermesBin, desktopArgs, {
+        detached: true, stdio: "ignore", env: launchEnv,
       });
       child.unref();
       await new Promise((r) => setTimeout(r, 30000));
     }
   } else {
-    await pexec("hermes", ["config", "set", "wake_word.enabled", "false"], { timeout: 30000 });
+    await pexec(hermesBin, configArgs, { timeout: 30000, env: launchEnv });
     try { await pexec("/usr/bin/pkill", ["-f", "hermes --tui"]); } catch { /* not running */ }
     // desktop app stays open if the user runs it; config-off disarms its listener
   }

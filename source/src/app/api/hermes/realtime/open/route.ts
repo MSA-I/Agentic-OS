@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 
@@ -44,6 +45,8 @@ async function runOpen(target: string): Promise<"url" | "app" | "search" | ""> {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/realtime/open");
+  if (frozen) return frozen;
   const { target } = await req.json().catch(() => ({ target: "" }));
   if (typeof target !== "string" || !target.trim()) return NextResponse.json({ ok: false, error: "missing target" }, { status: 400 });
   const mode = await runOpen(target);

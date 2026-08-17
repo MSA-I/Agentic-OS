@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { run } from "@/lib/runner";
 
@@ -32,6 +33,8 @@ function boardArgs(board?: string): string[] {
 }
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/hermes/kanban/action");
+  if (frozen) return frozen;
   const b: ActionBody = await req.json();
   const board = boardArgs(b.board);
   let args: string[] = [];

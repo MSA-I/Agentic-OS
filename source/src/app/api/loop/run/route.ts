@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { orKey, nousToken, workerAct, verdict, DEFAULT_JUDGE } from "@/lib/loopEngine";
 import { minimaxToken } from "@/lib/hermesStudio";
 import { writeFile, mkdir, readdir, rm } from "node:fs/promises";
@@ -112,6 +113,8 @@ function judgeName(j: string): string {
 
 // POST { goal, artifact?, worker?, judge?, maxIters? } → streams NDJSON of the loop cycle.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/loop/run");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const goal = String(body.goal || "").trim();
   const startArtifact = String(body.artifact || "");

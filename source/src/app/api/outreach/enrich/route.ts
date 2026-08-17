@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readState, writeState, newId, domainSize, type Lead } from "@/lib/outreach";
 import { enrichDomain, firecrawlSearch } from "@/lib/outreachBackends";
@@ -11,6 +12,8 @@ export const maxDuration = 120;
 //  - domains: enrich these raw domains as new leads
 //  - leadIds: (re)enrich existing leads missing an email
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/outreach/enrich");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const state = await readState();
   const out: { found: number; enriched: number; withEmail: number; leads: Lead[] } = { found: 0, enriched: 0, withEmail: 0, leads: [] };

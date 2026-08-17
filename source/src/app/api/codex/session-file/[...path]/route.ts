@@ -1,10 +1,10 @@
 import { stat } from "node:fs/promises";
-import { existsSync, createReadStream } from "node:fs";
+import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import path from "node:path";
 import os from "node:os";
-import { isPathUnderHome } from "@/lib/codexWorkspace";
+import { resolveContainedExistingPathSync } from "@/lib/control-plane/pathSecurity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,9 +42,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
     return new Response("invalid path segment", { status: 400 });
   }
 
-  const abs = path.resolve(HOME, segments.join("/"));
-  if (!isPathUnderHome(abs)) return new Response("forbidden", { status: 403 });
-  if (!existsSync(abs)) return new Response("not found", { status: 404 });
+  const resolved = resolveContainedExistingPathSync(HOME, segments.join("/"));
+  if (!resolved.ok) return new Response("forbidden", { status: 403 });
+  const abs = resolved.absolutePath;
 
   const s = await stat(abs);
   if (!s.isFile()) return new Response("not a file", { status: 400 });

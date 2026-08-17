@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
@@ -5,6 +6,8 @@ import { hermesCliArgs } from "@/lib/hermesProfile";
 import { resolveHiggsfieldProfile } from "@/lib/higgsfieldProfile";
 import { run } from "@/lib/runner";
 import { workspacePath } from "@/lib/workspaceRoot";
+import { config } from "@/lib/config";
+import { assertProviderLaunch, ExecutableIdentityError } from "@/lib/control-plane/executableIdentity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +34,8 @@ const GUIDE = (kind: string) =>
   ].join(" ");
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/higgs/run");
+  if (frozen) return frozen;
   const { profile } = await resolveHiggsfieldProfile();
   const body = await req.json().catch(() => ({}));
   const prompt = String(body.prompt ?? "").trim();
@@ -43,7 +48,14 @@ export async function POST(req: Request) {
 
   const started = Date.now();
   const full = `${GUIDE(kind)}\n\nREQUEST:\n${prompt}`;
-  const r = await run("hermes", hermesCliArgs(profile, ["-z", full, "--yolo", "--accept-hooks"]), { timeoutMs: 900_000, cwd: GALLERY });
+  const launchArgs = hermesCliArgs(profile, ["-z", full]);
+  try {
+    await assertProviderLaunch("hermes", config.hermes, launchArgs);
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return NextResponse.json({ code, error: "Hermes executable identity or launch policy could not be verified." }, { status: 503 });
+  }
+  const r = await run("hermes", launchArgs, { timeoutMs: 900_000, cwd: GALLERY });
   const out = (r.stdout || "").replace(ANSI, "").trim();
 
   // whatever actually appeared on disk is the truth — the JSON line is only a hint

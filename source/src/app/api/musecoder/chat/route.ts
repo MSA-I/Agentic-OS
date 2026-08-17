@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -39,6 +40,8 @@ const STEER =
   "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js. End with </body></html>.";
 
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/musecoder/chat");
+  if (frozen) return frozen;
   const key = dsKey();
   if (!key) return NextResponse.json({ error: "No OpenRouter key found. Add OPENROUTER_API_KEY to ~/.hermes/.env" }, { status: 503 });
 

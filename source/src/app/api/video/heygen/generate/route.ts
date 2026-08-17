@@ -1,3 +1,4 @@
+import { denyFrozenExecutionMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { generateAvatarVideo, uploadAudioAsset } from "@/lib/heygen";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 //                        clip); the audio is uploaded to HeyGen as an asset first.
 // Async — returns video_id, then poll /api/video/heygen/status?id=<video_id>.
 export async function POST(req: Request) {
+  const frozen = await denyFrozenExecutionMutation(req, "POST /api/video/heygen/generate");
+  if (frozen) return frozen;
   const body = await req.json().catch(() => ({}));
   const avatarId = String(body.avatarId ?? "").trim();
   const voiceId = String(body.voiceId ?? "").trim();
