@@ -30,6 +30,14 @@ Every future subagent prompt must include the authoritative plan path and requir
 | 7 — Complete Tool Center | Not started | None | Closed |
 | 8 — Operational E2E and cutover | Not started | None | Closed |
 
+## Open defect plan
+
+`DEFECT-PLAN-2026-08-17.md` holds five reported UI and telemetry defects with a verified root cause for
+each. Three of them (Hermes model `unknown`, Token usage, Live activity) are one regression family: Wave 1
+froze execution and Wave 3 moved real runs into the durable control plane, but the read-only surfaces still
+read the old sources. D1 there is a regression that disables the whole vitals layer and should be fixed
+first.
+
 ## Evidence rules
 
 - `static-contract`: source or deterministic contract evidence only.
