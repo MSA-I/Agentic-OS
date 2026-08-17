@@ -141,7 +141,53 @@ Rename-Item "$HOME\.agents\skills.staging-2026-08-17" "skills"
 Rename-Item "$HOME\.codex\skills.archived-2026-08-17" "skills"
 ```
 
-### על בחירת ה-220 — מה שקוף ומה שרירותי
+### הסט הסופי — נבנה מהסטאק שנמדד, לא מניחוש
+
+הבחירה הראשונה (mtime) הייתה שרירותית עבור 175 מתוך 220, כי 2,319 skills חולקים יום התקנה אחד.
+לכן הסט נבנה מחדש מראיות: **פרופיל התלויות של 38 הפרויקטים** תחת `D:\משה פרוייקטים\פיתוח אתרים`.
+
+התלויות הנפוצות שנמדדו:
+
+```
+react:62  react-dom:43  vite:42  three:26  typescript:26  lucide-react:21  tailwindcss:20
+papaparse:18  vitest:16  zod:14  idb:14  sharp:12  supabase-js:11  react-query:9  recharts:9
+react-pdf:9  xlsx:9  msw:9  playwright-core:9  vite-plugin-pwa:9  tus-js-client:9
+framer-motion:6  zustand:6  gsap:5  drei:4  fiber:4  konva:3  next:2
+```
+
+מכאן נגזרו אחת-עשרה קבוצות תחום עם משקלים, וכל skill נוקד לפי התאמת **מילה שלמה** בשם ובתיאור
+(התאמת תת-מחרוזת ניפחה את הניקוד: `ci` נתפס בתוך `specification`). בנוסף:
+
+- כל 45 ה-skills שהותקנו במכוון מקבלים עדיפות מוחלטת — כולם בסט.
+- **892 skills של אינטגרציות לכלים שאינם מחוברים כאן נזרקו** (`*-automation` ל-SaaS שלא בשימוש).
+  אינטגרציה שורדת רק אם היא נוקבת בכלי שמחובר בפועל: supabase, github, cloudflare, vercel,
+  openrouter, openai, anthropic, notion, telegram, whatsapp, gmail, google-*, stripe, slack, figma,
+  playwright, firecrawl, apify, neon, postgres.
+
+התפלגות הסט (skill יכול להשתייך לכמה תחומים):
+
+| תחום | כמות |
+|---|---|
+| ai-agents | 116 |
+| ui-ux | 93 |
+| testing-quality | 71 |
+| data-backend | 70 |
+| frontend | 56 |
+| seo-content | 42 |
+| security | 38 |
+| devops-cli | 37 |
+| media | 33 |
+| product-growth | 27 |
+| 3d-canvas | 14 |
+
+דוגמאות שנכנסו מהגוש בזכות התאמה לסטאק: `spline-3d-integration`, `3d-web-design`, `shadcn`,
+`animejs-animation`, `scroll-hero-effect`, `senior-frontend`, `postgres-best-practices`,
+`drizzle-orm-expert`, `vercel-ai-sdk-expert`, `landing-page-generator`, `artifacts-builder`,
+`cc-skill-frontend-patterns`, `agents-sdk`.
+
+הרשימה המלאה, עם התחום של כל skill, ב-`~/.agents/skills-live-set-2026-08-17.txt`.
+
+### על הבחירה הקודמת — מה היה שרירותי
 
 הקריטריון היה זמן שינוי של `SKILL.md`, אבל **2,319 מתוך 2,364 חולקים את אותו יום (2026-07-21)** —
 התקנה בתפזורת. לכן:
