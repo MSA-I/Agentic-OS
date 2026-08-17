@@ -84,9 +84,14 @@ const FIXED_COMMANDS: Readonly<Record<string, FixedCommandSpec>> = {
 };
 
 export class SetupRuntimeError extends Error {
-  constructor(message: string, readonly status: number) {
+  // Declared as a field rather than a parameter property so this module stays
+  // importable under `node --experimental-strip-types`, which its unit test uses.
+  readonly status: number;
+
+  constructor(message: string, status: number) {
     super(message);
     this.name = "SetupRuntimeError";
+    this.status = status;
   }
 }
 
@@ -279,7 +284,7 @@ async function terminateProcessTree(child: ChildProcess): Promise<void> {
 async function commandSucceeds(base: string, args: readonly string[], timeoutMs = 4000): Promise<boolean> {
   const executable = await findExecutable(base);
   if (!executable) return false;
-  let invocation: { command: string; args: string[] };
+  let invocation: ReturnType<typeof spawnInvocation>;
   try { invocation = spawnInvocation(executable, args); } catch { return false; }
   return new Promise<boolean>((resolve) => {
     let settled = false;
@@ -292,6 +297,7 @@ async function commandSucceeds(base: string, args: readonly string[], timeoutMs 
     const child = spawn(invocation.command, invocation.args, {
       env: setupChildEnv(),
       windowsHide: true,
+      windowsVerbatimArguments: invocation.verbatim,
       stdio: "ignore",
       shell: false,
     });
@@ -1126,15 +1132,24 @@ async function validateValues(
   return out;
 }
 
-function spawnInvocation(executable: string, args: readonly string[]): { command: string; args: string[] } {
+export function spawnInvocation(executable: string, args: readonly string[]): { command: string; args: string[]; verbatim?: boolean } {
   if (process.platform !== "win32" || !/\.(?:cmd|bat)$/i.test(executable)) {
     return { command: executable, args: [...args] };
   }
-  if (/[\r\n"%!]/.test(executable) || args.some((value) => !/^[A-Za-z0-9@._:/=+-]+$/.test(value))) {
+  // `&`, `|`, `<`, `>` and `^` matter too: the line below is handed to cmd.exe
+  // verbatim, so a path carrying one of them would be parsed as an operator.
+  if (/[\r\n"%!&|<>^]/.test(executable) || args.some((value) => !/^[A-Za-z0-9@._:/=+-]+$/.test(value))) {
     throw new SetupRuntimeError("The fixed command could not be represented safely.", 500);
   }
   const command = process.env.ComSpec || path.join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe");
-  return { command, args: ["/d", "/s", "/c", `call "${executable}" ${args.join(" ")}`.trim()] };
+  // Two Windows rules collide here. Node escapes an argument containing quotes,
+  // which would reach cmd.exe as \"C:\path\npm.cmd\" and fail to resolve; and
+  // cmd.exe /c strips the outermost quote pair of the line it receives. So the
+  // line is built by hand, wrapped in one extra quote pair, and passed through
+  // with windowsVerbatimArguments so Node leaves it alone. Every caller must
+  // forward `verbatim` to spawn, or the quoting breaks again.
+  const line = args.length > 0 ? `"${executable}" ${args.join(" ")}` : `"${executable}"`;
+  return { command, args: ["/d", "/s", "/c", `"${line}"`], verbatim: true };
 }
 
 function safeCommandOutput(output: string): string {
@@ -1179,6 +1194,7 @@ async function runForegroundCommand(spec: ResolvedFixedCommandSpec): Promise<str
       env: setupChildEnv(),
       shell: false,
       windowsHide: true,
+      windowsVerbatimArguments: invocation.verbatim,
       stdio: ["ignore", "pipe", "pipe"],
     });
     const append = (current: string, chunk: Buffer | string) => `${current}${chunk.toString()}`.slice(-32_000);
@@ -1233,6 +1249,7 @@ async function startFixedService(key: string, spec: ResolvedFixedCommandSpec): P
     detached: true,
     shell: false,
     windowsHide: true,
+    windowsVerbatimArguments: invocation.verbatim,
     stdio: "ignore",
   });
   await new Promise<void>((resolve, reject) => {

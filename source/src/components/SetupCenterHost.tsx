@@ -539,8 +539,10 @@ export default function SetupCenterHost() {
                                   <button type="button" onClick={async () => { if (await copyText(action.copyCommand ?? "")) { setCopied(action.id); window.setTimeout(() => setCopied(""), 1600); } }} className="inline-flex shrink-0 items-center gap-1 text-[8.5px] text-[var(--cream-dim)]"><Copy size={10} /> {copied === action.id ? "Copied" : "Copy"}</button>
                                 </div>
                               )}
-                              <button type="button" onClick={() => void execute(action)} disabled={setupActionsFrozen || activeBusy || (busyAction !== null && !activeBusy)} title={setupActionsFrozen ? EXECUTION_FROZEN_COPY.controlTitle : undefined} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold transition hover:brightness-125 disabled:cursor-wait disabled:opacity-50" style={{ color: actionStyle.color, borderColor: actionStyle.border, background: "rgba(0,0,0,.16)" }}>
-                                {activeBusy ? <Loader2 size={12} className="animate-spin" /> : ACTION_ICON[action.kind]} {activeBusy ? "Working…" : setupActionsFrozen ? `${action.label} · disabled` : action.label}
+                              {/* A manual action never runs anything, so its control must not
+                                  look like the automatic one next to it. */}
+                              <button type="button" onClick={() => void execute(action)} disabled={setupActionsFrozen || activeBusy || (busyAction !== null && !activeBusy)} title={setupActionsFrozen ? EXECUTION_FROZEN_COPY.controlTitle : action.availability === "manual" ? "Shows the step to run yourself. Agent OS installs nothing." : undefined} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold transition hover:brightness-125 disabled:cursor-wait disabled:opacity-50" style={{ color: action.availability === "manual" ? "var(--cream-dim)" : actionStyle.color, borderColor: action.availability === "manual" ? "var(--line-soft)" : actionStyle.border, background: "rgba(0,0,0,.16)" }}>
+                                {activeBusy ? <Loader2 size={12} className="animate-spin" /> : action.availability === "manual" ? <TerminalSquare size={14} /> : ACTION_ICON[action.kind]} {activeBusy ? "Working…" : setupActionsFrozen ? `${action.label} · disabled` : action.availability === "manual" ? `${action.label} · manual step` : action.label}
                               </button>
                             </div>
                           );
@@ -582,11 +584,15 @@ export default function SetupCenterHost() {
                     {!result && !busyAction && <div className="rounded-md border px-4 py-5 text-[11px] text-[var(--cream-mute)]" style={{ borderColor: "var(--line-soft)" }}>No action has run in this window yet.</div>}
                     {busyAction && !result && <div className="flex items-center gap-2 rounded-md border px-4 py-4 text-[11px] text-[var(--sdi-soft)]" style={{ borderColor: "rgba(46,125,255,.3)", background: "rgba(46,125,255,.07)" }}><Loader2 size={14} className="animate-spin" /> The allowlisted action is running…</div>}
                     {result && (
-                      <div className="rounded-md border p-4" style={{ borderColor: result.ok === false ? "rgba(255,46,77,.35)" : "rgba(43,224,138,.3)", background: result.ok === false ? "rgba(255,46,77,.07)" : "rgba(43,224,138,.06)" }}>
+                      <div className="rounded-md border p-4" style={{ borderColor: result.ok === false ? "rgba(255,46,77,.35)" : result.mode === "manual" ? "rgba(255,176,32,.36)" : "rgba(43,224,138,.3)", background: result.ok === false ? "rgba(255,46,77,.07)" : result.mode === "manual" ? "rgba(255,176,32,.07)" : "rgba(43,224,138,.06)" }}>
                         <div className="flex items-start gap-2">
-                          {result.ok === false ? <AlertTriangle size={15} style={{ color: "var(--tally)" }} /> : <CheckCircle2 size={15} style={{ color: "var(--preview)" }} />}
+                          {result.ok === false ? <AlertTriangle size={15} style={{ color: "var(--tally)" }} /> : result.mode === "manual" ? <TerminalSquare size={15} style={{ color: "var(--amber)" }} /> : <CheckCircle2 size={15} style={{ color: "var(--preview)" }} />}
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11.5px] font-semibold text-[var(--cream)]">{result.mode === "manual" ? "Manual step ready" : result.ok === false ? "Action failed" : "Action completed"}</div>
+                            <div className="text-[11.5px] font-semibold text-[var(--cream)]">{result.mode === "manual" ? "Manual step — nothing ran" : result.ok === false ? "Action failed" : "Action completed"}</div>
+                            {/* A manual action returns ok:true without doing anything. Read as a
+                                success it looks like the service was installed, so the row says
+                                plainly that this is still the user's step to run. */}
+                            {result.mode === "manual" && <p className="mt-1 text-[10px] font-medium leading-relaxed" style={{ color: "var(--amber)" }}>Agent OS installed and changed nothing. Run the step yourself, then press Test.</p>}
                             <p className="mt-1 whitespace-pre-wrap text-[10px] leading-relaxed text-[var(--cream-dim)]">{result.message || result.error || "The service was checked."}</p>
                           </div>
                         </div>
