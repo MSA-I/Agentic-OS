@@ -98,7 +98,6 @@ export const WAVE1_FROZEN_EXECUTION_ROUTES = [
   "POST /api/seo/index",
   "POST /api/seo/parasite",
   "POST /api/seo/research",
-  "POST /api/setup/action",
   "POST /api/thumbnails/generate",
   "POST /api/thumbnails/research",
   "POST /api/translate/gemini-live",

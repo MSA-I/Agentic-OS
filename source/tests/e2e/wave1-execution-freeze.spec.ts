@@ -12,7 +12,6 @@ const DIRECT_EXECUTION_ROUTES = [
   "/api/room",
   "/api/ruflo/swarm",
   "/api/seo/generate",
-  "/api/setup/action",
   "/api/videouse/run",
 ] as const;
 

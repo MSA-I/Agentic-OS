@@ -176,7 +176,8 @@ own copy.
   the runtime-not-available reason first and the freeze reason second, and renders no textarea and no
   Run button; Hermes and OpenClaw show their own reason in place of the composer.
 - The two globally mounted surfaces are disabled in place: Setup Center actions and every Command
-  Palette action carry the shared reason.
+  Palette action carry the shared reason. (Setup Center actions were unfrozen on 2026-08-17 — see
+  below. The Command Palette remains disabled.)
 
 Not covered: individual buttons inside the 39 app surfaces still render. The page notice is what makes
 them truthful before a click, and the route still answers `503 control_plane_execution_unavailable`
@@ -222,3 +223,42 @@ Two observations from that check, both outside this repository: Codex reported `
 budget of 2%. All skill descriptions were removed and 3753 additional skills were not included`, which
 is a data point for the Wave 7 `agent-orchestrator` and capability-catalog work, and three files under
 `~/.agents/skills` fail to load with missing or invalid YAML frontmatter.
+
+## Setup Center unfrozen by owner decision — 2026-08-17
+
+`POST /api/setup/action` was in the Wave 1 freeze manifest, so every Setup Center action was disabled
+in the client and the route answered `503 control_plane_execution_unavailable` for every service. The
+practical effect was that no service could be installed or connected from the app at all: the "Not
+installed" sidebar rows led to a Setup Center whose Install, Connect, Start and Test buttons could
+never run. The owner decided to lift the freeze for this one route rather than keep the app unable to
+set itself up.
+
+What changed:
+
+- `POST /api/setup/action` removed from `src/lib/control-plane/frozenExecutionRoutes.ts`.
+- `src/app/api/setup/action/route.ts` now opens with `authorizeLocalMutation` instead of
+  `denyFrozenExecutionMutation`, keeping the shared loopback/Origin/cross-site boundary.
+- `verify-wave1-execution-freeze.mjs` carries an explicit classification for the route, following the
+  `POST /api/graphify/run` precedent: an auditable rationale that names every standing control.
+- `docs/control-plane/mutation-inventory.json` and `src/lib/executionFrozenSurfaces.ts` regenerated.
+
+Standing controls on the route, unchanged by this decision: `authorizeLocalMutation`;
+`authorizeSetupMutation` (loopback Origin plus an HttpOnly, SameSite=Strict, `Path=/api/setup`
+capability cookie minted only by `GET /api/setup` and compared in constant time); `application/json`
+only with a 20 KB body cap; a fixed `FIXED_COMMANDS` map keyed by `${route}:${actionId}`, so no command
+text, executable name or argument is ever accepted from the browser; pinned versions and fixed argument
+arrays; `cmd.exe` used only to call a `.cmd`/`.bat` wrapper and only when every argument matches
+`[A-Za-z0-9@._:/=+-]`; `setupChildEnv` instead of `process.env`; path fields resolved through `realpath`
+and required to be real Windows executables; and `safeCommandOutput` truncating and de-homing output.
+No AGENT-OS run, session or provider identity is created by this route. It must still move behind a
+Tool Gateway approval in Wave 4.
+
+Evidence, measured against the running app on port 3737 after a rebuild:
+
+- `node scripts/control-plane/verify-wave1-execution-freeze.mjs` exits 0 with `routeContractStatus:
+  "pass"`, `errors: []`, `unclassifiedExecutionCandidates: []`, `frozenRouteCount: 105`.
+- `npm run control-plane:inventory` and `npm run control-plane:frozen-surfaces:check` both verify.
+- `POST /api/setup/action` with the capability cookie: `200`, `{"ok":true,...,"mode":"executed"}`.
+- Same request without the cookie: `403`. With a cross-site `Origin`: `403`.
+- Setup Center in the browser: all five OpenCode actions render enabled, with no `· disabled` suffix
+  and no freeze tooltip.

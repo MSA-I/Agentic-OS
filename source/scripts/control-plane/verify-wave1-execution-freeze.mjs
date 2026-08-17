@@ -241,6 +241,24 @@ const falsePositiveClassifications = new Map([
     + " of process.env, and redactText on stdout/stderr. Must move behind a Tool Gateway"
     + " approval in Wave 4.",
   ],
+  [
+    "POST /api/setup/action",
+    "Local installer and credential surface kept live by explicit owner decision instead of"
+    + " freezing it: with it frozen, every Setup Center action was disabled and no service"
+    + " could be installed or connected from the app at all. It is not a provider execution"
+    + " path: no AGENT-OS run, session or provider identity is created, and no agent turn is"
+    + " started. Standing controls: authorizeLocalMutation (loopback, Host/Origin match, no"
+    + " cross-site), authorizeSetupMutation (loopback Origin plus an HttpOnly, SameSite=Strict,"
+    + " Path=/api/setup capability cookie minted only by GET /api/setup and compared in"
+    + " constant time), application/json only with a 20 KB body cap, a fixed FIXED_COMMANDS map"
+    + " keyed by `${route}:${actionId}` so no command text, executable name or argument is ever"
+    + " accepted from the browser, executables limited to winget/npx/npm/uv/py/ollama/omniroute/"
+    + "openclaw with pinned versions and fixed argument arrays, cmd.exe used only to call a .cmd/"
+    + ".bat wrapper and only when every argument matches [A-Za-z0-9@._:/=+-], setupChildEnv"
+    + " instead of process.env, path fields resolved through realpath and required to be real"
+    + " Windows executables, and safeCommandOutput truncating and de-homing child output. Must"
+    + " move behind a Tool Gateway approval in Wave 4.",
+  ],
 ]);
 const unclassifiedExecutionCandidates = [];
 for (const route of inventory.routes) {

@@ -47,6 +47,7 @@ const GUARDED_MUTATIONS = [
   { method: "POST", path: "/api/room/history" },
   { method: "POST", path: "/api/sakana/history" },
   { method: "POST", path: "/api/seo/transcript/save" },
+  { method: "POST", path: "/api/setup/action" },
   { method: "POST", path: "/api/todos" },
   { method: "POST", path: "/api/videouse/jobs" },
 ] as const;
