@@ -23,7 +23,7 @@ Every future subagent prompt must include the authoritative plan path and requir
 | 0 — Repository truth and baseline | Complete | `WAVE-0-CLEAN-TREE-GATE.json`, `WAVE-0-BASELINE-LIVE-2026-08-13.json`, `mutation-inventory.json` | Passed |
 | 1 — Security and control foundation | Complete | `WAVE-1-POLICY-FREEZE-EVIDENCE.json`, `WAVE-1-PROVIDER-EXECUTION-SAFETY.json`, `WAVE-1-SECRET-CHANNELS-EVIDENCE.json` | Passed |
 | 2 — Durable Workbench kernel | Complete | `WAVE-2-DURABLE-KERNEL-EVIDENCE.json`; 467/467 Node tests, 25/25 Playwright, build/typecheck/parser PASS, independent review P0=0/P1=0 | Passed |
-| 3 — Restricted Codex/Claude pilot | In progress — blocked on Codex quota | `WAVE-3-LIVE-CLAUDE-2026-08-17.json`: Claude live start/resume/verified cancel/restart PASS; Codex now returns `provider_quota`, so its 2026-08-14 pass in `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json` is historical. Audit repair: `WAVE-3-AUDIT-REPAIR-2026-08-17.json` | Blocked; Wave 4 remains closed |
+| 3 — Restricted Codex/Claude pilot | In progress — blocked on Codex quota until 2026-08-20 08:02 | `WAVE-3-LIVE-CLAUDE-2026-08-17.json`: Claude live start/resume/verified cancel/restart PASS; Codex returns `provider_quota` and its CLI names the reset time, so its 2026-08-14 pass in `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json` is historical. Audit repair: `WAVE-3-AUDIT-REPAIR-2026-08-17.json` | Blocked; Wave 4 remains closed |
 | 4 — Tool Gateway pilot | Not started | None | Closed |
 | 5 — Hermes/OpenClaw parity | Not started | None | Closed |
 | 6 — Shared Project and Mission Control | Not started | None | Closed |
@@ -37,6 +37,10 @@ Every future subagent prompt must include the authoritative plan path and requir
 - `live-runtime`: current execution against the installed provider/tool.
 - `historical`: saved evidence from an earlier SHA, runtime, or date.
 - `blocked`: quota, timeout, missing runtime, auth failure, or unavailable dependency. Never PASS.
+
+Running the inventory check: `mutation-inventory.json` records the `gitHead` it was generated at, so
+`--check` reports it stale immediately after any commit that contains it. Regenerate it as the last step
+before staging, and treat a `gitHead`-only difference as that bookkeeping rather than a real drift.
 
 ## Worktree preservation
 
@@ -187,3 +191,18 @@ split the marker.
 The gate did not close, because the blocker swapped providers: Codex now returns `provider_quota` on
 three consecutive attempts, so its 2026-08-14 live pass is historical at this SHA. Wave 3 closes when a
 current Codex live re-run passes. Wave 4 stays closed.
+
+A direct Codex CLI re-check at 16:06 confirms it and names the reset:
+`You've hit your usage limit … try again at Aug 20th, 2026 8:02 AM` (thread
+`01a01078-f7f8-74b2-88eb-91489e760a1c`, `turn.failed`). No pilot run was spent, because none can pass
+before that time. To close the gate afterwards:
+
+```powershell
+node scripts/control-plane/run-wave3-live-pilot.mjs --provider=codex
+node scripts/control-plane/run-wave3-live-restart-pilot.mjs --provider=codex --port=3114
+```
+
+Two observations from that check, both outside this repository: Codex reported `Exceeded skills context
+budget of 2%. All skill descriptions were removed and 3753 additional skills were not included`, which
+is a data point for the Wave 7 `agent-orchestrator` and capability-catalog work, and three files under
+`~/.agents/skills` fail to load with missing or invalid YAML frontmatter.

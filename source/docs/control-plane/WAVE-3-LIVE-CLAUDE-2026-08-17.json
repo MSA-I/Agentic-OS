@@ -69,7 +69,20 @@
       "errorCode": "provider_quota",
       "errorMessage": "The provider quota or usage allowance is exhausted.",
       "note": "The reverse of 2026-08-14: Claude was blocked then and passes now, Codex passed then and is blocked now. Blocked is not PASS. The runs never produced output, so this is unrelated to the A9 test fix.",
-      "priorPass": "WAVE-3-RESTRICTED-PILOT-EVIDENCE.json, 2026-08-14, which is historical at this SHA"
+      "priorPass": "WAVE-3-RESTRICTED-PILOT-EVIDENCE.json, 2026-08-14, which is historical at this SHA",
+      "cliReconfirmation": {
+        "observedAt": "2026-08-17T16:06:07Z",
+        "command": "printf 'Reply with exactly: OK' | codex exec --json --skip-git-repo-check -",
+        "threadId": "01a01078-f7f8-74b2-88eb-91489e760a1c",
+        "turnResult": "turn.failed",
+        "message": "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Aug 20th, 2026 8:02 AM.",
+        "quotaResetsAt": "2026-08-20T08:02:00 local",
+        "conclusion": "No further Codex pilot run can pass before that reset, so no run was spent. Re-run both Codex pilots after it to close the Wave 3 gate."
+      },
+      "incidentalObservations": [
+        "Codex reported: Exceeded skills context budget of 2%. All skill descriptions were removed and 3753 additional skills were not included in the model-visible skills list. This is machine-level skill sprawl and is a data point for the Wave 7 agent-orchestrator and capability-catalog work.",
+        "Three files under ~/.agents/skills fail to load (missing YAML frontmatter or invalid YAML), and the Codex models cache reports a missing base_instructions field. These are provider-environment problems outside this repository."
+      ]
     }
   },
   "exitGate": {
