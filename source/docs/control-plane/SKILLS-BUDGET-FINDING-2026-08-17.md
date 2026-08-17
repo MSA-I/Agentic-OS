@@ -141,7 +141,51 @@ Rename-Item "$HOME\.agents\skills.staging-2026-08-17" "skills"
 Rename-Item "$HOME\.codex\skills.archived-2026-08-17" "skills"
 ```
 
-### הסט הסופי — נבנה מהסטאק שנמדד, לא מניחוש
+### הסט הסופי — שלושה אותות, לפי חוזק הראיה
+
+הסט הנוכחי (231) נבנה משלושה אותות, בסדר הזה:
+
+| אות | כמות | איך נמדד |
+|---|---|---|
+| הותקן במכוון | 45 | mtime של `SKILL.md` שאינו יום ההתקנה בתפזורת |
+| **שימוש בפועל לאחרונה** | 87 | קריאות אמיתיות ב-Codex וב-Claude מאז 2026-07-10 |
+| התאמה לסטאק הפרויקטים | 98 | פרופיל התלויות של 38 הפרויקטים |
+| מוגדר בקונפיג הגלובלי | 1 | `graphify`, שהיה קיים רק ב-`~/.claude/skills` ולכן Codex מעולם לא ראה אותו |
+
+**איך נמדד שימוש אמיתי.** ניסיון ראשון ספר שמות בתמלילים והחזיר זבל: כל session מדפיס את קטלוג
+ה-skills המלא, ולכן 700 skills "נספרו" עם ~5,300 הופעות כל אחד. האותות הנכונים שונים בין הכלים:
+
+- **Claude** רושם הפעלה כקריאת כלי: `"name":"Skill","input":{"skill":"<name>"`.
+- **ל-Codex אין רישום כזה**, אבל הרצת skill קוראת את `SKILL.md` שלו, ולכן הפניה לנתיב
+  `skills/<name>/SKILL.md` ב-rollout היא הראיה.
+
+מ-1,262 תמלילים מאז 10.7: **167 קריאות ב-Claude על 79 skills**, ו-**6,729 קריאות SKILL.md ב-Codex
+על 599 skills**. הפער אינו מקרי: orchestrator ב-Codex קורא הרבה קבצי `SKILL.md` בזמן חיפוש, ולכן
+קריאה בודדת אינה שימוש. הסף שנקבע: **8 קריאות ומעלה, או קריאת כלי אחת של Claude**.
+
+השימוש הכבד ביותר, וכולו נכנס לסט:
+
+```
+code-reviewer:154  skill-orchestrator:90  frontend-design:70  agent-orchestrator:45
+antigravity-skill-orchestrator:26  e2e-testing:22  verification-before-completion:15
+closed-loop-delivery:14  create-issue-gate:14  code-review-checklist:13
+code-review-excellence:13  vibers-code-review:12  requesting-code-review:12
+receiving-code-review:12  executing-plans:11  multi-agent-brainstorming:11
+agents-sdk:10  acceptance-orchestrator:10  swarm:10  pdf-official:7  i18n-localization:1
+```
+
+השורה האחרונה מספרת סיפור: `pdf-official` ו-`i18n-localization` הופעלו על מסמכי PDF בעברית, ומשפחת
+ה-code-review כולה בשימוש חוזר. אלה לא היו נבחרים על ידי ניקוד תחומים.
+
+**73 skills שהיו בשימוש אינם ניתנים להוספה** מ-staging כי הם מגיעים מ-plugins ולא מהשורש
+(`documents`, `pdf`, `presentations`, `gmail`, `computer-use`, `control-chrome`, `visualize`
+ועוד), ושניים הם skills ייעודיים לפרויקט (`supplyflow-production-rollout`,
+`nir-app-remediation-phase`). הם עובדים כרגיל דרך ה-plugins.
+
+**59 skills שהיו בשימוש נדחו מחוסר מקום** (התקציב נמדד: 220 נכנסים, 250 חורגים). כולם ב-staging
+ונוספים בפקודת העתקה אחת.
+
+### הסט הקודם — נבנה מהסטאק שנמדד
 
 הבחירה הראשונה (mtime) הייתה שרירותית עבור 175 מתוך 220, כי 2,319 skills חולקים יום התקנה אחד.
 לכן הסט נבנה מחדש מראיות: **פרופיל התלויות של 38 הפרויקטים** תחת `D:\משה פרוייקטים\פיתוח אתרים`.
