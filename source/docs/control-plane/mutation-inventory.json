@@ -20,12 +20,12 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "eb5e674d53461087a919fc9ed83f9460bc77e692",
-    "sourceDigestSha256": "049c579e426da714116f562732bc8b610b199f905d7e4c72e85b093210ae4f4b",
+    "gitHead": "9b4ba51e076beb849c65ed84475c131399ef4448",
+    "sourceDigestSha256": "98628adcb34ab490c149003065beada19c9441607fadb092d5019be5c7410caa",
     "generatorSha256": "5546b88e34e71837bc5c462e423956382cde4abb9e19739e4c9d629f7d2d35a7",
-    "sourceFilesRead": 602,
-    "releaseInputDigestSha256": "92eee0f773529f20fca6fedecf51a4ac0e01afcc7f2e7842858340d45ea5f1b3",
-    "releaseInputFilesRead": 720,
+    "sourceFilesRead": 606,
+    "releaseInputDigestSha256": "c715ca8bedc1be2e4fb7a1bb70116afe83e376e2d6a361d45e569d8550d40c5b",
+    "releaseInputFilesRead": 727,
     "releaseInputDirectories": [
       "public",
       "scripts",
@@ -118,7 +118,7 @@
       "apiPath": "/api/agent-kanban/state",
       "classification": "other",
       "file": "src/app/api/agent-kanban/state/route.ts",
-      "line": 24,
+      "line": 25,
       "column": 23
     },
     {
@@ -127,7 +127,7 @@
       "apiPath": "/api/agent-kanban/workspace",
       "classification": "other",
       "file": "src/app/api/agent-kanban/workspace/route.ts",
-      "line": 14,
+      "line": 15,
       "column": 23
     },
     {
@@ -163,7 +163,7 @@
       "apiPath": "/api/astros/config",
       "classification": "other",
       "file": "src/app/api/astros/config/route.ts",
-      "line": 40,
+      "line": 41,
       "column": 23
     },
     {
@@ -208,7 +208,7 @@
       "apiPath": "/api/claude/artifacts",
       "classification": "direct-provider",
       "file": "src/app/api/claude/artifacts/route.ts",
-      "line": 25,
+      "line": 28,
       "column": 23
     },
     {
@@ -217,7 +217,7 @@
       "apiPath": "/api/claude/artifacts",
       "classification": "direct-provider",
       "file": "src/app/api/claude/artifacts/route.ts",
-      "line": 16,
+      "line": 17,
       "column": 23
     },
     {
@@ -244,7 +244,7 @@
       "apiPath": "/api/content/pin",
       "classification": "other",
       "file": "src/app/api/content/pin/route.ts",
-      "line": 9,
+      "line": 10,
       "column": 23
     },
     {
@@ -262,7 +262,7 @@
       "apiPath": "/api/dscoder/workspace",
       "classification": "other",
       "file": "src/app/api/dscoder/workspace/route.ts",
-      "line": 65,
+      "line": 66,
       "column": 23
     },
     {
@@ -271,7 +271,7 @@
       "apiPath": "/api/fcc",
       "classification": "other",
       "file": "src/app/api/fcc/route.ts",
-      "line": 14,
+      "line": 15,
       "column": 23
     },
     {
@@ -289,7 +289,7 @@
       "apiPath": "/api/freeclaude/builds",
       "classification": "other",
       "file": "src/app/api/freeclaude/builds/route.ts",
-      "line": 94,
+      "line": 95,
       "column": 23
     },
     {
@@ -307,7 +307,7 @@
       "apiPath": "/api/freeclaude/workspace",
       "classification": "other",
       "file": "src/app/api/freeclaude/workspace/route.ts",
-      "line": 22,
+      "line": 23,
       "column": 23
     },
     {
@@ -334,7 +334,7 @@
       "apiPath": "/api/fusion/history",
       "classification": "other",
       "file": "src/app/api/fusion/history/route.ts",
-      "line": 24,
+      "line": 25,
       "column": 23
     },
     {
@@ -370,7 +370,7 @@
       "apiPath": "/api/goals",
       "classification": "other",
       "file": "src/app/api/goals/route.ts",
-      "line": 44,
+      "line": 49,
       "column": 23
     },
     {
@@ -379,7 +379,7 @@
       "apiPath": "/api/goals",
       "classification": "other",
       "file": "src/app/api/goals/route.ts",
-      "line": 31,
+      "line": 34,
       "column": 23
     },
     {
@@ -388,7 +388,7 @@
       "apiPath": "/api/goals",
       "classification": "other",
       "file": "src/app/api/goals/route.ts",
-      "line": 14,
+      "line": 15,
       "column": 23
     },
     {
@@ -424,7 +424,7 @@
       "apiPath": "/api/hermes/apollo-log",
       "classification": "direct-provider",
       "file": "src/app/api/hermes/apollo-log/route.ts",
-      "line": 21,
+      "line": 22,
       "column": 23
     },
     {
@@ -433,7 +433,7 @@
       "apiPath": "/api/hermes/apollo-memory",
       "classification": "direct-provider",
       "file": "src/app/api/hermes/apollo-memory/route.ts",
-      "line": 17,
+      "line": 18,
       "column": 23
     },
     {
@@ -640,7 +640,7 @@
       "apiPath": "/api/hy3coder/workspace",
       "classification": "other",
       "file": "src/app/api/hy3coder/workspace/route.ts",
-      "line": 65,
+      "line": 66,
       "column": 23
     },
     {
@@ -658,7 +658,7 @@
       "apiPath": "/api/journal",
       "classification": "other",
       "file": "src/app/api/journal/route.ts",
-      "line": 17,
+      "line": 18,
       "column": 23
     },
     {
@@ -676,7 +676,7 @@
       "apiPath": "/api/kimi/workspace",
       "classification": "other",
       "file": "src/app/api/kimi/workspace/route.ts",
-      "line": 22,
+      "line": 23,
       "column": 23
     },
     {
@@ -694,7 +694,7 @@
       "apiPath": "/api/leads/export",
       "classification": "other",
       "file": "src/app/api/leads/export/route.ts",
-      "line": 7,
+      "line": 8,
       "column": 23
     },
     {
@@ -721,7 +721,7 @@
       "apiPath": "/api/leads/keys",
       "classification": "other",
       "file": "src/app/api/leads/keys/route.ts",
-      "line": 8,
+      "line": 9,
       "column": 23
     },
     {
@@ -748,7 +748,7 @@
       "apiPath": "/api/local/builds",
       "classification": "other",
       "file": "src/app/api/local/builds/route.ts",
-      "line": 21,
+      "line": 24,
       "column": 23
     },
     {
@@ -757,7 +757,7 @@
       "apiPath": "/api/local/builds",
       "classification": "other",
       "file": "src/app/api/local/builds/route.ts",
-      "line": 13,
+      "line": 14,
       "column": 23
     },
     {
@@ -784,7 +784,7 @@
       "apiPath": "/api/media/rehydrate",
       "classification": "other",
       "file": "src/app/api/media/rehydrate/route.ts",
-      "line": 10,
+      "line": 11,
       "column": 23
     },
     {
@@ -793,7 +793,7 @@
       "apiPath": "/api/memory/log",
       "classification": "other",
       "file": "src/app/api/memory/log/route.ts",
-      "line": 7,
+      "line": 8,
       "column": 23
     },
     {
@@ -820,7 +820,7 @@
       "apiPath": "/api/musecoder/workspace",
       "classification": "other",
       "file": "src/app/api/musecoder/workspace/route.ts",
-      "line": 65,
+      "line": 66,
       "column": 23
     },
     {
@@ -838,7 +838,7 @@
       "apiPath": "/api/music/save",
       "classification": "other",
       "file": "src/app/api/music/save/route.ts",
-      "line": 10,
+      "line": 11,
       "column": 23
     },
     {
@@ -937,7 +937,7 @@
       "apiPath": "/api/omniroute/workspace",
       "classification": "other",
       "file": "src/app/api/omniroute/workspace/route.ts",
-      "line": 65,
+      "line": 66,
       "column": 23
     },
     {
@@ -973,7 +973,7 @@
       "apiPath": "/api/openclaw/studio/searches",
       "classification": "direct-provider",
       "file": "src/app/api/openclaw/studio/searches/route.ts",
-      "line": 22,
+      "line": 23,
       "column": 23
     },
     {
@@ -991,7 +991,7 @@
       "apiPath": "/api/openclaw/studio/talks",
       "classification": "direct-provider",
       "file": "src/app/api/openclaw/studio/talks/route.ts",
-      "line": 50,
+      "line": 53,
       "column": 23
     },
     {
@@ -1000,7 +1000,7 @@
       "apiPath": "/api/openclaw/studio/talks",
       "classification": "direct-provider",
       "file": "src/app/api/openclaw/studio/talks/route.ts",
-      "line": 24,
+      "line": 25,
       "column": 23
     },
     {
@@ -1072,7 +1072,7 @@
       "apiPath": "/api/outreach",
       "classification": "other",
       "file": "src/app/api/outreach/route.ts",
-      "line": 16,
+      "line": 17,
       "column": 23
     },
     {
@@ -1099,7 +1099,7 @@
       "apiPath": "/api/outreach/settings",
       "classification": "other",
       "file": "src/app/api/outreach/settings/route.ts",
-      "line": 33,
+      "line": 34,
       "column": 23
     },
     {
@@ -1135,7 +1135,7 @@
       "apiPath": "/api/pipeline/capture",
       "classification": "other",
       "file": "src/app/api/pipeline/capture/route.ts",
-      "line": 7,
+      "line": 8,
       "column": 23
     },
     {
@@ -1153,7 +1153,7 @@
       "apiPath": "/api/pipeline/delete",
       "classification": "other",
       "file": "src/app/api/pipeline/delete/route.ts",
-      "line": 8,
+      "line": 9,
       "column": 23
     },
     {
@@ -1162,7 +1162,7 @@
       "apiPath": "/api/pipeline/pin",
       "classification": "other",
       "file": "src/app/api/pipeline/pin/route.ts",
-      "line": 8,
+      "line": 9,
       "column": 23
     },
     {
@@ -1216,7 +1216,7 @@
       "apiPath": "/api/room/history",
       "classification": "other",
       "file": "src/app/api/room/history/route.ts",
-      "line": 19,
+      "line": 22,
       "column": 23
     },
     {
@@ -1225,7 +1225,7 @@
       "apiPath": "/api/room/history",
       "classification": "other",
       "file": "src/app/api/room/history/route.ts",
-      "line": 12,
+      "line": 13,
       "column": 23
     },
     {
@@ -1261,7 +1261,7 @@
       "apiPath": "/api/sakana/history",
       "classification": "other",
       "file": "src/app/api/sakana/history/route.ts",
-      "line": 22,
+      "line": 23,
       "column": 23
     },
     {
@@ -1315,7 +1315,7 @@
       "apiPath": "/api/seo/transcript/save",
       "classification": "other",
       "file": "src/app/api/seo/transcript/save/route.ts",
-      "line": 9,
+      "line": 10,
       "column": 23
     },
     {
@@ -1351,7 +1351,7 @@
       "apiPath": "/api/todos",
       "classification": "other",
       "file": "src/app/api/todos/route.ts",
-      "line": 75,
+      "line": 76,
       "column": 23
     },
     {
@@ -1423,7 +1423,7 @@
       "apiPath": "/api/videouse/jobs",
       "classification": "other",
       "file": "src/app/api/videouse/jobs/route.ts",
-      "line": 14,
+      "line": 15,
       "column": 23
     },
     {
@@ -1897,13 +1897,13 @@
       ]
     },
     {
-      "id": "POST src/components/CommandPalette.tsx:55:23",
+      "id": "POST src/components/CommandPalette.tsx:59:23",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/run",
       "classification": "other",
       "file": "src/components/CommandPalette.tsx",
-      "line": 55,
+      "line": 59,
       "column": 23,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/run\"",
@@ -3637,13 +3637,13 @@
       ]
     },
     {
-      "id": "POST src/components/SetupCenterHost.tsx:335:30",
+      "id": "POST src/components/SetupCenterHost.tsx:340:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/action",
       "classification": "other",
       "file": "src/components/SetupCenterHost.tsx",
-      "line": 335,
+      "line": 340,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/action\"",
@@ -3973,13 +3973,13 @@
       ]
     },
     {
-      "id": "POST src/components/official-agent-ui/AntigravityOfficialView.tsx:299:30",
+      "id": "POST src/components/official-agent-ui/AntigravityOfficialView.tsx:300:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/antigravity/chat",
       "classification": "direct-provider",
       "file": "src/components/official-agent-ui/AntigravityOfficialView.tsx",
-      "line": 299,
+      "line": 300,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/antigravity/chat\"",
@@ -3989,13 +3989,13 @@
       ]
     },
     {
-      "id": "POST src/components/official-agent-ui/OpenClawOfficialView.tsx:352:30",
+      "id": "POST src/components/official-agent-ui/OpenClawOfficialView.tsx:356:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/openclaw/chat",
       "classification": "direct-provider",
       "file": "src/components/official-agent-ui/OpenClawOfficialView.tsx",
-      "line": 352,
+      "line": 356,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/openclaw/chat\"",
@@ -4715,13 +4715,13 @@
       ]
     },
     {
-      "id": "POST src/components/CommandPalette.tsx:55:23",
+      "id": "POST src/components/CommandPalette.tsx:59:23",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/run",
       "classification": "other",
       "file": "src/components/CommandPalette.tsx",
-      "line": 55,
+      "line": 59,
       "column": 23,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/run\"",
@@ -6625,13 +6625,13 @@
       ]
     },
     {
-      "id": "POST src/components/SetupCenterHost.tsx:335:30",
+      "id": "POST src/components/SetupCenterHost.tsx:340:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/action",
       "classification": "other",
       "file": "src/components/SetupCenterHost.tsx",
-      "line": 335,
+      "line": 340,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/action\"",
@@ -6961,13 +6961,13 @@
       ]
     },
     {
-      "id": "POST src/components/official-agent-ui/AntigravityOfficialView.tsx:299:30",
+      "id": "POST src/components/official-agent-ui/AntigravityOfficialView.tsx:300:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/antigravity/chat",
       "classification": "direct-provider",
       "file": "src/components/official-agent-ui/AntigravityOfficialView.tsx",
-      "line": 299,
+      "line": 300,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/antigravity/chat\"",
@@ -6977,13 +6977,13 @@
       ]
     },
     {
-      "id": "POST src/components/official-agent-ui/OpenClawOfficialView.tsx:352:30",
+      "id": "POST src/components/official-agent-ui/OpenClawOfficialView.tsx:356:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/openclaw/chat",
       "classification": "direct-provider",
       "file": "src/components/official-agent-ui/OpenClawOfficialView.tsx",
-      "line": 352,
+      "line": 356,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/openclaw/chat\"",

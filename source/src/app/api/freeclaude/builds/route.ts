@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -92,6 +93,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const project = safeProject(typeof body.project === "string" ? body.project : null);
   const prompt = String(body.prompt ?? "").trim().slice(0, 2000);

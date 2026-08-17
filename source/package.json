@@ -10,6 +10,8 @@
     "control-plane:baseline": "node scripts/control-plane/collect-baseline.mjs",
     "control-plane:inventory": "node scripts/control-plane/inventory-mutations.mjs --check",
     "control-plane:inventory:write": "node scripts/control-plane/inventory-mutations.mjs",
+    "control-plane:frozen-surfaces": "node scripts/control-plane/generate-frozen-surfaces.mjs",
+    "control-plane:frozen-surfaces:check": "node scripts/control-plane/generate-frozen-surfaces.mjs --check",
     "test:unit": "node --experimental-strip-types --test",
     "verify:wave1-freeze": "node scripts/control-plane/verify-wave1-execution-freeze.mjs",
     "verify:workbench-route": "node scripts/verify-workbench-route-distribution.mjs",

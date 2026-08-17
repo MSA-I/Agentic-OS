@@ -120,3 +120,44 @@ still blocked on Claude live evidence.
 Delivery: the Wave 0-3 work is committed on branch `control-plane-repair`; it was previously
 uncommitted, which contradicted the Wave 0 requirement that a clean clone contain everything needed.
 `../e2e-final/` remains untracked and unstaged.
+
+## Truthful controls and the remaining mutation boundary — 2026-08-17
+
+Two further audit items are now closed. Evidence: `WAVE-3-AUDIT-REPAIR-2026-08-17.json`.
+
+### Local HTTP boundary on every remaining mutation route
+
+The Wave 1 boundary covered the 106 frozen routes and the Workbench, which left the other mutation
+routes reachable from a hostile page: a cross-origin `POST` with a simple content type needs no
+preflight, so it reaches the handler. `authorizeLocalMutation` is now exported from
+`executionFreeze.ts` and is the first statement of 43 mutation handlers across 37 route files,
+including the multipart upload `POST /api/videouse/jobs`.
+`tests/e2e/local-mutation-boundary.spec.ts` probes every one of them: cross-origin is refused with
+`origin_mismatch`, a missing `Origin` with `origin_required`, and a same-origin caller still reaches
+its handler. Every probe is refused before the body is read, so the test creates no state.
+
+### Controls that tell the truth
+
+The freeze manifest moved into `src/lib/control-plane/frozenExecutionRoutes.ts`, a pure-data module
+with no imports, so client components can read the same list the server guard enforces. The verifier
+now parses that file and additionally fails if `executionFreeze.ts` stops importing it or declares its
+own copy.
+
+- `src/lib/executionAvailability.ts` exposes the frozen paths and one wording for every disabled
+  control.
+- `scripts/control-plane/generate-frozen-surfaces.mjs` walks each page's import graph and writes
+  `src/lib/executionFrozenSurfaces.ts`: 39 routes with the frozen paths their components mutate. Its
+  `--check` mode (`npm run control-plane:frozen-surfaces:check`) keeps the map from drifting away from
+  the manifest or the inventory.
+- `ExecutionFrozenNotice` renders from the shell on those 39 routes. It states that nothing is sent,
+  nothing is queued and no run is created, that reads still work, and lists the disabled endpoints
+  behind a details toggle.
+- Agent surfaces replace their composer instead of offering a Run that cannot run: Antigravity reports
+  the runtime-not-available reason first and the freeze reason second, and renders no textarea and no
+  Run button; Hermes and OpenClaw show their own reason in place of the composer.
+- The two globally mounted surfaces are disabled in place: Setup Center actions and every Command
+  Palette action carry the shared reason.
+
+Not covered: individual buttons inside the 39 app surfaces still render. The page notice is what makes
+them truthful before a click, and the route still answers `503 control_plane_execution_unavailable`
+with `runCreated: false`. Per-control disabling inside those app views remains follow-up work.

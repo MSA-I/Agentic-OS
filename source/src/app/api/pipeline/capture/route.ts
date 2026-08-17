@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { uniqueSlug, writeItem, PIPELINE_AVAILABLE, type PipelineItem } from "@/lib/pipeline";
 
@@ -5,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   if (!PIPELINE_AVAILABLE) return NextResponse.json({ ok: false, error: "Vault not configured." }, { status: 400 });
   const body = await req.json().catch(() => ({}));
   const idea = String(body.idea || "").trim();

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import fs from "node:fs";
 import path from "node:path";
 import { workspacePath } from "@/lib/workspaceRoot";
@@ -20,6 +21,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   try {
     const { msgs } = (await req.json()) as { msgs: Msg[] };
     if (!Array.isArray(msgs)) return Response.json({ ok: false, error: "msgs must be an array" }, { status: 400 });

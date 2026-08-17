@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import {
+  WAVE1_FROZEN_EXECUTION_ROUTES as FROZEN_ROUTES,
+  type FrozenExecutionRoute as FrozenExecutionRouteId,
+} from "./frozenExecutionRoutes";
+import {
   assessCapability,
   createCapabilityStatus,
   createVerificationInputs,
@@ -16,119 +20,13 @@ import {
   type PolicyOperation,
 } from "./policy";
 
-export const WAVE1_FROZEN_EXECUTION_ROUTES = [
-  "POST /api/agent-kanban/build",
-  "POST /api/agent-kanban/plan",
-  "POST /api/antigravity/chat",
-  "POST /api/appslab/run",
-  "POST /api/appslab/stop",
-  "POST /api/astros/notebook",
-  "POST /api/astros/scan",
-  "POST /api/claude/ant",
-  "POST /api/claude/ant/agents/run",
-  "POST /api/claude/chat",
-  "POST /api/codex/chat",
-  "POST /api/dscoder/chat",
-  "POST /api/freeclaude/build",
-  "POST /api/freeclaude/chat",
-  "POST /api/furnace/scan",
-  "POST /api/fusion/chat",
-  "POST /api/games/commission",
-  "POST /api/glm-code/build",
-  "POST /api/glm/chat",
-  "POST /api/grok/chat",
-  "POST /api/hermes/apollo",
-  "POST /api/hermes/chat",
-  "POST /api/hermes/dashboard",
-  "POST /api/hermes/goals",
-  "DELETE /api/hermes/goals",
-  "PATCH /api/hermes/goals",
-  "POST /api/hermes/kanban/action",
-  "POST /api/hermes/kanban/dispatch",
-  "POST /api/hermes/mcp/install",
-  "POST /api/hermes/mcp",
-  "POST /api/hermes/mcp/add",
-  "POST /api/hermes/mcp/tools",
-  "POST /api/hermes/media",
-  "POST /api/hermes/phone/install-tunnel",
-  "POST /api/hermes/phone/sync",
-  "POST /api/hermes/phone/tunnel",
-  "POST /api/hermes/realtime/open",
-  "POST /api/hermes/realtime/session",
-  "POST /api/hermes/studio/generate",
-  "POST /api/hermes/tts",
-  "POST /api/hermes/wake",
-  "POST /api/higgs/run",
-  "POST /api/hy3coder/chat",
-  "POST /api/jcode/build",
-  "POST /api/kimi/chat",
-  "POST /api/local-hermes/run",
-  "POST /api/local/chat",
-  "POST /api/loop/run",
-  "POST /api/leads/enrich",
-  "POST /api/leads/find",
-  "POST /api/leads/icp",
-  "POST /api/leads/score",
-  "POST /api/moa",
-  "POST /api/music/generate",
-  "POST /api/musecoder/chat",
-  "POST /api/notebooklm/artifact/download",
-  "POST /api/notebooklm/ask",
-  "POST /api/notebooklm/notebooks",
-  "DELETE /api/notebooklm/notebooks/[id]",
-  "PATCH /api/notebooklm/notebooks/[id]",
-  "POST /api/notebooklm/research",
-  "POST /api/notebooklm/research/import",
-  "POST /api/notebooklm/shortvideo",
-  "POST /api/notebooklm/studio",
-  "POST /api/omniroute/chat",
-  "POST /api/openclaw/chat",
-  "POST /api/openclaw/studio/chat-quick",
-  "POST /api/openclaw/studio/image",
-  "POST /api/openclaw/studio/stt",
-  "POST /api/openclaw/studio/tts",
-  "POST /api/openclaw/studio/video",
-  "POST /api/openclaw/studio/xsearch",
-  "POST /api/opencode/build",
-  "POST /api/opendesign/control",
-  "DELETE /api/opendesign/projects",
-  "POST /api/openmontage/generate",
-  "POST /api/outreach/write",
-  "POST /api/outreach/enrich",
-  "POST /api/outreach/send",
-  "POST /api/outreach/validate",
-  "POST /api/pipeline/build",
-  "POST /api/pipeline/decide",
-  "POST /api/pipeline/shape",
-  "POST /api/radar/draft",
-  "POST /api/radar/publish",
-  "POST /api/radar/scan",
-  "POST /api/ruflo/swarm",
-  "POST /api/run",
-  "POST /api/room",
-  "POST /api/sakana/chat",
-  "POST /api/seo/deploy",
-  "POST /api/seo/generate",
-  "POST /api/seo/index",
-  "POST /api/seo/parasite",
-  "POST /api/seo/research",
-  "POST /api/setup/action",
-  "POST /api/thumbnails/generate",
-  "POST /api/thumbnails/research",
-  "POST /api/translate/gemini-live",
-  "POST /api/video/auto/assemble",
-  "POST /api/video/auto/script",
-  "POST /api/video/heygen/generate",
-  "POST /api/video/hyperframes/init",
-  "POST /api/video/hyperframes/keyframes",
-  "POST /api/video/hyperframes/render",
-  "POST /api/videouse/run",
-] as const;
-
-export type FrozenExecutionRoute = (typeof WAVE1_FROZEN_EXECUTION_ROUTES)[number];
+export {
+  WAVE1_FROZEN_EXECUTION_ROUTES,
+  type FrozenExecutionRoute,
+} from "./frozenExecutionRoutes";
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
-const FROZEN_ROUTE_SET = new Set<string>(WAVE1_FROZEN_EXECUTION_ROUTES);
+const FROZEN_ROUTE_SET = new Set<string>(FROZEN_ROUTES);
 const MAXIMUM_EXECUTION_BODY_BYTES = 64 * 1024;
 const EMPTY_GUARDS: ExecutionGuardState = Object.freeze({
   identityVerified: false,
@@ -146,7 +44,7 @@ const verificationInputs = createVerificationInputs({
   toolHash: "unavailable",
   credentialRevision: "unavailable",
   policyHash: createHash("sha256").update("wave1-default-deny").digest("hex"),
-  manifestHash: createHash("sha256").update(WAVE1_FROZEN_EXECUTION_ROUTES.join("\n")).digest("hex"),
+  manifestHash: createHash("sha256").update(FROZEN_ROUTES.join("\n")).digest("hex"),
 });
 
 export class ControlPlaneCommandDeniedError extends Error {
@@ -325,7 +223,7 @@ async function validateJsonBody(request: Request): Promise<Response | null> {
  */
 export async function denyFrozenExecutionMutation(
   request: Request,
-  route: FrozenExecutionRoute,
+  route: FrozenExecutionRouteId,
 ): Promise<Response | null> {
   const [routeMethod, routePath] = route.split(" ", 2);
   const requestPath = new URL(request.url).pathname;

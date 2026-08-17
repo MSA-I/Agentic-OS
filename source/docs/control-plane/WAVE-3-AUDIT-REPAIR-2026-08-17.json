@@ -42,6 +42,24 @@
       "disposition": "deleted; sweep added to the verification steps"
     },
     {
+      "id": "A6",
+      "severity": "high",
+      "finding": "The Wave 1 local HTTP boundary was applied only to the 106 frozen routes and to the Workbench. 42 mutation handlers across 36 route files had no boundary at all, so a hostile page could reach them with a simple cross-origin POST that needs no preflight, including the multipart upload POST /api/videouse/jobs.",
+      "disposition": "fixed; authorizeLocalMutation is now the first statement of 43 mutation handlers across 37 route files and zero unguarded mutation handlers remain"
+    },
+    {
+      "id": "A7",
+      "severity": "medium",
+      "finding": "115 UI call sites across 58 files fired at frozen routes with no warning, Antigravity offered a composer and a Run button while its runtime was unavailable, and the Setup Center and Command Palette offered actions that fail closed.",
+      "disposition": "fixed by a generated per-route notice plus in-place disabling on the agent, Setup Center and Command Palette surfaces"
+    },
+    {
+      "id": "A8",
+      "severity": "medium",
+      "finding": "Found while running the full Playwright suite, which no earlier evidence file had run: 11 tests failed. Nine encoded the pre-repair contract that every agent surface shows a composer, and two asserted that Codex and Claude start and resume are unsupported, which the Wave 3 cutover had already made false.",
+      "disposition": "specs updated to the current truth: a surface either offers a composer or states why it cannot, and Codex/Claude lifecycle is supported while the other three providers and all approvals stay unsupported"
+    },
+    {
       "id": "A5",
       "severity": "high",
       "finding": "Found during live verification of the new graphify guard: a refused working directory fell back to the default root instead of failing closed, so a request naming C:\\Windows still executed, in the default directory. The first Playwright run passed only because that default directory does not exist on the test machine.",
@@ -73,6 +91,39 @@
     "tokenExposure": "never in a body, never in page JavaScript; Referrer-Policy: no-referrer and the redirect removes it from the address bar",
     "launcher": "scripts/launch-agent-os.mjs generates the secret, starts next start with it, polls /api/vitals, then opens exactly one bootstrap navigation. Start Agent OS.bat and Start Agent OS.command call it.",
     "sessionLifetime": "rotation now extends the idle window to the configured TTL, capped by a hard 8-hour deadline from issuance, so a working tab no longer dies after 15 minutes"
+  },
+  "localMutationBoundary": {
+    "guard": "authorizeLocalMutation, exported from src/lib/control-plane/executionFreeze.ts",
+    "checks": "loopback URL, one loopback Host matching the URL port, an Origin that equals it exactly, cross-site fetch metadata denied",
+    "guardedHandlers": 43,
+    "guardedRouteFiles": 37,
+    "unguardedMutationHandlersRemaining": 0,
+    "includes": ["POST /api/videouse/jobs (multipart upload)", "POST /api/graphify/run", "POST /api/goals", "POST /api/todos", "DELETE /api/claude/artifacts"],
+    "spec": "tests/e2e/local-mutation-boundary.spec.ts"
+  },
+  "truthfulControls": {
+    "manifestModule": "src/lib/control-plane/frozenExecutionRoutes.ts (pure data, no imports, readable by client components)",
+    "verifierGuardrail": "the Wave 1 verifier now parses that module and fails if executionFreeze.ts stops importing it or declares its own copy",
+    "clientHelpers": "src/lib/executionAvailability.ts",
+    "generatedSurfaceMap": {
+      "file": "src/lib/executionFrozenSurfaces.ts",
+      "generator": "scripts/control-plane/generate-frozen-surfaces.mjs",
+      "checkCommand": "npm run control-plane:frozen-surfaces:check",
+      "routes": 39,
+      "derivation": "each page's transitive local import graph, intersected with the frozen paths from the manifest and the mutation inventory"
+    },
+    "shellNotice": "ExecutionFrozenNotice: states that nothing is sent, nothing is queued and no run is created, that reads still work, and lists the disabled endpoints behind a details toggle",
+    "agentSurfaces": {
+      "antigravity": "no textarea and no Run button; reports runtime-not-available first, freeze second",
+      "hermes": "composer replaced by the reason",
+      "openclaw": "composer replaced by the reason"
+    },
+    "globalSurfaces": {
+      "setupCenter": "action buttons disabled with the shared reason",
+      "commandPalette": "every action disabled with the shared reason"
+    },
+    "notCovered": "individual buttons inside the 39 app surfaces still render behind the page notice; the route still answers 503 control_plane_execution_unavailable with runCreated false",
+    "spec": "tests/e2e/truthful-disabled-controls.spec.ts"
   },
   "static-contract": {
     "status": "pass",
@@ -125,6 +176,15 @@
       "failed": 0,
       "newSpecs": ["tests/e2e/graphify-command-policy.spec.ts", "tests/e2e/workbench-browser-bootstrap.spec.ts"]
     },
+    "playwrightFullSuite": {
+      "command": "npx playwright test --project=chromium",
+      "status": "pass",
+      "passed": 225,
+      "failed": 0,
+      "skipped": 4,
+      "durationMinutes": 4.1,
+      "note": "First full-suite run in this repair. The first attempt failed 11 tests; see finding A8. Specs added by this slice: local-mutation-boundary, truthful-disabled-controls."
+    },
     "routeSmoke": {
       "command": "npx playwright test tests/e2e/routes.smoke.spec.ts --project=chromium",
       "status": "pass",
@@ -173,7 +233,6 @@
     "Removal of the broad /api/** mocking in the nine mocked Playwright specs, and a release manifest (Wave 8).",
     "src/lib/workbench/artifactStore.ts remains unwired to any production path.",
     "Live sampling of CPU, memory and disk against the per-run budget; resourceAdmission still reserves rather than measures.",
-    "33 non-frozen mutation routes still lack the local HTTP boundary, for example POST /api/videouse/jobs.",
     "src/lib/videouse.ts still spawns claude with --permission-mode bypassPermissions and the full environment; it is reachable only through a frozen route and must be fixed before that route is unfrozen."
   ],
   "worktree": {

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -7,6 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const { slug, content } = await req.json();
   if (typeof slug !== "string" || !/^[a-z0-9-]{3,80}$/.test(slug)) {
     return NextResponse.json({ error: "invalid slug" }, { status: 400 });

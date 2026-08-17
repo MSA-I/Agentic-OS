@@ -26,6 +26,8 @@ const IMMERSIVE_SURFACES = [
     route: "/hermes",
     root: '[data-agent-page="hermes"][data-agent-experience="immersive"]',
     composer: 'textarea[aria-label="Message Hermes"]',
+    // Frozen execution: this surface must state the reason where the composer was.
+    unavailableNotice: '[aria-label="Hermes send unavailable"]',
     mobileTrigger: "Open Hermes navigation",
     mobileDrawer: 'aside[aria-label="Hermes profiles and conversations"]',
     modalDrawer: true,
@@ -35,6 +37,7 @@ const IMMERSIVE_SURFACES = [
     route: "/openclaw",
     root: '[data-agent-page="openclaw"][data-active-tab="chat"]',
     composer: 'textarea[aria-label^="Message "]',
+    unavailableNotice: '[aria-label="OpenClaw send unavailable"]',
     mobileTrigger: "Open OpenClaw navigation",
     mobileDrawer: 'aside[aria-label="OpenClaw navigation"]',
     modalDrawer: false,
@@ -44,6 +47,7 @@ const IMMERSIVE_SURFACES = [
     route: "/antigravity",
     root: '[data-agent-page="antigravity"][data-active-tab="agent"]',
     composer: 'textarea[aria-label="Message Antigravity"]',
+    unavailableNotice: '[aria-label="Antigravity run unavailable"]',
     mobileTrigger: "Open projects",
     mobileDrawer: 'aside[aria-label="Antigravity projects"]',
     modalDrawer: false,
@@ -121,7 +125,14 @@ test.describe("Agentic OS layout contract", () => {
       await expect(shell).toHaveCount(1);
       await expect(main).toHaveCount(1);
       await expect(workspace).toBeVisible();
-      await expect(workspace.locator(surface.composer)).toBeVisible();
+      // A surface either offers a composer or says why it cannot. It never shows
+      // an inert composer, and it never hides the reason.
+      if ("unavailableNotice" in surface) {
+        await expect(workspace.locator(surface.composer)).toHaveCount(0);
+        await expect(workspace.locator(surface.unavailableNotice)).toBeVisible();
+      } else {
+        await expect(workspace.locator(surface.composer)).toBeVisible();
+      }
       await expect(page.locator("[data-agent-os-sidebar]")).toHaveCount(0);
       await expect(page.locator("[data-agent-os-mobile-nav]")).toHaveCount(0);
       await expect(page.locator("[data-agent-workspace]")).toHaveCount(0);

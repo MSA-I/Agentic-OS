@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
@@ -22,6 +23,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => null);
   if (!body || !Array.isArray(body.cards)) {
     return NextResponse.json({ error: "cards[] required" }, { status: 400 });

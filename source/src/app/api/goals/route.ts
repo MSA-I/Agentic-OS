@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readGoals, writeGoals, type Goal } from "@/lib/vaultWriter";
 
@@ -12,6 +13,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json();
   const text = String(body.text ?? "").slice(0, 500).trim();
   const category = body.category ? String(body.category).slice(0, 30).trim() : undefined;
@@ -29,6 +32,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json();
   const id = String(body.id ?? "");
   const goals = await readGoals();
@@ -42,6 +47,8 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });

@@ -37,6 +37,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import styles from "./HermesDesktop.module.css";
+import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
 import {
   type HermesBucket,
   type HermesFile,
@@ -405,13 +406,22 @@ function MessageView({ data, input, setInput, submit, composerKeyDown, transcrip
       {data.sendError && <div className={styles.inlineError} role="alert"><AlertTriangle size={17} />{data.sendError}</div>}
     </div>
     {data.queue.length > 0 && <div className={styles.queueBar}><div><Boxes size={16} /><strong>Queue · {data.queue.length}</strong><span>Messages run in order for profile {data.activeGroup?.scope || data.selectedProfile}.</span></div><div>{data.queue.map((item, index) => <span key={item.id}><small>{index + 1}</small>{item.text}<button type="button" onClick={() => data.removeQueued(item.id)} aria-label={`Remove queued message ${index + 1}`}><X size={14} /></button></span>)}</div></div>}
-    <form className={styles.composerWrap} onSubmit={submit}>
+    {isFrozenExecutionPath("/api/hermes/chat")
+      ? <div className={styles.composerWrap}>
+          <div className={styles.unsupported} aria-label="Hermes send unavailable">
+            <Send size={25} />
+            <h2>Sending from Agent OS is disabled</h2>
+            <p>{EXECUTION_FROZEN_COPY.body} Hermes lifecycle parity is a later wave of the repair; until it lands, run Hermes from its own CLI and read its sessions here.</p>
+            <span>Unsupported</span>
+          </div>
+        </div>
+      : <form className={styles.composerWrap} onSubmit={submit}>
       <div className={styles.composer} data-disabled={!data.activeSession || data.activeSession.resumable === false}>
         <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={composerKeyDown} disabled={!data.activeSession || data.activeSession.resumable === false} placeholder={!data.activeSession ? "Start or select a session first" : data.activeSession.resumable === false ? "This transcript is read only" : data.sending ? "Add another message to the queue…" : "Message Hermes…"} rows={2} dir="auto" aria-label="Message Hermes" />
         <div><span>{data.profileLocked ? <LockKeyhole size={14} /> : <UserRoundCog size={14} />}{data.activeGroup?.scope || data.selectedProfile} · {data.activeGroup?.root || "Hermes workspace"}</span><button type="submit" disabled={!input.trim() || !data.activeSession}><Send size={16} />{data.sending ? "Queue" : "Send"}</button></div>
       </div>
       {data.sending && <p>Hermes runtime does not expose safe cancellation here. Closing request would not prove process stopped.</p>}
-    </form>
+    </form>}
   </div>;
 }
 

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listTalks, getTalk, deleteTalk, saveTalk, type TalkRecord, type TalkTurn } from "@/lib/studioHistory";
 
@@ -22,6 +23,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const id = String(body.id ?? "");
   const voice = String(body.voice ?? "eve");
@@ -48,6 +51,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });

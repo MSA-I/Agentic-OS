@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Box, Cpu, ChevronRight } from "lucide-react";
+import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
+
+// Every palette action runs a provider through POST /api/run, which is frozen.
+const commandsFrozen = isFrozenExecutionPath("/api/run");
 
 interface Action {
   id: string;
@@ -104,12 +108,14 @@ export default function CommandPalette() {
                       <Command.Item
                         key={a.id}
                         value={`${a.label} ${a.hint}`}
-                        onSelect={() => execute(a)}
+                        onSelect={() => { if (!commandsFrozen) execute(a); }}
+                        disabled={commandsFrozen}
+                        title={commandsFrozen ? EXECUTION_FROZEN_COPY.controlTitle : undefined}
                         className="cmdk-item"
                       >
                         {ICONS[a.agent]}
                         <span className="flex-1 text-sm text-[var(--fg)]">{a.label}</span>
-                        <span className="text-[11px] text-[var(--fg-dimmer)]">{a.hint}</span>
+                        <span className="text-[11px] text-[var(--fg-dimmer)]">{commandsFrozen ? "disabled" : a.hint}</span>
                         <ChevronRight size={12} className="opacity-50" />
                       </Command.Item>
                     ))}

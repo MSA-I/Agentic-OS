@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
@@ -12,6 +13,8 @@ export async function GET() {
 
 // POST multipart: field "video" (file) [+ optional "job" name] → new job dir with the upload inside.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const form = await req.formData();
   const file = form.get("video");
   if (!(file instanceof File) || file.size === 0) {

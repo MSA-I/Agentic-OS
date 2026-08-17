@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { getState, setEnabled, setRouter } from "@/lib/fcc";
 
@@ -12,6 +13,8 @@ export async function GET() {
 // Toggle routing on/off — { enabled: true | false }
 // Switch the free router  — { router: "omniroute" | "9router" }
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   let touched = false;
   if (typeof body.enabled === "boolean") { await setEnabled(body.enabled); touched = true; }

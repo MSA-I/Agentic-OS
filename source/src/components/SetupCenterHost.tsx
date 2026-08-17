@@ -24,6 +24,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import ScrollArea from "./ScrollArea";
+import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
+
+// Setup actions run allowlisted commands, so they are part of the execution
+// freeze. A "Configured" row must not offer a control that fails closed.
+const setupActionsFrozen = isFrozenExecutionPath("/api/setup/action");
 
 const OPEN_EVENT = "agentos:open-setup-center";
 
@@ -534,8 +539,8 @@ export default function SetupCenterHost() {
                                   <button type="button" onClick={async () => { if (await copyText(action.copyCommand ?? "")) { setCopied(action.id); window.setTimeout(() => setCopied(""), 1600); } }} className="inline-flex shrink-0 items-center gap-1 text-[8.5px] text-[var(--cream-dim)]"><Copy size={10} /> {copied === action.id ? "Copied" : "Copy"}</button>
                                 </div>
                               )}
-                              <button type="button" onClick={() => void execute(action)} disabled={activeBusy || (busyAction !== null && !activeBusy)} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold transition hover:brightness-125 disabled:cursor-wait disabled:opacity-50" style={{ color: actionStyle.color, borderColor: actionStyle.border, background: "rgba(0,0,0,.16)" }}>
-                                {activeBusy ? <Loader2 size={12} className="animate-spin" /> : ACTION_ICON[action.kind]} {activeBusy ? "Working…" : action.label}
+                              <button type="button" onClick={() => void execute(action)} disabled={setupActionsFrozen || activeBusy || (busyAction !== null && !activeBusy)} title={setupActionsFrozen ? EXECUTION_FROZEN_COPY.controlTitle : undefined} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold transition hover:brightness-125 disabled:cursor-wait disabled:opacity-50" style={{ color: actionStyle.color, borderColor: actionStyle.border, background: "rgba(0,0,0,.16)" }}>
+                                {activeBusy ? <Loader2 size={12} className="animate-spin" /> : ACTION_ICON[action.kind]} {activeBusy ? "Working…" : setupActionsFrozen ? `${action.label} · disabled` : action.label}
                               </button>
                             </div>
                           );

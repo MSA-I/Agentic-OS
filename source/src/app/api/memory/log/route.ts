@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { appendMemory } from "@/lib/vaultWriter";
 
@@ -5,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json();
   const agent = String(body.agent ?? "system");
   const kind = String(body.kind ?? "note");

@@ -1,12 +1,15 @@
 import { expect, expectNoClientErrors, settlePage, test } from "./support/fixtures";
 import type { Page } from "@playwright/test";
 
+// `composer` is the surface's primary control. Where execution is frozen or the
+// runtime is missing, the surface states the reason instead, and that notice is
+// what has to stay legible and inside the viewport.
 const SURFACES = [
   { name: "codex", route: "/codex?panel=chat", composer: 'textarea[aria-label="Message Codex"]' },
   { name: "claude", route: "/claude?view=code", composer: 'textarea[aria-label="Message Claude"]' },
-  { name: "hermes", route: "/hermes?view=messages", composer: 'textarea[aria-label="Message Hermes"]' },
-  { name: "openclaw", route: "/openclaw?view=chat", composer: 'textarea[aria-label^="Message "]' },
-  { name: "antigravity", route: "/antigravity?view=conversation", composer: 'textarea[aria-label="Message Antigravity"]' },
+  { name: "hermes", route: "/hermes?view=messages", composer: '[aria-label="Hermes send unavailable"]' },
+  { name: "openclaw", route: "/openclaw?view=chat", composer: '[aria-label="OpenClaw send unavailable"]' },
+  { name: "antigravity", route: "/antigravity?view=conversation", composer: '[aria-label="Antigravity run unavailable"]' },
 ] as const;
 
 async function installSurfaceMocks(page: Page, name: (typeof SURFACES)[number]["name"]) {
@@ -39,7 +42,9 @@ for (const surface of SURFACES) {
     await settlePage(page, 500);
 
     const input = page.locator(surface.composer);
-    if (await input.isEnabled()) await input.fill("שלום, בדיקת כיווניות בלבד");
+    await expect(input).toBeVisible();
+    const editable = await input.evaluate((element) => element.tagName === "TEXTAREA");
+    if (editable && await input.isEnabled()) await input.fill("שלום, בדיקת כיווניות בלבד");
 
     const offenders = await page.locator("body *").evaluateAll((elements) => elements.flatMap((element) => {
       if (!(element instanceof HTMLElement) || element.getClientRects().length === 0) return [];
@@ -69,7 +74,8 @@ for (const surface of SURFACES) {
 
     const composer = page.locator(surface.composer);
     await expect(composer).toBeVisible();
-    if (await composer.isEnabled()) await composer.fill("שלום, בדיקת כיווניות בלבד");
+    const editable = await composer.evaluate((element) => element.tagName === "TEXTAREA");
+    if (editable && await composer.isEnabled()) await composer.fill("שלום, בדיקת כיווניות בלבד");
     const composerBox = await composer.boundingBox();
     expect(composerBox?.x).toBeGreaterThanOrEqual(0);
     expect((composerBox?.x ?? 0) + (composerBox?.width ?? 0)).toBeLessThanOrEqual(721);

@@ -8,7 +8,8 @@ import { captureReleaseInputSnapshot, compareUtf8 } from "./release-input-snapsh
 
 const repositoryRoot = process.cwd();
 const sourceRoot = path.join(repositoryRoot, "src");
-const manifestPath = path.join(repositoryRoot, "src", "lib", "control-plane", "executionFreeze.ts");
+const manifestPath = path.join(repositoryRoot, "src", "lib", "control-plane", "frozenExecutionRoutes.ts");
+const guardImplementationPath = path.join(repositoryRoot, "src", "lib", "control-plane", "executionFreeze.ts");
 const inventoryPath = path.join(repositoryRoot, "docs", "control-plane", "mutation-inventory.json");
 const inventoryGeneratorPath = path.join(repositoryRoot, "scripts", "control-plane", "inventory-mutations.mjs");
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
@@ -70,6 +71,21 @@ const frozenSet = new Set(frozenRoutes);
 const inventoryById = new Map(inventory.routes.map((route) => [route.id, route]));
 const errors = [];
 const guardEvidence = [];
+
+// The manifest lives in its own pure-data module so client code can read it. The
+// guard must keep reading that same module: a local copy would let the two lists
+// drift, and the drift would be invisible to every check below.
+const guardImplementationRelativePath = relativeToRepository(guardImplementationPath);
+const guardImplementationSource = sourceSnapshot.byRelativePath.get(guardImplementationRelativePath)?.text;
+if (guardImplementationSource === undefined) {
+  throw new Error(`Execution-freeze guard is missing: ${guardImplementationRelativePath}`);
+}
+if (!/from "\.\/frozenExecutionRoutes"/u.test(guardImplementationSource)) {
+  errors.push(`${guardImplementationRelativePath} no longer imports the freeze manifest module.`);
+}
+if (/WAVE1_FROZEN_EXECUTION_ROUTES\s*=\s*\[/u.test(guardImplementationSource)) {
+  errors.push(`${guardImplementationRelativePath} declares its own freeze manifest instead of importing it.`);
+}
 
 const inventorySourceDigestSha256 = inventory.snapshot?.sourceDigestSha256;
 const inventorySourceFileCount = inventory.snapshot?.sourceFilesRead;

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import {
   readState, writeState, computeStats, newId, domainSize,
@@ -14,6 +15,8 @@ export async function GET() {
 
 // Action-dispatch POST so the whole tool talks to one endpoint for state ops.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
   const state = await readState();

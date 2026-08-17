@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
@@ -73,6 +74,8 @@ export async function GET(req: Request) {
 // POST { action: "add", text } | { action: "toggle"|"delete", id } | { action: "edit", id, text }
 //    | { action: "status", id, status: "todo"|"doing"|"done" } | { action: "reorder", ids } — all take optional date
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   await ensure();
   const body = await req.json().catch(() => ({}));
   const date = typeof body.date === "string" && DATE_RE.test(body.date) ? body.date : today();

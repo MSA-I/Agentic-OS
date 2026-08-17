@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import styles from "./AntigravityOfficialView.module.css";
+import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
 
 interface Project {
   name: string;
@@ -343,6 +344,20 @@ export default function AntigravityOfficialView() {
 
   const unsupported = (label: string) => <span className={styles.unsupported} aria-label={`${label}: Unsupported`}>Unsupported</span>;
 
+  // No composer and no Run button unless a run could actually happen. An enabled
+  // Run here would promise a runtime that is either not installed or fail-closed.
+  const runUnavailableReason = vitals?.ok !== true
+    ? {
+        title: "Antigravity runtime is not available",
+        detail: "Nothing can run from this page: the local Antigravity runtime is not installed or not configured. Install it and reload, then this composer returns.",
+      }
+    : isFrozenExecutionPath("/api/antigravity/chat")
+      ? {
+          title: "Runs from AGENT-OS are disabled",
+          detail: EXECUTION_FROZEN_COPY.body,
+        }
+      : null;
+
   const toggleProjectPin = (root: string) => {
     setProjectPins((current) => {
       const next = current.includes(root) ? current.filter((item) => item !== root) : [root, ...current];
@@ -488,14 +503,22 @@ export default function AntigravityOfficialView() {
           <div ref={endRef} />
         </div>}
 
-        {view === "agent" && <form className={styles.composer} onSubmit={sendMessage}>
-          {error && <div className={styles.error} role="alert">{error}</div>}
-          <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleComposerKey} rows={3} placeholder="Describe what you want Antigravity to build" aria-label="Message Antigravity" />
-          <div className={styles.composerFooter}>
-            <span><Folder size={14} /> {selectedProject?.name ?? "Default workspace"}</span>
-            {sending ? <button type="button" className={styles.stopButton} onClick={() => abortRef.current?.abort()}><Square size={15} /> Stop</button> : <button type="submit" className={styles.sendButton} disabled={!input.trim()}><Send size={16} /> Run</button>}
-          </div>
-        </form>}
+        {view === "agent" && (runUnavailableReason
+          ? <div className={styles.composer}>
+              <div className={styles.unsupportedNotice} aria-label="Antigravity run unavailable">
+                <Sparkles size={20} />
+                <div><strong>{runUnavailableReason.title}</strong><p>{runUnavailableReason.detail}</p></div>
+                {unsupported("Run")}
+              </div>
+            </div>
+          : <form className={styles.composer} onSubmit={sendMessage}>
+              {error && <div className={styles.error} role="alert">{error}</div>}
+              <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleComposerKey} rows={3} placeholder="Describe what you want Antigravity to build" aria-label="Message Antigravity" />
+              <div className={styles.composerFooter}>
+                <span><Folder size={14} /> {selectedProject?.name ?? "Default workspace"}</span>
+                {sending ? <button type="button" className={styles.stopButton} onClick={() => abortRef.current?.abort()}><Square size={15} /> Stop</button> : <button type="submit" className={styles.sendButton} disabled={!input.trim()}><Send size={16} /> Run</button>}
+              </div>
+            </form>)}
 
         {view === "subagents" && <section className={styles.operationPage} aria-label="Antigravity dynamic subagents">
           <div className={styles.operationHeading}><div><span>Agent orchestration</span><h1>Dynamic subagents</h1><p>Delegation and execution traces remain visible only when Antigravity exposes native runtime data.</p></div><Network size={28} /></div>

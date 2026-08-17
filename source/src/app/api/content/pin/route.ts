@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { readState, writeState } from "@/lib/contentStudio";
 
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 // Toggle (or set) the "pinned" flag on a lane's finished artifact, so its
 // preview floats to the pinned area at the top of the board.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const laneId = String(body.lane || "");
   const state = await readState();

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { setSaved, renameTrack, deleteTrack } from "@/lib/musicStudio";
 
@@ -8,6 +9,8 @@ export const dynamic = "force-dynamic";
 //   { id, action: "toggle" | "save" | "unsave" | "rename" | "delete", title? }
 // One endpoint for the per-track actions: star/save, rename, delete.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   let body: { id?: string; action?: string; title?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
 

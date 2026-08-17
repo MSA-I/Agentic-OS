@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { appendJournalEntry, readJournal, listJournalDays, todayISO } from "@/lib/vaultWriter";
 
@@ -15,6 +16,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json();
   const text = String(body.text ?? "").trim();
   const date = body.date && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : todayISO();

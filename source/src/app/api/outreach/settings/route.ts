@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -31,6 +32,8 @@ export async function GET() {
 
 // POST — update firecrawl key, daily cap, and/or pause. Partial updates allowed.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const out: Record<string, unknown> = {};
 

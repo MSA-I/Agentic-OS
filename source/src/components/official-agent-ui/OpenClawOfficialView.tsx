@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import styles from "./OpenClawOfficialView.module.css";
+import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
 
 type Page = "chat" | "threads" | "groups" | "coding" | "gateway" | "automations" | "activity" | "extensions" | "settings";
 type MessageRole = "user" | "assistant" | "system" | "tool";
@@ -297,6 +298,9 @@ export default function OpenClawOfficialView() {
   };
 
   const unsupported = (label: string) => <span className={styles.unsupported} aria-label={`${label}: Unsupported`}>Unsupported</span>;
+
+  // The private chat route is fail-closed, so no composer is offered here.
+  const executionFrozen = isFrozenExecutionPath("/api/openclaw/chat");
 
   const newThread = () => {
     setActiveSession(null);
@@ -604,18 +608,26 @@ export default function OpenClawOfficialView() {
               <div ref={messageEndRef} />
             </div>
 
-            <form className={styles.composer} onSubmit={sendMessage}>
-              {error && <div className={styles.error} role="alert">{error}</div>}
-              <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleComposerKey} placeholder={`Message ${activeAgent}`} aria-label={`Message ${activeAgent}`} rows={3} />
-              <div className={styles.composerBar}>
-                <span>{activeRoot ? activeRoot.split(/[\\/]/).filter(Boolean).pop() : "Default workspace"}</span>
-                {sending ? (
-                  <button type="button" className={styles.stopButton} onClick={() => abortRef.current?.abort()}><Square size={15} /> Stop</button>
-                ) : (
-                  <button type="submit" className={styles.sendButton} disabled={!input.trim()}><Send size={16} /> Send</button>
-                )}
+            {executionFrozen ? (
+              <div className={styles.operatorNotice} aria-label="OpenClaw send unavailable">
+                <Square size={20} />
+                <div><strong>Sending from AGENT-OS is disabled</strong><p>{EXECUTION_FROZEN_COPY.body} OpenClaw lifecycle parity is a later wave of the repair; until it lands, use the OpenClaw CLI directly and read its history here.</p></div>
+                {unsupported("Send")}
               </div>
-            </form>
+            ) : (
+              <form className={styles.composer} onSubmit={sendMessage}>
+                {error && <div className={styles.error} role="alert">{error}</div>}
+                <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleComposerKey} placeholder={`Message ${activeAgent}`} aria-label={`Message ${activeAgent}`} rows={3} />
+                <div className={styles.composerBar}>
+                  <span>{activeRoot ? activeRoot.split(/[\\/]/).filter(Boolean).pop() : "Default workspace"}</span>
+                  {sending ? (
+                    <button type="button" className={styles.stopButton} onClick={() => abortRef.current?.abort()}><Square size={15} /> Stop</button>
+                  ) : (
+                    <button type="submit" className={styles.sendButton} disabled={!input.trim()}><Send size={16} /> Send</button>
+                  )}
+                </div>
+              </form>
+            )}
           </section>
         ) : null}
 

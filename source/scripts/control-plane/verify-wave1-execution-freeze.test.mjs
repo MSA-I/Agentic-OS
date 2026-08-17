@@ -54,10 +54,18 @@ function createFixture() {
   mkdirSync(path.dirname(fixtureGenerator), { recursive: true });
   copyFileSync(generatorPath, fixtureGenerator);
   copyFileSync(releaseInputSnapshotPath, path.join(path.dirname(fixtureGenerator), "release-input-snapshot.mjs"));
-  writeFixtureFile(root, "src/lib/control-plane/executionFreeze.ts", `
-export const FROZEN_EXECUTION_ROUTE_IDS = [
+  // The manifest lives in its own pure-data module and the guard imports it, so
+  // the fixture mirrors that split: the verifier reads the manifest file and also
+  // checks that the guard has not grown a private copy.
+  writeFixtureFile(root, "src/lib/control-plane/frozenExecutionRoutes.ts", `
+export const WAVE1_FROZEN_EXECUTION_ROUTES = [
   "POST /api/provider/run",
 ] as const;
+`.trimStart());
+  writeFixtureFile(root, "src/lib/control-plane/executionFreeze.ts", `
+import { WAVE1_FROZEN_EXECUTION_ROUTES } from "./frozenExecutionRoutes";
+
+export const FROZEN_EXECUTION_ROUTE_IDS = WAVE1_FROZEN_EXECUTION_ROUTES;
 
 export function denyFrozenExecutionMutation(_routeId: string) {
   return null;

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { workspacePath } from "@/lib/workspaceRoot";
@@ -38,6 +39,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const cur = await load();
   const channels = Array.isArray(body.channels)

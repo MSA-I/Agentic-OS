@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
@@ -63,6 +64,8 @@ export async function GET(req: Request) {
 // POST { action:"saveBuild", code, title }        → writes builds/<stamp>-<slug>.html
 // POST { action:"saveSession", id, title, messages } → writes sessions/<id>.json + .md
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   await ensure();
   const body = await req.json().catch(() => ({}));
   if (body.action === "saveBuild") {

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { appendApolloTurn, listApolloTurns, listApolloTurnsForDay } from "@/lib/apolloLog";
 
@@ -19,6 +20,8 @@ export async function GET(req: Request) {
 
 // POST { you, apollo, kind } → log one turn to disk + the Obsidian vault.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   let body: { you?: string; apollo?: string; kind?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
   const you = (body.you ?? "").toString().trim();

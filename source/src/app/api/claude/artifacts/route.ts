@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listPublishable, listPublished, publish, unpublish, artifactSite } from "@/lib/claudeArtifacts";
 
@@ -14,6 +15,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const id = String(body.id ?? "").trim();
   if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
@@ -23,6 +26,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const slug = String(body.slug ?? "").trim();
   if (!slug) return NextResponse.json({ ok: false, error: "slug required" }, { status: 400 });

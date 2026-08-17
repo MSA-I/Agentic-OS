@@ -8,6 +8,7 @@ import OwnerBanner from "./OwnerBanner";
 import ScrollArea from "./ScrollArea";
 import SetupCenterHost from "./SetupCenterHost";
 import AgentSwitcher from "./AgentSwitcher";
+import ExecutionFrozenNotice from "./ExecutionFrozenNotice";
 
 export default function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -51,6 +52,7 @@ export default function Shell({ children }: { children: ReactNode }) {
           <div className="max-w-[1500px] mx-auto px-4 sm:px-5 md:px-7 py-4 md:py-5 pb-24 md:pb-6">
             <OwnerBanner />
             <TopBar />
+            <ExecutionFrozenNotice pathname={pathname} />
             {children}
           </div>
         </main>

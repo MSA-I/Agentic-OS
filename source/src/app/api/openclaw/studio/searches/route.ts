@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listSearches, getSearch, deleteSearch } from "@/lib/studioHistory";
 
@@ -20,6 +21,8 @@ export async function GET(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });

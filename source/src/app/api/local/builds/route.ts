@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { listBuilds, saveBuild, deleteBuild } from "@/lib/localBuilds";
 
 export const runtime = "nodejs";
@@ -11,6 +12,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const { title, prompt, html, model } = body as { title?: string; prompt?: string; html?: string; model?: string };
   if (!html || typeof html !== "string") return Response.json({ error: "html required" }, { status: 400 });
@@ -19,6 +22,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const id = new URL(req.url).searchParams.get("id") ?? "";
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
   await deleteBuild(id);

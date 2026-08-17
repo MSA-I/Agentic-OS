@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listBuilds, deleteBuild } from "@/lib/kanbanStore";
 
@@ -12,6 +13,8 @@ export async function GET() {
 }
 
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const id = new URL(req.url).searchParams.get("id") ?? "";
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) return NextResponse.json({ error: "bad id" }, { status: 400 });
   await deleteBuild(id);

@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { listConversations, saveConversation, deleteConversation, type RoomConvo } from "@/lib/agentRoom";
 
 export const runtime = "nodejs";
@@ -10,6 +11,8 @@ export async function GET() {
 
 // POST { id, title, ts, msgs } → save/update one conversation
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const convo = (await req.json().catch(() => null)) as RoomConvo | null;
   if (!convo || !convo.id) return Response.json({ ok: false, error: "bad payload" }, { status: 400 });
   return Response.json({ ok: await saveConversation(convo) });
@@ -17,6 +20,8 @@ export async function POST(req: Request) {
 
 // DELETE ?id=... → remove one conversation
 export async function DELETE(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const id = new URL(req.url).searchParams.get("id") || "";
   if (!id) return Response.json({ ok: false, error: "no id" }, { status: 400 });
   return Response.json({ ok: await deleteConversation(id) });

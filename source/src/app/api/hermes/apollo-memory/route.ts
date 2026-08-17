@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { appendMemory, listMemories } from "@/lib/apolloMemory";
 
@@ -15,6 +16,8 @@ export async function GET() {
 
 // POST { text } → save a new memory to disk + the Obsidian vault.
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   let body: { text?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
   const text = (body.text ?? "").toString().trim();

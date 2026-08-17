@@ -1,3 +1,4 @@
+import { authorizeLocalMutation } from "@/lib/control-plane/executionFreeze";
 import { NextResponse } from "next/server";
 import { listProjects, listProjectFiles, ensureProject } from "@/lib/freeClaudeWorkspace";
 
@@ -20,6 +21,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const boundary = authorizeLocalMutation(req);
+  if (boundary) return boundary;
   const body = await req.json().catch(() => ({}));
   const raw = String(body.name ?? "").trim();
   // Sanitize → kebab-case-only; reject empty / silly inputs

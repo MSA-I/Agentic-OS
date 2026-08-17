@@ -41,8 +41,13 @@ test.describe("Workbench native read-through adapters", () => {
       expect(list.agent.capabilities.list.status).toBe("supported");
       expect(list.agent.capabilities.load.status).toBe("supported");
       expect(list.agent.capabilities.artifacts.status).toBe("supported");
-      expect(list.agent.capabilities.start.status).toBe("unsupported");
-      expect(list.agent.capabilities.resume.status).toBe("unsupported");
+      // Wave 3 cut Codex and Claude over to the durable control plane, so their
+      // start and resume are real. Every other provider must still report the
+      // truth: unsupported until its own wave lands. Approvals stay unsupported
+      // for all five until the Tool Gateway can enforce them.
+      const lifecycleStatus = provider === "codex" || provider === "claude" ? "supported" : "unsupported";
+      expect(list.agent.capabilities.start.status).toBe(lifecycleStatus);
+      expect(list.agent.capabilities.resume.status).toBe(lifecycleStatus);
       expect(list.agent.capabilities.approval.status).toBe("unsupported");
       expect(list.returnedCount).toBe(list.sessions.length);
       expect(list.sessionCount).toBeGreaterThanOrEqual(list.sessions.length);
