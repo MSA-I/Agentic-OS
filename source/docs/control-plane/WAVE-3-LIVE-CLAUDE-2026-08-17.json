@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-17",
+  "wave": 3,
+  "subtask": "claude-live-lifecycle-gate",
+  "overallStatus": "pass-for-claude-blocked-for-codex",
+  "plan": "C:\\Users\\art1\\.codex\\visualizations\\2026\\08\\13\\019ffc17-3c91-77f1-898c-6c2ba49d666e\\AGENT-OS-CONTROL-PLANE-REPAIR-PLAN.md",
+  "repository": "D:\\משה פרוייקטים\\פיתוח אתרים\\AGENT-OS\\source",
+  "branch": "control-plane-repair",
+  "runtime": {
+    "node": "v24.15.0",
+    "next": "16.3.1",
+    "playwright": "1.62.1",
+    "claudeCli": "2.1.233 (Claude Code)",
+    "platform": "win32"
+  },
+  "cliPreflight": {
+    "purpose": "confirm the provider answers under the same restrictions the Wave 3 adapter applies before spending a pilot run",
+    "binary": "C:\\Users\\art1\\.local\\bin\\claude.exe",
+    "arguments": "-p <one-line prompt> --safe-mode --disable-slash-commands --no-chrome --strict-mcp-config --mcp-config {\"mcpServers\":{}} --tools \"\" --permission-mode dontAsk",
+    "exitCode": 0,
+    "stdout": "OK",
+    "durationMs": 6800,
+    "result": "pass"
+  },
+  "defectFoundByThisRun": {
+    "id": "A9",
+    "severity": "medium",
+    "where": "tests/e2e/wave3-live-pilot.spec.ts and tests/e2e/wave3-live-restart.spec.ts",
+    "finding": "The marker assertions compared against raw SSE frames joined by newlines. A provider streams one event per chunk, so Claude's reply arrived as \"C\" + \"LAUDE_LI\" + \"VE_START_OK\" and the assertion failed on the framing while the run itself had succeeded. Codex passed earlier only because its chunk boundaries happened not to split the marker, so this was a latent flake for either provider.",
+    "fix": "both specs now assemble the assistant transcript: assistant message events sorted by sequence and concatenated, which is what a reader sees",
+    "productDefect": false
+  },
+  "live-runtime": {
+    "claude": {
+      "status": "pass",
+      "commands": [
+        "node scripts/control-plane/run-wave3-live-pilot.mjs --provider=claude",
+        "node scripts/control-plane/run-wave3-live-restart-pilot.mjs --provider=claude"
+      ],
+      "standardPilot": {
+        "status": "pass",
+        "durationSeconds": 40.8,
+        "start": { "runId": "5f47405a-b025-4341-b6d7-6af3b24bb462", "status": "succeeded", "nativeSessionId": "50742ae3-2d92-5fde-92b0-c5ddcd6d8dc1", "providerAttemptCount": 1, "markerObserved": "CLAUDE_LIVE_START_OK" },
+        "resume": { "runId": "54bcd5f1-e7cf-45e5-aa44-4e1b0eb93a0d", "status": "succeeded", "nativeSessionId": "50742ae3-2d92-5fde-92b0-c5ddcd6d8dc1", "providerAttemptCount": 1, "markerObserved": "CLAUDE_LIVE_RESUME_OK" },
+        "cancel": { "runId": "0eadf6d9-7ced-4064-817b-6a0360a4891a", "status": "cancelled", "pid": null, "terminationVerified": 1, "stop": { "state": "stopped_and_verified", "verified": true } },
+        "startResumeNativeSessionMatches": true
+      },
+      "restartPilot": {
+        "status": "pass",
+        "durationMinutes": 1.9,
+        "port": 3113,
+        "startBeforeRestart": { "runId": "3f71de55-874e-4c5b-9a43-114a90c7e2f6", "status": "succeeded", "nativeSessionId": "1d170548-1858-5b38-9494-167bffb149a8", "terminationVerified": 1 },
+        "resumeAfterRestart": { "runId": "45b869c8-fac3-4d8c-a6db-18f871bf0f5a", "status": "succeeded", "nativeSessionId": "1d170548-1858-5b38-9494-167bffb149a8", "terminationVerified": 1 },
+        "activeRunInterruptedByRestart": { "runId": "9dd2eac8-7147-4235-884e-38950cb89a75", "status": "blocked", "pid": null, "errorCode": "windows_job_blocked", "terminationVerified": 1, "meaning": "fail-closed restart containment; the active provider tree did not survive the control-plane parent" },
+        "cancelAfterRestart": { "runId": "88810c6e-d99c-4405-a374-4b4ff0718905", "status": "cancelled", "pid": null, "terminationVerified": 1 },
+        "startResumeNativeSessionMatches": true,
+        "duplicateExecutionObserved": false,
+        "orphanProcessObserved": false
+      },
+      "databaseVerification": "node scripts/control-plane/inspect-wave3-live-evidence.mjs — every Claude command row shows providerAttemptCount 1 and terminationVerified 1, with matching native session ids across each start/resume pair"
+    },
+    "codex": {
+      "status": "blocked",
+      "observedAt": "2026-08-17T15:41:41Z through 2026-08-17T15:43:23Z",
+      "attempts": 3,
+      "runIds": ["4bdb380a", "01fee7f9", "0fc2059a"],
+      "runStatus": "failed",
+      "errorCode": "provider_quota",
+      "errorMessage": "The provider quota or usage allowance is exhausted.",
+      "note": "The reverse of 2026-08-14: Claude was blocked then and passes now, Codex passed then and is blocked now. Blocked is not PASS. The runs never produced output, so this is unrelated to the A9 test fix.",
+      "priorPass": "WAVE-3-RESTRICTED-PILOT-EVIDENCE.json, 2026-08-14, which is historical at this SHA"
+    }
+  },
+  "exitGate": {
+    "wave": 3,
+    "status": "blocked",
+    "passed": [
+      "Claude live start",
+      "Claude native resume on the same native session",
+      "Claude verified active-process cancel",
+      "Claude native resume after a server restart",
+      "Claude fail-closed active-run containment during a server restart",
+      "Claude verified active-process cancel after restart"
+    ],
+    "missing": [
+      "A current Codex live re-run: start, native resume, verified cancel and restart recovery, once the Codex provider quota is available"
+    ],
+    "basis": "The blocker recorded on 2026-08-14 was Claude, and it is closed with live evidence today. The gate is not fully current only because Codex now returns provider_quota, so its 2026-08-14 pass is historical. No product defect was found in either direction.",
+    "nextWave": 4,
+    "nextWaveStatus": "closed",
+    "waivers": []
+  },
+  "unchangedGates": {
+    "note": "No src/ file changed in this slice; only the two live pilot specs. The tree's other gates therefore stand from the previous record.",
+    "typecheck": "pass",
+    "build": "pass",
+    "nodeTests": "467/467 pass",
+    "playwrightSuite": "225 passed / 0 failed / 4 skipped, where the 4 skipped are these live pilots"
+  }
+}

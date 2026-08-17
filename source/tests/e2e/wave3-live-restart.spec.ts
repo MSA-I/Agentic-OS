@@ -173,7 +173,19 @@ async function waitFor(
   throw new Error(`Timed out waiting for live run ${runId}; last status=${last.run.status}; code=${last.run.error?.code ?? "none"}`);
 }
 
-async function terminalOutput(client: APIRequestContext, runId: string): Promise<string> {
+type StreamedEvent = {
+  sequence?: number;
+  type?: string;
+  payload?: { role?: string; text?: string };
+};
+
+/**
+ * The assistant transcript as a reader would see it: assistant message chunks
+ * concatenated in sequence order. A provider streams one event per chunk, so a
+ * marker legitimately arrives split across frames; joining the raw SSE frames
+ * with newlines would fail on the framing rather than on the provider's answer.
+ */
+async function assistantTranscript(client: APIRequestContext, runId: string): Promise<string> {
   const response = await client.get(`/api/workbench/runs/${encodeURIComponent(runId)}/events?after=0`, {
     headers: { Origin: origin },
   });
@@ -181,8 +193,17 @@ async function terminalOutput(client: APIRequestContext, runId: string): Promise
   return (await response.text())
     .split(/\r?\n/u)
     .filter((line) => line.startsWith("data: "))
-    .map((line) => line.slice(6))
-    .join("\n");
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line.slice(6)) as StreamedEvent];
+      } catch {
+        return [];
+      }
+    })
+    .sort((left, right) => (left.sequence ?? 0) - (right.sequence ?? 0))
+    .filter((event) => event.type === "message" && event.payload?.role === "assistant")
+    .map((event) => event.payload?.text ?? "")
+    .join("");
 }
 
 async function cancelRun(client: APIRequestContext, provider: Provider, run: LiveRun): Promise<void> {
@@ -224,7 +245,7 @@ test.describe("Wave 3 live provider restart pilot", () => {
         expect(startTerminal.run.error?.message ?? "", JSON.stringify(startTerminal.run.error)).toBe("");
         expect(startTerminal.run.status).toBe("succeeded");
         expect(startTerminal.run.context.sessionId).toBeTruthy();
-        expect(await terminalOutput(client, start.id)).toContain(startMarker);
+        expect(await assistantTranscript(client, start.id)).toContain(startMarker);
 
         await client.dispose();
         client = null;
@@ -243,7 +264,7 @@ test.describe("Wave 3 live provider restart pilot", () => {
         expect(resumeTerminal.run.error?.message ?? "", JSON.stringify(resumeTerminal.run.error)).toBe("");
         expect(resumeTerminal.run.status).toBe("succeeded");
         expect(resumeTerminal.run.context.sessionId).toBe(startTerminal.run.context.sessionId);
-        expect(await terminalOutput(client, resume.id)).toContain(resumeMarker);
+        expect(await assistantTranscript(client, resume.id)).toContain(resumeMarker);
 
         activeRun = await createRun(
           client,

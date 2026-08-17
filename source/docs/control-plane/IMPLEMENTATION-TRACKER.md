@@ -23,7 +23,7 @@ Every future subagent prompt must include the authoritative plan path and requir
 | 0 — Repository truth and baseline | Complete | `WAVE-0-CLEAN-TREE-GATE.json`, `WAVE-0-BASELINE-LIVE-2026-08-13.json`, `mutation-inventory.json` | Passed |
 | 1 — Security and control foundation | Complete | `WAVE-1-POLICY-FREEZE-EVIDENCE.json`, `WAVE-1-PROVIDER-EXECUTION-SAFETY.json`, `WAVE-1-SECRET-CHANNELS-EVIDENCE.json` | Passed |
 | 2 — Durable Workbench kernel | Complete | `WAVE-2-DURABLE-KERNEL-EVIDENCE.json`; 467/467 Node tests, 25/25 Playwright, build/typecheck/parser PASS, independent review P0=0/P1=0 | Passed |
-| 3 — Restricted Codex/Claude pilot | In progress — blocked on Claude quota | `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json`; Codex live start/resume/cancel/restart PASS; Claude live start reached the provider and returned `quota`. Audit repair: `WAVE-3-AUDIT-REPAIR-2026-08-17.json` | Blocked; Wave 4 remains closed |
+| 3 — Restricted Codex/Claude pilot | In progress — blocked on Codex quota | `WAVE-3-LIVE-CLAUDE-2026-08-17.json`: Claude live start/resume/verified cancel/restart PASS; Codex now returns `provider_quota`, so its 2026-08-14 pass in `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json` is historical. Audit repair: `WAVE-3-AUDIT-REPAIR-2026-08-17.json` | Blocked; Wave 4 remains closed |
 | 4 — Tool Gateway pilot | Not started | None | Closed |
 | 5 — Hermes/OpenClaw parity | Not started | None | Closed |
 | 6 — Shared Project and Mission Control | Not started | None | Closed |
@@ -161,3 +161,29 @@ own copy.
 Not covered: individual buttons inside the 39 app surfaces still render. The page notice is what makes
 them truthful before a click, and the route still answers `503 control_plane_execution_unavailable`
 with `runCreated: false`. Per-control disabling inside those app views remains follow-up work.
+
+## Claude live lifecycle gate — 2026-08-17
+
+Evidence: `WAVE-3-LIVE-CLAUDE-2026-08-17.json`.
+
+The Claude quota that blocked Wave 3 on 2026-08-14 is available again. A CLI preflight under the
+adapter's own restrictions answered `OK` with exit 0, and both live pilots then passed through the
+canonical durable control plane:
+
+- Standard pilot: start `5f47405a` succeeded and emitted its marker, resume `54bcd5f1` succeeded on the
+  same native session `50742ae3`, and cancel `0eadf6d9` ended `cancelled` with `pid=null` and
+  `stopped_and_verified`.
+- Restart pilot: start `3f71de55` succeeded, resume `45b869c8` succeeded after a server restart on the
+  same native session `1d170548`, the active run `9dd2eac8` was terminated fail-closed as
+  `windows_job_blocked` with verified termination, and cancel `88810c6e` passed after the restart. No
+  duplicate execution and no orphan process.
+
+One defect surfaced, in the tests rather than the product: the marker assertions compared against raw
+SSE frames joined by newlines, and Claude's reply arrived as three chunks (`C`, `LAUDE_LI`,
+`VE_START_OK`). Both live specs now assemble the assistant transcript in sequence order, which is what
+a reader sees. Codex had passed the old assertion only because its chunk boundaries happened not to
+split the marker.
+
+The gate did not close, because the blocker swapped providers: Codex now returns `provider_quota` on
+three consecutive attempts, so its 2026-08-14 live pass is historical at this SHA. Wave 3 closes when a
+current Codex live re-run passes. Wave 4 stays closed.
