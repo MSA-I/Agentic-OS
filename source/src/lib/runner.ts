@@ -173,6 +173,124 @@ export async function terminateChildProcessTree(child: ChildProcess): Promise<vo
   try { child.kill("SIGTERM"); } catch { /* already exited */ }
 }
 
+interface SpawnPlan {
+  bin: string;
+  args: readonly string[];
+  env: NodeJS.ProcessEnv;
+  cwd: string;
+  timeoutMs: number;
+  input?: string;
+  signal?: AbortSignal;
+}
+
+/** Shared spawn plumbing: collect output, enforce one timeout, kill the tree. */
+function spawnAndCollect(plan: SpawnPlan, started: number): Promise<RunResult> {
+  return new Promise<RunResult>((resolve) => {
+    const child = spawn(plan.bin, [...plan.args], {
+      cwd: plan.cwd,
+      env: plan.env,
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const onAbort = () => { void terminateChildProcessTree(child); };
+    plan.signal?.addEventListener("abort", onAbort, { once: true });
+    if (plan.signal?.aborted) onAbort();
+    const timeout = setTimeout(onAbort, plan.timeoutMs);
+    const finish = (result: RunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      plan.signal?.removeEventListener("abort", onAbort);
+      resolve(result);
+    };
+
+    child.stdout.on("data", (b) => { stdout += b.toString(); });
+    child.stderr.on("data", (b) => { stderr += b.toString(); });
+    child.on("close", (code) => {
+      finish({ ok: code === 0, code, stdout, stderr, durationMs: Date.now() - started });
+    });
+    child.on("error", (e) => {
+      finish({ ok: false, code: -1, stdout, stderr: String(e), durationMs: Date.now() - started });
+    });
+
+    if (plan.input) child.stdin.write(plan.input);
+    try { child.stdin.end(); } catch {}
+  });
+}
+
+/**
+ * The only argv a provider may be launched with outside an approved run: version
+ * and status probes. Matched exactly, in order, so no prompt, no path, no flag and
+ * no client value can ride along. Anything else is denied.
+ */
+const PROVIDER_PROBE_ARGS: Record<GuardedProvider, readonly (readonly string[])[]> = {
+  claude: [["--version"], ["doctor"]],
+  codex: [["--version"]],
+  hermes: [
+    ["status"], ["--version"], ["doctor"], ["insights"],
+    ["sessions", "list"], ["kanban", "list"], ["skills", "list"], ["plugins", "list"],
+  ],
+  openclaw: [
+    ["health"], ["--version"], ["doctor"], ["logs"],
+    ["agents", "list"], ["cron", "list"], ["memory", "--help"],
+  ],
+  antigravity: [["--version"]],
+};
+
+function probeAllowed(provider: GuardedProvider, args: readonly string[]): boolean {
+  return PROVIDER_PROBE_ARGS[provider].some((allowed) =>
+    allowed.length === args.length && allowed.every((value, index) => value === args[index]));
+}
+
+/**
+ * Read-only health probe for a guarded provider.
+ *
+ * A version or status probe is not execution: it carries no prompt, no project and
+ * no client input, so it does not need the approved launch directory that a run
+ * does. It still passes the same executable identity check, the same forbidden
+ * flag and environment denylist and the same minimal child environment, and it runs
+ * in the server-owned workspace root. Reporting a provider as unavailable because a
+ * probe was refused is what made the whole vitals layer read `unknown`.
+ */
+export async function probeProvider(
+  provider: GuardedProvider,
+  args: readonly string[],
+  opts: { timeoutMs?: number } = {},
+): Promise<RunResult> {
+  const started = Date.now();
+  const cleanArgs = args.map(safeArg).filter((a): a is string => a !== null);
+  if (!probeAllowed(provider, cleanArgs)) {
+    return { ok: false, code: -1, stdout: "", stderr: "Provider probe denied: probe_arguments_not_allowed", durationMs: 0 };
+  }
+
+  let bin: string;
+  try { bin = binFor(provider); }
+  catch (e) {
+    return { ok: false, code: -1, stdout: "", stderr: String(e), durationMs: Date.now() - started };
+  }
+
+  let env: NodeJS.ProcessEnv;
+  let identity: ExecutableIdentity;
+  try {
+    env = providerChildEnvironment(provider);
+    identity = await assertProviderLaunch(provider, bin, cleanArgs, env);
+    assertExecutableIdentityBindingSync(identity);
+  } catch (error) {
+    const code = error instanceof ExecutableIdentityError ? error.code : "executable_identity_unavailable";
+    return { ok: false, code: -1, stdout: "", stderr: `Provider probe denied: ${code}`, durationMs: Date.now() - started };
+  }
+
+  return spawnAndCollect({
+    bin: identity.launchPath,
+    args: [...identity.launchArgsPrefix, ...cleanArgs],
+    env,
+    cwd: ensureWorkspaceRootSync(),
+    timeoutMs: opts.timeoutMs ?? 15_000,
+  }, started);
+}
+
 export async function run(
   agent: AgentName,
   args: readonly string[],
@@ -221,42 +339,18 @@ export async function run(
     }
   }
 
-  return new Promise<RunResult>((resolve) => {
-    const resolved = identity
-      ? { bin: identity.launchPath, args: [...identity.launchArgsPrefix, ...cleanArgs] }
-      : resolveWinScript(bin, cleanArgs);
-    const child = spawn(resolved.bin, resolved.args, {
-      cwd: typeof opts.cwd === "string" ? opts.cwd : opts.cwd?.absolutePath ?? ensureWorkspaceRootSync(),
-      env: launchEnv,
-      windowsHide: true,
-    });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const onAbort = () => { void terminateChildProcessTree(child); };
-    opts.signal?.addEventListener("abort", onAbort, { once: true });
-    if (opts.signal?.aborted) onAbort();
-    const timeout = setTimeout(onAbort, opts.timeoutMs ?? 15_000);
-    const finish = (result: RunResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      opts.signal?.removeEventListener("abort", onAbort);
-      resolve(result);
-    };
-
-    child.stdout.on("data", (b) => { stdout += b.toString(); });
-    child.stderr.on("data", (b) => { stderr += b.toString(); });
-    child.on("close", (code) => {
-      finish({ ok: code === 0, code, stdout, stderr, durationMs: Date.now() - started });
-    });
-    child.on("error", (e) => {
-      finish({ ok: false, code: -1, stdout, stderr: String(e), durationMs: Date.now() - started });
-    });
-
-    if (opts.input) child.stdin.write(opts.input);
-    try { child.stdin.end(); } catch {}
-  });
+  const resolved = identity
+    ? { bin: identity.launchPath, args: [...identity.launchArgsPrefix, ...cleanArgs] }
+    : resolveWinScript(bin, cleanArgs);
+  return spawnAndCollect({
+    bin: resolved.bin,
+    args: resolved.args,
+    env: launchEnv,
+    cwd: typeof opts.cwd === "string" ? opts.cwd : opts.cwd?.absolutePath ?? ensureWorkspaceRootSync(),
+    timeoutMs: opts.timeoutMs ?? 15_000,
+    input: opts.input,
+    signal: opts.signal,
+  }, started);
 }
 
 export function spawnStream(

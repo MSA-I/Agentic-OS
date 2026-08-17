@@ -50,5 +50,11 @@ test.describe("truthful disabled controls", () => {
     await settlePage(page);
     await expect(page.getByText("Sending from Agent OS is disabled")).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Message Hermes" })).toHaveCount(0);
+
+    // A draft that can never be sent is the same false promise as a live composer.
+    for (const name of ["New message", "Start a session"]) {
+      const control = page.getByRole("button", { name, exact: true });
+      if (await control.count() > 0) await expect(control.first()).toBeDisabled();
+    }
   });
 });

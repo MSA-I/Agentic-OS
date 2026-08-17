@@ -205,3 +205,29 @@ cwd מאושר, ולכן הן נדחות **לפני spawn**. `latencyMs: 3` הו
 - לפני staging: לרענן `mutation-inventory.json` ואת `executionFrozenSurfaces.ts`, ולהריץ את
   `verify-wave1-execution-freeze.mjs`.
 - שער Wave 3 נשאר חסום עד הרצת Codex חיה אחרי 2026-08-20 08:02. אין לפתוח Wave 4 לפניה.
+
+---
+
+## מה בוצע — 2026-08-17
+
+כל חמש התקלות תוקנו ואומתו על שרת production חי, בסדר שהוצע.
+
+| # | מצב | תיקון | אימות חי |
+|---|---|---|---|
+| D1 | תוקן | `probeProvider()` חדש ב-`src/lib/runner.ts`: מסלול קריאה-בלבד עם allowlist מדויק של argv לכל ספק, שמשמר זהות executable, denylist דגלים ו-env מינימלי, ורץ ב-workspace root של השרת. `/api/vitals`, `/api/hermes` ו-`/api/openclaw` הועברו אליו | `claude.ok=true, version "2.1.233 (Claude Code)"` (היה "Provider launch denied") |
+| D2 | תוקן | נגזרת של D1 | `hermes.ok=true, model "deepseek/deepseek-v4-pro-0813", provider "OpenRouter"` |
+| D3 | תוקן | כל פקדי פתיחת השיחה בהרמס (`New Hermes session`, `New message`, `Start a session`, ובחירת `new` בתפריט) מושבתים עם הסיבה המשותפת בזמן שהנתיב מוקפא | `truthful-disabled-controls.spec.ts` — 5/5 |
+| D4 | תוקן | `nativeAgentHistory.ts` — `label: path.basename(cwd)` עם הנתיב המלא נשמר ב-`root` (וכבר מוצג כ-tooltip ב-`ClaudeDesktop.tsx:332`) | 37 קבוצות: `NIR-APP`, `AGENT-OS`, `source`, `PanoWorld-Automation` |
+| D5 | תוקן | שני באגים: הכלל המשותף ב-CSS הפסיק לדרוס `display:none` של `.closeDrawer`; ובנייד `.agent-system-dock` (z-index 90) כיסה את הכפתור, ולכן `main` קיבל stacking context מעליו | `layout-contract` — מוסתר ב-1440px, נראה ולחיץ ב-390px |
+| D6 | תוקן | שכבת מדידה חדשה (`src/lib/usageLedger.ts`) שקוראת את השימוש שהספק עצמו דיווח מתוך ledger האירועים; יתרות ספק (`src/lib/providerBalances.ts`) עם OpenRouter חי; תווית מקור לכל שורה | `claude: 7 runs, 19,244 tokens, $0.045` ו-`openrouter: $80.02 left ($19.98 used of $100.00)` |
+| D7 | תוקן | `/api/activity` קורא עכשיו גם את ה-ledger, מעדיף `hermesHome()/logs` כשהיא קיימת, ומחזיר `sources[]` שמפרט איזה נתיב נבדק | 73 רשומות (13 control-plane + 60 hermes); openclaw מדווח `no .log files in this directory` |
+
+**שני ממצאים שנוספו תוך כדי:**
+
+1. D5 היה **שתי** תקלות, לא אחת: גם אחרי תיקון ה-CSS, בנייד ה-dock הגלובלי כיסה את הכפתור ובלע את
+   הקליק. הבדיקה תפסה את זה כי היא לוחצת בפועל ולא רק בודקת נראות.
+2. המפתח של OpenRouter לא נמצא בתיקיות הפרופיל אלא ב-`hermesHome()/.env`; חיפוש המפתח מכסה עכשיו את
+   ה-environment, את ה-env של ה-home וכל פרופיל.
+
+**סדר תלות בין הגנרטורים:** יש להריץ `generate-frozen-surfaces.mjs` **לפני**
+`inventory-mutations.mjs`, כי הראשון כותב קובץ מקור שנכנס ל-digest של השני.

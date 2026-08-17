@@ -6,9 +6,11 @@ import { Radio } from "lucide-react";
 import Panel from "./Panel";
 
 interface Entry { ts: number; agent: string; text: string; level?: string; }
+interface Source { kind: string; path?: string; entries: number; note?: string; }
 
 export default function ActivityStream() {
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
 
   useEffect(() => {
     let stop = false;
@@ -16,7 +18,10 @@ export default function ActivityStream() {
       try {
         const r = await fetch("/api/activity", { cache: "no-store" });
         const j = await r.json();
-        if (!stop) setEntries(j.entries ?? []);
+        if (!stop) {
+          setEntries(j.entries ?? []);
+          setSources(j.sources ?? []);
+        }
       } catch { /* ignore */ }
     };
     fetchIt();
@@ -44,8 +49,20 @@ export default function ActivityStream() {
       <div className="scroll stream-fade overflow-y-auto h-full min-h-0 pr-2">
         <AnimatePresence initial={false}>
           {entries.length === 0 && (
+            // Name the sources that were checked. An empty panel with no explanation
+            // reads as "nothing happened" when the real answer is "this path holds
+            // no logs".
             <div className="text-sm text-[var(--fg-dim)]">
-              No log activity yet. Streams from <code>~/.openclaw/logs</code> and <code>~/.hermes/cache</code> appear here.
+              <p>No activity to show yet. Checked:</p>
+              <ul className="mt-2 space-y-1 text-[11.5px]">
+                {sources.map((source) => (
+                  <li key={source.kind}>
+                    <span className="text-[var(--fg)]">{source.kind}</span>
+                    {source.path && <> · <code>{source.path}</code></>}
+                    {source.note && <> · {source.note}</>}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {entries.map((e, i) => (

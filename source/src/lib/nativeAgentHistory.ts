@@ -800,7 +800,10 @@ export async function listNativeAgentHistory(agent: NativeHistoryAgent): Promise
         resumable: true,
         source: "native" as const,
       })));
-      return { ...group, label: cwd ?? group.label, root: cwd ?? group.root, sessions };
+      // Label with the folder name, the way the Codex grouping below does, and keep
+      // the absolute path in `root` for the row's secondary line. Claude encodes the
+      // project path into its directory name, so the untouched label read as a path.
+      return { ...group, label: cwd ? path.basename(cwd) : group.label, root: cwd ?? group.root, sessions };
     }));
   } else if (agent === "openclaw") {
     source = path.join(home, ".openclaw", "agents");

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { run } from "@/lib/runner";
+import { probeProvider } from "@/lib/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,13 +13,17 @@ let cached: { ts: number; body: unknown } | null = null;
 let inflight: Promise<unknown> | null = null;
 
 async function computeVitals() {
+  // Read-only probes, not runs: probeProvider keeps the executable identity, flag
+  // denylist and minimal environment, and does not require the approved launch
+  // directory that a real run does. Calling run() here reported every provider as
+  // unavailable because the probe was denied before it ever spawned.
   const [claude, openclaw, hermes, antigravity] = await Promise.all([
-    run("claude", ["--version"], { timeoutMs: 6000 }),
+    probeProvider("claude", ["--version"], { timeoutMs: 6000 }),
     // 20s, not 6s: on Windows the openclaw shim resolves to `node openclaw.mjs`,
     // whose cold start alone can exceed 6s and falsely report the gateway down.
-    run("openclaw", ["health"], { timeoutMs: 20_000 }),
-    run("hermes", ["status"], { timeoutMs: 8000 }),
-    run("antigravity", ["--version"], { timeoutMs: 6000 }),
+    probeProvider("openclaw", ["health"], { timeoutMs: 20_000 }),
+    probeProvider("hermes", ["status"], { timeoutMs: 8000 }),
+    probeProvider("antigravity", ["--version"], { timeoutMs: 6000 }),
   ]);
   return { claude, openclaw, hermes, antigravity };
 }

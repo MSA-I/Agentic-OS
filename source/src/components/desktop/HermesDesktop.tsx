@@ -116,6 +116,10 @@ function StatusBlock({ state, title, error, onRetry }: { state: "loading" | "rea
   </div>;
 }
 
+// One source of truth for this surface: while the Hermes chat route is frozen no
+// message can leave, so no control may offer to start or send one.
+const sendingDisabled = isFrozenExecutionPath("/api/hermes/chat");
+
 export default function HermesDesktop() {
   const data = useHermesDesktopData();
   const [view, setView] = useState<HermesView>("messages");
@@ -162,7 +166,7 @@ export default function HermesDesktop() {
       const detail = (event as CustomEvent<{ agent?: string; target?: string; section?: string }>).detail;
       if (detail?.agent !== "hermes") return;
       const target = detail.target ?? detail.section;
-      if (target === "new") data.createSession();
+      if (target === "new" && !sendingDisabled) data.createSession();
       else if (target === "profiles") setView("profiles");
       else if (target === "workspace" || target === "projects") setView("projects");
       else if (target === "studio" || target === "artifacts") setView("artifacts");
@@ -285,7 +289,7 @@ export default function HermesDesktop() {
       <header className={styles.mobileHeader}>
         <button ref={drawerTriggerRef} type="button" aria-label="Open Hermes navigation" aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}><Menu size={20} /></button>
         <div><span className={styles.hermesMark}>H</span><strong>Hermes</strong><small>{lockedProfile}</small></div>
-        <button type="button" aria-label="New Hermes session" onClick={() => data.createSession()}><Plus size={20} /></button>
+        <button type="button" aria-label="New Hermes session" disabled={sendingDisabled} title={sendingDisabled ? EXECUTION_FROZEN_COPY.controlTitle : undefined} onClick={() => data.createSession()}><Plus size={20} /></button>
       </header>
 
       {drawerOpen && <button type="button" aria-label="Close navigation" className={styles.backdrop} onClick={() => setDrawerOpen(false)} />}
@@ -304,7 +308,7 @@ export default function HermesDesktop() {
           <small>{data.profileLocked ? "Locked to this session. Start a new chat to change agent." : "A new session keeps this profile for its lifetime."}</small>
         </div>
 
-        <button type="button" className={styles.newMessage} onClick={() => data.createSession()}><Plus size={17} />New message</button>
+        <button type="button" className={styles.newMessage} disabled={sendingDisabled} title={sendingDisabled ? EXECUTION_FROZEN_COPY.controlTitle : undefined} onClick={() => data.createSession()}><Plus size={17} />New message</button>
 
         <nav className={styles.nav} aria-label="Hermes desktop sections">
           <button type="button" data-active={view === "messages"} onClick={() => chooseView("messages")}><MessageSquare size={17} /><span>Messaging</span>{data.queue.length > 0 && <small>{data.queue.length}</small>}</button>
@@ -398,7 +402,7 @@ export default function HermesDesktop() {
 function MessageView({ data, input, setInput, submit, composerKeyDown, transcriptRef }: { data: ReturnType<typeof useHermesDesktopData>; input: string; setInput: (value: string) => void; submit: (event?: FormEvent) => void; composerKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void; transcriptRef: React.RefObject<HTMLDivElement | null> }) {
   return <div className={styles.messageStage}>
     <div ref={transcriptRef} className={styles.transcript} tabIndex={0} aria-label="Hermes conversation transcript">
-      {!data.activeSession && <div className={styles.welcome}><span className={styles.largeMark}>H</span><h1>How can Hermes help?</h1><p>Select a conversation, or begin a new session with a profile. Profile identity cannot change after the session starts.</p><button type="button" onClick={() => data.createSession()}><Plus size={17} />Start a session</button></div>}
+      {!data.activeSession && <div className={styles.welcome}><span className={styles.largeMark}>H</span><h1>How can Hermes help?</h1><p>Select a conversation, or begin a new session with a profile. Profile identity cannot change after the session starts.</p><button type="button" disabled={sendingDisabled} title={sendingDisabled ? EXECUTION_FROZEN_COPY.controlTitle : undefined} onClick={() => data.createSession()}><Plus size={17} />Start a session</button></div>}
       {data.activeSession && <StatusBlock state={data.transcriptState} title="Messages" error={data.transcriptError} />}
       {data.activeSession && <div className={styles.messages}>{data.messages.map((message, index) => <article key={`${message.ts}-${index}`} data-role={message.role} dir={rtl(message.text) ? "rtl" : "auto"}><div className={styles.messageMeta}><span>{message.role === "user" ? "You" : "Hermes"}</span><time>{new Date(message.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div><div className={styles.markdown}><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div></article>)}
         {data.sending && <article data-role="assistant"><div className={styles.messageMeta}><span>Hermes</span><span className={styles.working}>Working</span></div><div className={styles.thinking}><span /><span /><span /></div></article>}
@@ -406,7 +410,7 @@ function MessageView({ data, input, setInput, submit, composerKeyDown, transcrip
       {data.sendError && <div className={styles.inlineError} role="alert"><AlertTriangle size={17} />{data.sendError}</div>}
     </div>
     {data.queue.length > 0 && <div className={styles.queueBar}><div><Boxes size={16} /><strong>Queue · {data.queue.length}</strong><span>Messages run in order for profile {data.activeGroup?.scope || data.selectedProfile}.</span></div><div>{data.queue.map((item, index) => <span key={item.id}><small>{index + 1}</small>{item.text}<button type="button" onClick={() => data.removeQueued(item.id)} aria-label={`Remove queued message ${index + 1}`}><X size={14} /></button></span>)}</div></div>}
-    {isFrozenExecutionPath("/api/hermes/chat")
+    {sendingDisabled
       ? <div className={styles.composerWrap}>
           <div className={styles.unsupported} aria-label="Hermes send unavailable">
             <Send size={25} />

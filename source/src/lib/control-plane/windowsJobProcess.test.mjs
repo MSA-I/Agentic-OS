@@ -2120,10 +2120,14 @@ test("recovery closes a helper-death gap with verified Job cleanup and preserved
 });
 
 test("bootstrap erases recovery key immediately and assignment failure cleanup kills the created handle first", async () => {
-  const [processSource, launcherSource] = await Promise.all([
+  // This asserts the order of code blocks, not their newline bytes. Git checks the
+  // working tree out with CRLF on this machine, so a pattern that hard-codes "\n"
+  // fails on a checkout rather than on a real ordering regression.
+  const normalize = (text) => text.replaceAll("\r\n", "\n");
+  const [processSource, launcherSource] = (await Promise.all([
     readFile(new URL("./windowsJobProcess.ts", import.meta.url), "utf8"),
     readFile(new URL("./windowsJobLauncher.ps1", import.meta.url), "utf8"),
-  ]);
+  ])).map(normalize);
   const bootstrapSpawn = processSource.indexOf("const child = spawn(executable, args");
   const bootstrapErase = processSource.indexOf("delete process.env.${RECOVERY_AUTH_KEY_ENV}", bootstrapSpawn);
   assert.ok(bootstrapSpawn >= 0 && bootstrapErase > bootstrapSpawn);

@@ -262,6 +262,29 @@ test.describe("Agentic OS layout contract", () => {
     });
   }
 
+  // The drawer close control belongs to the mobile drawer. On desktop the Hermes
+  // sidebar is static, so a visible X there would promise a close that cannot
+  // happen — which is exactly what a stray `display: grid` used to do.
+  test("hermes drawer close control exists only where it works", async ({ page, diagnostics }) => {
+    const closeInDrawer = page.locator('aside[aria-label="Hermes profiles and conversations"] button[aria-label="Close navigation"]');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/hermes", { waitUntil: "domcontentloaded" });
+    await settlePage(page);
+    await expect(closeInDrawer).toBeHidden();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await settlePage(page);
+    const trigger = page.getByRole("button", { name: "Open Hermes navigation", exact: true });
+    const drawer = page.locator('aside[aria-label="Hermes profiles and conversations"]');
+    await trigger.click();
+    await expect(drawer).toBeInViewport();
+    await expect(closeInDrawer).toBeVisible();
+    await closeInDrawer.click();
+    await expect(drawer).not.toBeInViewport();
+    expectNoClientErrors(diagnostics);
+  });
+
   test("standard mobile menu still traps focus and closes on Escape", async ({ page, diagnostics }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/", { waitUntil: "domcontentloaded" });

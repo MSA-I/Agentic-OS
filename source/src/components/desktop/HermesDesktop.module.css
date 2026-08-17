@@ -530,9 +530,16 @@
   font-size: 12px;
 }
 
+/* No `display` here: .closeDrawer stays hidden until the mobile media query shows
+   it. Declaring it in this shared rule overrode `.closeDrawer { display: none }`
+   above, so a drawer control rendered on desktop where the sidebar is static and
+   closing it does nothing. */
+.sidebarBottom button {
+  display: grid;
+}
+
 .sidebarBottom button,
 .closeDrawer {
-  display: grid;
   place-items: center;
   width: 34px;
   height: 34px;

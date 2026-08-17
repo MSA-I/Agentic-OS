@@ -6,10 +6,17 @@ import { Coins, RefreshCw } from "lucide-react";
 interface AgentUsage {
   agent: string; calls: number; promptTokens: number; completionTokens: number;
   totalTokens: number; costUsd: number; todayTokens: number; models: string[]; lastTs: number;
+  source?: string;
+}
+interface ProviderBalance {
+  provider: string; source: string; status: "live" | "not-configured" | "not-exposed" | "error";
+  label: string; detail?: string;
 }
 interface Summary {
   agents: AgentUsage[];
   grand: { calls: number; promptTokens: number; completionTokens: number; totalTokens: number; costUsd: number; todayTokens: number };
+  measured?: { runsScanned: number; note?: string };
+  balances?: ProviderBalance[];
   generatedAt: number;
 }
 
@@ -83,7 +90,9 @@ export default function TokenUsage() {
       <div className="space-y-2.5">
         {agents.length === 0 && (
           <div className="text-[12.5px] text-[var(--cream-mute)] py-3 text-center">
-            No usage recorded yet. Chat with Claude, talk to Hermes, or build with N2 and it shows up here.
+            No usage measured yet. A run through the Workbench records the provider&apos;s own
+            token and cost report{data?.measured ? ` (${data.measured.runsScanned} recent runs scanned)` : ""}.
+            {data?.measured?.note ? ` ${data.measured.note}` : ""}
           </div>
         )}
         {agents.map((a) => (
@@ -106,8 +115,34 @@ export default function TokenUsage() {
         ))}
       </div>
 
+      {/* Provider-side accounting is a different fact from what we measured, so it
+          gets its own block and says plainly when a provider exposes nothing. */}
+      {(data?.balances ?? []).length > 0 && (
+        <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--line-soft)" }}>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--cream-mute)] mb-2">connected sources</div>
+          <div className="space-y-1.5">
+            {(data?.balances ?? []).map((balance) => (
+              <div key={`${balance.provider}-${balance.source}`} className="flex items-baseline justify-between gap-3 text-[11.5px]">
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2 h-2 rounded-full" style={{ background: col(balance.provider) }} />
+                  <span className="text-[var(--cream)]">{label(balance.provider)}</span>
+                  <span className="text-[var(--cream-mute)] text-[10px]">· {balance.source}</span>
+                </span>
+                <span
+                  className="text-right truncate"
+                  title={balance.detail}
+                  style={{ color: balance.status === "live" ? "var(--gold)" : "var(--cream-mute)" }}
+                >
+                  {balance.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="text-[10.5px] text-[var(--cream-mute)] mt-3 leading-relaxed">
-        Tracked where the model reports it: Claude, Hermes voice (MiniMax), Free Claude (N2). OpenClaw, Antigravity & the Hermes chat CLI don&apos;t expose token counts, so they stay off this chart rather than show guesses.
+        Per-agent rows are measured by the control plane from each run&apos;s own provider report. Connected sources above are the providers&apos; own numbers; a provider that exposes no usage API says so instead of showing zero.
       </div>
     </div>
   );

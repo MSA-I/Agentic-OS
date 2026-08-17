@@ -306,7 +306,11 @@
 @media (max-width: 760px) {
   [data-agent-os-shell][data-shell-mode="immersive-agent"] { grid-template-rows: 48px minmax(0, 1fr); }
   [data-agent-os-shell][data-shell-mode="immersive-agent"] > [data-agent-os-main] { grid-row: 2; }
-  .agent-system-dock { grid-row: 1; padding: 4px 8px; border-top: 0; border-bottom: 1px solid #303030; }
+  .agent-system-dock { grid-row: 1; padding: 4px 8px; border-top: 0; border-bottom: 1px solid #303030; z-index: 80; }
+  /* At this width the dock becomes the top bar, and every agent's mobile drawer is
+     a fixed overlay inside main. Main needs its own stacking context above the dock,
+     or the dock covers the drawer's own close button and swallows the click. */
+  [data-agent-os-shell][data-shell-mode="immersive-agent"] > [data-agent-os-main] { position: relative; z-index: 85; }
   [data-agent-switcher] { grid-template-columns: 38px minmax(0, 1fr); width: min(224px, 100%); }
   .agent-switcher-home-control { width: 38px; min-height: 38px; }
   .agent-switcher-trigger { min-height: 38px; padding-block: 4px; }

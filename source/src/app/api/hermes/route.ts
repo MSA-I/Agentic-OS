@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { run } from "@/lib/runner";
+import { probeProvider } from "@/lib/runner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +21,8 @@ export async function GET(req: Request) {
   const action = (url.searchParams.get("action") ?? "status") as Action;
   const args = COMMANDS[action];
   if (!args) return NextResponse.json({ error: "unknown action" }, { status: 400 });
-  const out = await run("hermes", args, { timeoutMs: 10000 });
+  // Read-only introspection: the command map is server-owned and every vector is
+  // on the provider probe allowlist, so no client value reaches the argv.
+  const out = await probeProvider("hermes", args, { timeoutMs: 10000 });
   return NextResponse.json({ action, ...out });
 }
