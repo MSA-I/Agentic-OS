@@ -30,6 +30,14 @@ Every future subagent prompt must include the authoritative plan path and requir
 | 7 — Complete Tool Center | Not started | None | Closed |
 | 8 — Operational E2E and cutover | Not started | None | Closed |
 
+## Wave 7 input
+
+`SKILLS-BUDGET-FINDING-2026-08-17.md` measures the skills sprawl that makes Codex drop every skill
+description at session start: three near-identical roots, 85% duplicated, 646KB of descriptions against
+a 2% context budget. It also records the empirically discovered `skills.config` schema and the finding
+that no `skills.config` override changes the enumeration. AGENT-OS's own Codex runs are unaffected
+because the adapter already sends `skills.config=[]`.
+
 ## Open defect plan
 
 `DEFECT-PLAN-2026-08-17.md` holds five reported UI and telemetry defects with a verified root cause for
