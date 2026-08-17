@@ -9,6 +9,9 @@ export const WORKBENCH_BOOTSTRAP_HEADER = "x-agent-os-bootstrap-token";
 const DEFAULT_SESSION_TTL_SECONDS = 15 * 60;
 const MINIMUM_SESSION_TTL_SECONDS = 60;
 const MAXIMUM_SESSION_TTL_SECONDS = 60 * 60;
+// A rotation extends the idle window but never past this hard deadline measured
+// from issuance, so a live tab cannot keep one bootstrap alive indefinitely.
+const ABSOLUTE_SESSION_LIFETIME_SECONDS = 8 * 60 * 60;
 const MAXIMUM_LIVE_SESSIONS = 16;
 const TOKEN_PART = /^[A-Za-z0-9_-]{20,128}$/;
 
@@ -161,6 +164,12 @@ function buildIssue(
   };
 }
 
+/** The exact origin a session is bound to. One implementation for every issuer. */
+export function workbenchSessionBinding(origin: URL): string {
+  const port = origin.port || (origin.protocol === "https:" ? "443" : "80");
+  return `${origin.protocol}//${origin.hostname.toLowerCase()}:${port}`;
+}
+
 export function validateWorkbenchBootstrapSecret(candidate: string | null): void {
   const configured = process.env.AGENT_OS_WORKBENCH_BOOTSTRAP_SECRET;
   if (!configured || configured.length < 32) {
@@ -196,10 +205,16 @@ export function rotateWorkbenchSession(
   now = Date.now(),
 ): WorkbenchSessionIssue {
   const session = requireSession(cookieHeader, binding, now);
+  const absoluteDeadline = session.createdAt + ABSOLUTE_SESSION_LIFETIME_SECONDS * 1000;
+  if (absoluteDeadline <= now) {
+    store().sessions.delete(session.id);
+    throw new WorkbenchSessionError("Workbench session token is invalid or expired.", 401);
+  }
   const sessionSecret = randomToken();
   const mutationSecret = randomToken();
   session.sessionHash = digest(sessionSecret);
   session.mutationHash = digest(mutationSecret);
+  session.expiresAt = Math.min(now + configuredTtlSeconds() * 1000, absoluteDeadline);
   return buildIssue(session, sessionSecret, mutationSecret, now);
 }
 

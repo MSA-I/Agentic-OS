@@ -2,13 +2,15 @@ import { expect, expectNoClientErrors, settlePage, test } from "./support/fixtur
 import { PUBLIC_ROUTES } from "./support/routes";
 
 test.describe("public route smoke coverage", () => {
-  test("discovers the unchanged 47-route page surface", () => {
-    expect(PUBLIC_ROUTES).toHaveLength(47);
-    expect(new Set(PUBLIC_ROUTES).size).toBe(47);
+  test("discovers the 48-route page surface", () => {
+    // 47 pre-redesign routes plus /graphify.
+    expect(PUBLIC_ROUTES).toHaveLength(48);
+    expect(new Set(PUBLIC_ROUTES).size).toBe(48);
     expect(PUBLIC_ROUTES).toContain("/");
     expect(PUBLIC_ROUTES).toContain("/claude");
     expect(PUBLIC_ROUTES).toContain("/codex");
     expect(PUBLIC_ROUTES).toContain("/hermes");
+    expect(PUBLIC_ROUTES).toContain("/graphify");
   });
 
   for (const route of PUBLIC_ROUTES) {

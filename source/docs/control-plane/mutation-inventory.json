@@ -20,12 +20,12 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "fda7b7cdcfd029efcebf43600014f7ef6773bca9",
-    "sourceDigestSha256": "9c44f30ad2f5d88236c3e7f5fb1578aebbe3e0bb3406f6a3a52e810651050c21",
+    "gitHead": "eb5e674d53461087a919fc9ed83f9460bc77e692",
+    "sourceDigestSha256": "049c579e426da714116f562732bc8b610b199f905d7e4c72e85b093210ae4f4b",
     "generatorSha256": "5546b88e34e71837bc5c462e423956382cde4abb9e19739e4c9d629f7d2d35a7",
-    "sourceFilesRead": 598,
-    "releaseInputDigestSha256": "b55e6325fff639b16e6c32e2c72644230ac9440fde56e94de34b6e87918d3f36",
-    "releaseInputFilesRead": 713,
+    "sourceFilesRead": 602,
+    "releaseInputDigestSha256": "92eee0f773529f20fca6fedecf51a4ac0e01afcc7f2e7842858340d45ea5f1b3",
+    "releaseInputFilesRead": 720,
     "releaseInputDirectories": [
       "public",
       "scripts",
@@ -48,26 +48,26 @@
     }
   },
   "summary": {
-    "routeHandlers": 153,
-    "routeFiles": 144,
-    "mutationFetchCalls": 179,
-    "frontendMutationCallers": 163,
-    "directFrontendMutationCallers": 154,
+    "routeHandlers": 154,
+    "routeFiles": 145,
+    "mutationFetchCalls": 180,
+    "frontendMutationCallers": 164,
+    "directFrontendMutationCallers": 155,
     "indirectFrontendMutationCallers": 9,
     "routeHandlersByMethod": {
-      "POST": 140,
+      "POST": 141,
       "PUT": 0,
       "PATCH": 3,
       "DELETE": 10
     },
     "mutationFetchCallsByMethod": {
-      "POST": 167,
+      "POST": 168,
       "PUT": 0,
       "PATCH": 2,
       "DELETE": 10
     },
     "frontendCallersByMethod": {
-      "POST": 151,
+      "POST": 152,
       "PUT": 0,
       "PATCH": 2,
       "DELETE": 10
@@ -75,17 +75,17 @@
     "routeHandlersByClassification": {
       "direct-provider": 40,
       "workbench": 5,
-      "other": 108
+      "other": 109
     },
     "mutationFetchCallsByClassification": {
       "direct-provider": 45,
       "workbench": 0,
-      "other": 134
+      "other": 135
     },
     "frontendCallersByClassification": {
       "direct-provider": 45,
       "workbench": 0,
-      "other": 118
+      "other": 119
     },
     "routesWithoutStaticFrontendCaller": 15,
     "unmatchedMutationCallers": 0,
@@ -389,6 +389,15 @@
       "classification": "other",
       "file": "src/app/api/goals/route.ts",
       "line": 14,
+      "column": 23
+    },
+    {
+      "id": "POST /api/graphify/run",
+      "method": "POST",
+      "apiPath": "/api/graphify/run",
+      "classification": "other",
+      "file": "src/app/api/graphify/run/route.ts",
+      "line": 119,
       "column": 23
     },
     {
@@ -1468,7 +1477,7 @@
       "apiPath": "/api/workbench/session",
       "classification": "workbench",
       "file": "src/app/api/workbench/session/route.ts",
-      "line": 47,
+      "line": 45,
       "column": 23
     }
   ],
@@ -2173,6 +2182,22 @@
       "targetPattern": "/api/goals?id=*",
       "matchedRouteIds": [
         "DELETE /api/goals"
+      ]
+    },
+    {
+      "id": "POST src/components/GraphifyView.tsx:68:25",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/graphify/run",
+      "classification": "other",
+      "file": "src/components/GraphifyView.tsx",
+      "line": 68,
+      "column": 25,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/graphify/run\"",
+      "targetPattern": "/api/graphify/run",
+      "matchedRouteIds": [
+        "POST /api/graphify/run"
       ]
     },
     {
@@ -4975,6 +5000,22 @@
       "targetPattern": "/api/goals?id=*",
       "matchedRouteIds": [
         "DELETE /api/goals"
+      ]
+    },
+    {
+      "id": "POST src/components/GraphifyView.tsx:68:25",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/graphify/run",
+      "classification": "other",
+      "file": "src/components/GraphifyView.tsx",
+      "line": 68,
+      "column": 25,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/graphify/run\"",
+      "targetPattern": "/api/graphify/run",
+      "matchedRouteIds": [
+        "POST /api/graphify/run"
       ]
     },
     {

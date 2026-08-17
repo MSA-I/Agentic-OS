@@ -23,7 +23,7 @@ Every future subagent prompt must include the authoritative plan path and requir
 | 0 — Repository truth and baseline | Complete | `WAVE-0-CLEAN-TREE-GATE.json`, `WAVE-0-BASELINE-LIVE-2026-08-13.json`, `mutation-inventory.json` | Passed |
 | 1 — Security and control foundation | Complete | `WAVE-1-POLICY-FREEZE-EVIDENCE.json`, `WAVE-1-PROVIDER-EXECUTION-SAFETY.json`, `WAVE-1-SECRET-CHANNELS-EVIDENCE.json` | Passed |
 | 2 — Durable Workbench kernel | Complete | `WAVE-2-DURABLE-KERNEL-EVIDENCE.json`; 467/467 Node tests, 25/25 Playwright, build/typecheck/parser PASS, independent review P0=0/P1=0 | Passed |
-| 3 — Restricted Codex/Claude pilot | In progress — blocked on Claude quota | `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json`; Codex live start/resume/cancel/restart PASS; Claude live start reached the provider and returned `quota` | Blocked; Wave 4 remains closed |
+| 3 — Restricted Codex/Claude pilot | In progress — blocked on Claude quota | `WAVE-3-RESTRICTED-PILOT-EVIDENCE.json`; Codex live start/resume/cancel/restart PASS; Claude live start reached the provider and returned `quota`. Audit repair: `WAVE-3-AUDIT-REPAIR-2026-08-17.json` | Blocked; Wave 4 remains closed |
 | 4 — Tool Gateway pilot | Not started | None | Closed |
 | 5 — Hermes/OpenClaw parity | Not started | None | Closed |
 | 6 — Shared Project and Mission Control | Not started | None | Closed |
@@ -68,7 +68,8 @@ Every future subagent prompt must include the authoritative plan path and requir
 - Artifact safety: handle-pinned Windows publication/copy/cleanup, durable quota reservations, schema verification, GC accounting, crash recovery, backup/restore mutexes and 10×4 concurrent first-open stress passed.
 - Current gates: inventory freshness PASS at 153 mutation handlers and 163 callers; 106 execution routes remain frozen; 115 direct UI callers remain blocked; route distribution PASS; 467/467 Node tests PASS; 25/25 Playwright security/provider/secret/freeze tests PASS; TypeScript, PowerShell parser, production build and whitespace gates PASS.
 - Independent review: zero open P0 or P1. Non-blocking P2 items are recorded in the evidence file; no waiver was used.
-- Exit gate: passed for the durable kernel only. Production still uses the legacy supervisor and no real provider invocation is claimed. Codex/Claude cutover remains Wave 3; Tool Gateway Wave 4; Hermes/OpenClaw/Antigravity parity Wave 5.
+- Exit gate: passed for the durable kernel only. At the time of this closure production still used the legacy supervisor and no real provider invocation was claimed. Codex/Claude cutover remains Wave 3; Tool Gateway Wave 4; Hermes/OpenClaw/Antigravity parity Wave 5.
+- Superseded on 2026-08-17: the Wave 3 cutover landed, so production no longer uses `RunSupervisor`. Every route under `src/app/api/workbench/**` imports `durableControlPlane`, and `getRunSupervisor` has no production caller. Read the Wave 3 sections below for the current path.
 
 ## Wave 3 progress — 2026-08-14
 
@@ -83,3 +84,39 @@ Every future subagent prompt must include the authoritative plan path and requir
 - Deferred requested tools: the Tool Gateway and MCP invocation remain Wave 4; Hermes/OpenClaw lifecycle parity remains Wave 5; Ruflo and the complete skills/MCP/apps/plugins/hooks/automations/models catalog plus `agent-orchestrator` router repair remain Wave 7. None is claimed as complete.
 - `agent-orchestrator` observation: the current 2,252-skill scan routed the control-plane query to unrelated health skills, including `sexual-health-analyzer`, and matched zero provider runtimes. The observation is recorded for Wave 7; no false-positive skill was applied to product code.
 - Exit gate: Codex satisfies live start, native resume, verified cancel, restart resume, fail-closed active-run interruption, and verified cancel after restart. Gate remains blocked only on fresh Claude live start, native resume, verified active-process cancel, and equivalent restart evidence after provider quota is available. Wave 4 must not start before this gate passes.
+
+## Wave 3 audit and repair — 2026-08-17
+
+An independent audit of this working tree against the authoritative plan found three items that no
+existing evidence file recorded. All three are addressed here; the Wave 3 exit gate is unchanged and
+still blocked on Claude live evidence.
+
+1. Unguarded execution route. `POST /api/graphify/run` executed a binary with a client-supplied
+   command string, a client-supplied working directory and the complete server environment, with no
+   freeze guard and no local HTTP boundary. It was the only route under `src/app/api` that spawned a
+   process without a guard. By owner decision the route stays live instead of being frozen, and now
+   enforces: `authorizeLocalMutation` (loopback, Host/Origin match, no cross-site),
+   `readLocalMutationJson` (JSON only, 64 KiB cap), a first-token allowlist with no shell, denial of
+   `--mcp`, `--watch`, `--neo4j`, `--neo4j-push`, `--falkordb`, `--falkordb-push`, `--obsidian`,
+   `--obsidian-dir`, `--wiki` and of any argument containing `://`, a canonical non-symlinked working
+   directory inside `AGENT_OS_GRAPHIFY_ROOTS`, `buildToolChildEnvironment` instead of `process.env`,
+   and `redactText` over stdout and stderr. The exception is recorded with its rationale in
+   `verify-wave1-execution-freeze.mjs` as a classified execution candidate, so it is auditable rather
+   than silent, and it must move behind a Tool Gateway approval in Wave 4.
+2. Evidence was not current. The mutation inventory was stale against this tree, so the Wave 1
+   verifier hard-exited with `verificationSkipped: "stale_mutation_inventory"` and
+   `routeContractStatus: "fail"`. The inventory was regenerated and the verifier now reports
+   `routeContractStatus: "pass"` with 106 frozen routes, 154 inventory routes, zero missing, zero
+   unguarded, zero unclassified execution candidates and one classified exception.
+3. No browser bootstrap channel. `POST /api/workbench/session` requires the bootstrap secret, but no
+   launcher supplied it and `uiClient` only rotates an existing session, so in a normal launch the UI
+   could not obtain a session and no run could be started from the browser. `THREAT-MODEL.md` names
+   this channel as a Wave 3 prerequisite. `GET /api/workbench/session/bootstrap` now exchanges one
+   launcher-owned navigation for the HttpOnly session and mutation cookies and then redirects, and
+   `scripts/launch-agent-os.mjs` generates the secret, starts the server with it, waits for the
+   server to answer, and opens that single navigation. Session rotation now extends the idle window
+   up to a hard eight-hour deadline from issuance, so a working tab no longer dies after 15 minutes.
+
+Delivery: the Wave 0-3 work is committed on branch `control-plane-repair`; it was previously
+uncommitted, which contradicted the Wave 0 requirement that a clean clone contain everything needed.
+`../e2e-final/` remains untracked and unstaged.

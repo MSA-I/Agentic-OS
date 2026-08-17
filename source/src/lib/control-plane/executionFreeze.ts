@@ -243,7 +243,14 @@ function requestOrigin(request: Request): URL | null {
   }
 }
 
-function authorizeLocalMutation(request: Request): Response | null {
+/**
+ * The local HTTP boundary for any mutation that is not served by the Workbench:
+ * loopback URL, single loopback `Host` that matches the URL port, an `Origin`
+ * that equals it exactly, and no cross-site fetch metadata. Exported so a route
+ * that is deliberately kept live shares this one implementation instead of
+ * growing a second, weaker copy.
+ */
+export function authorizeLocalMutation(request: Request): Response | null {
   const expected = requestOrigin(request);
   if (!expected) return json({ code: "local_boundary_denied", error: "Execution APIs are local-only." }, 403);
   const originHeader = request.headers.get("origin");
@@ -261,16 +268,25 @@ function authorizeLocalMutation(request: Request): Response | null {
   return null;
 }
 
-async function validateJsonBody(request: Request): Promise<Response | null> {
+/**
+ * Reads a JSON mutation body under the same limits the frozen routes use:
+ * `application/json` only, `Content-Length` checked before reading, streamed
+ * bytes capped, and the parsed value must be a plain object. Returns either the
+ * refusal response or the parsed body, so a caller that needs the payload does
+ * not have to re-read a consumed stream.
+ */
+export async function readLocalMutationJson(
+  request: Request,
+): Promise<{ error: Response } | { body: Record<string, unknown> }> {
   const contentType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
   if (contentType !== "application/json") {
-    return json({ code: "json_required", error: "Content-Type must be application/json." }, 415);
+    return { error: json({ code: "json_required", error: "Content-Type must be application/json." }, 415) };
   }
   const rawLength = request.headers.get("content-length");
   if (rawLength !== null) {
     const length = Number(rawLength);
-    if (!Number.isSafeInteger(length) || length < 0) return json({ code: "invalid_length", error: "Content-Length is invalid." }, 400);
-    if (length > MAXIMUM_EXECUTION_BODY_BYTES) return json({ code: "body_too_large", error: "Request body is too large." }, 413);
+    if (!Number.isSafeInteger(length) || length < 0) return { error: json({ code: "invalid_length", error: "Content-Length is invalid." }, 400) };
+    if (length > MAXIMUM_EXECUTION_BODY_BYTES) return { error: json({ code: "body_too_large", error: "Request body is too large." }, 413) };
   }
   const reader = request.body?.getReader();
   let bytes = 0;
@@ -282,7 +298,7 @@ async function validateJsonBody(request: Request): Promise<Response | null> {
       bytes += value.byteLength;
       if (bytes > MAXIMUM_EXECUTION_BODY_BYTES) {
         await reader.cancel();
-        return json({ code: "body_too_large", error: "Request body is too large." }, 413);
+        return { error: json({ code: "body_too_large", error: "Request body is too large." }, 413) };
       }
       chunks.push(value);
     }
@@ -291,10 +307,15 @@ async function validateJsonBody(request: Request): Promise<Response | null> {
     const decoded = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), bytes).toString("utf8");
     const parsed = JSON.parse(decoded);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("object required");
+    return { body: parsed as Record<string, unknown> };
   } catch {
-    return json({ code: "invalid_json", error: "Request body must be a JSON object." }, 400);
+    return { error: json({ code: "invalid_json", error: "Request body must be a JSON object." }, 400) };
   }
-  return null;
+}
+
+async function validateJsonBody(request: Request): Promise<Response | null> {
+  const result = await readLocalMutationJson(request);
+  return "error" in result ? result.error : null;
 }
 
 /**

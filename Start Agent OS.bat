@@ -9,5 +9,7 @@ if %errorlevel%==0 (
 )
 cd /d "%~dp0source"
 set PORT=3737
-start http://localhost:3737
-npm start
+rem The launcher starts the server, waits for it, then opens one Workbench
+rem bootstrap navigation. Do not open the browser here: without that bootstrap
+rem the Workbench cannot issue a browser session and agents cannot be started.
+node scripts\launch-agent-os.mjs

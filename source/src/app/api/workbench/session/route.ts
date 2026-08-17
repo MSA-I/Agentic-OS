@@ -4,6 +4,7 @@ import {
   rotateWorkbenchSession,
   validateWorkbenchBootstrapSecret,
   WORKBENCH_BOOTSTRAP_HEADER,
+  workbenchSessionBinding,
   WorkbenchSessionError,
 } from "@/lib/control-plane/session";
 import {
@@ -25,10 +26,7 @@ function asValidationError(error: unknown): unknown {
   return error;
 }
 
-function binding(origin: URL): string {
-  const port = origin.port || (origin.protocol === "https:" ? "443" : "80");
-  return `${origin.protocol}//${origin.hostname.toLowerCase()}:${port}`;
-}
+const binding = workbenchSessionBinding;
 
 function sessionResponse(issue: ReturnType<typeof createWorkbenchSession>, secure: boolean): Response {
   return appendWorkbenchSessionCookies(

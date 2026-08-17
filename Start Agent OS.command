@@ -55,5 +55,7 @@ echo ""
 echo "  ⚖️  Use at your own risk — by using the Agent OS you accept DISCLAIMER.md"
 echo "      (no warranty; you're responsible for your own keys, costs + what your agents do)."
 echo ""
-( sleep 4 && open "http://localhost:3737" ) &
-PORT=3737 npm start
+# The launcher waits for the server and then opens one Workbench bootstrap
+# navigation. Opening the browser here instead would leave the Workbench without
+# a browser session, so no agent could be started from the UI.
+PORT=3737 node scripts/launch-agent-os.mjs

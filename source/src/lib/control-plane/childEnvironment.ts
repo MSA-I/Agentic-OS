@@ -96,6 +96,33 @@ export function providerEnvironmentKeys(provider: GuardedProvider): readonly str
   return PROVIDER_KEYS[provider];
 }
 
+/**
+ * Minimal environment for a local tool that is not one of the guarded providers.
+ * Only the common OS keys plus an explicit per-tool allowlist survive, so the
+ * Workbench bootstrap secret, cookies and unrelated provider credentials never
+ * reach the child. `overrides` is server-owned; forbidden keys are still dropped.
+ */
+export function buildToolChildEnvironment(
+  extraAllowedKeys: readonly string[] = [],
+  overrides: Readonly<Record<string, string>> = {},
+  base: Readonly<Record<string, string | undefined>> = process.env,
+): NodeJS.ProcessEnv {
+  const allowed = new Set([...COMMON_KEYS, ...extraAllowedKeys].map(canonicalKey));
+  const result: Record<string, string | undefined> = {};
+  copyAllowed(result, base, allowed);
+  for (const [rawKey, value] of Object.entries(overrides)) {
+    const key = canonicalKey(rawKey);
+    if (FORBIDDEN_KEY.test(key)) {
+      throw new ChildEnvironmentError("Tool launch requested a forbidden child environment key.");
+    }
+    result[key] = value;
+  }
+  result.HOME = result.HOME || result.USERPROFILE || os.homedir();
+  result.NO_COLOR = "1";
+  result.FORCE_COLOR = "0";
+  return result as NodeJS.ProcessEnv;
+}
+
 export function buildProviderChildEnvironment(
   provider: GuardedProvider,
   base: Readonly<Record<string, string | undefined>> = process.env,

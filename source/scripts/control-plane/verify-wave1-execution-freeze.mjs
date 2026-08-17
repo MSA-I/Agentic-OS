@@ -210,8 +210,22 @@ const EXECUTION_PATTERNS = [
 ];
 
 // A classification is required if a conservative heuristic ever finds a non-execution
-// mutation. The current scanner has no such exceptions; new ones must include a rationale.
-const falsePositiveClassifications = new Map([]);
+// mutation. Every exception must carry a rationale that names the controls standing in
+// for the freeze, so the exception is auditable instead of silent.
+const falsePositiveClassifications = new Map([
+  [
+    "POST /api/graphify/run",
+    "Local read-only knowledge-graph tool kept live by explicit owner decision instead of"
+    + " freezing it. It is not a provider execution path: no AGENT-OS run, session or"
+    + " provider identity is created. Standing controls: authorizeLocalMutation (loopback,"
+    + " Host/Origin match, no cross-site), readLocalMutationJson (JSON only, 64 KiB cap),"
+    + " a first-token allowlist with no shell, denial of --mcp/--watch/--neo4j-push/"
+    + "--falkordb-push/--obsidian/--wiki and of any argument containing '://', a canonical"
+    + " non-symlinked cwd inside AGENT_OS_GRAPHIFY_ROOTS, buildToolChildEnvironment instead"
+    + " of process.env, and redactText on stdout/stderr. Must move behind a Tool Gateway"
+    + " approval in Wave 4.",
+  ],
+]);
 const unclassifiedExecutionCandidates = [];
 for (const route of inventory.routes) {
   if (frozenSet.has(route.id)) continue;

@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-17",
+  "wave": 3,
+  "subtask": "audit-repair-graphify-guard-evidence-refresh-browser-bootstrap",
+  "overallStatus": "pass",
+  "waveState": "in-progress-blocked-on-claude-quota",
+  "plan": "C:\\Users\\art1\\.codex\\visualizations\\2026\\08\\13\\019ffc17-3c91-77f1-898c-6c2ba49d666e\\AGENT-OS-CONTROL-PLANE-REPAIR-PLAN.md",
+  "repository": "D:\\משה פרוייקטים\\פיתוח אתרים\\AGENT-OS\\source",
+  "baseGitHead": "eb5e674d53461087a919fc9ed83f9460bc77e692",
+  "baseGitHeadNote": "Wave 0-3 work was committed on branch control-plane-repair before this repair. It was previously uncommitted, which broke the Wave 0 clean-clone requirement.",
+  "runtime": {
+    "node": "v24.15.0",
+    "next": "16.3.1",
+    "playwright": "1.62.1",
+    "platform": "win32"
+  },
+  "auditFindings": [
+    {
+      "id": "A1",
+      "severity": "high",
+      "finding": "POST /api/graphify/run executed a binary with a client-supplied command string and working directory, inheriting the complete server environment, with no freeze guard and no local HTTP boundary. It was the only route under src/app/api that spawned a process without a guard.",
+      "disposition": "fixed-by-hardening",
+      "ownerDecision": "keep the route live with restrictions instead of freezing it"
+    },
+    {
+      "id": "A2",
+      "severity": "high",
+      "finding": "The mutation inventory was stale against the working tree, so verify-wave1-execution-freeze.mjs hard-exited with verificationSkipped=stale_mutation_inventory and routeContractStatus=fail. Every recorded Wave 0-3 PASS was historical, not current.",
+      "disposition": "fixed-by-regeneration"
+    },
+    {
+      "id": "A3",
+      "severity": "high",
+      "finding": "No browser bootstrap channel existed. POST /api/workbench/session requires AGENT_OS_WORKBENCH_BOOTSTRAP_SECRET, no launcher supplied it, and uiClient only rotates an existing session, so in a normal launch the UI could not obtain a session and no run could be started from the browser. THREAT-MODEL.md names this channel as a Wave 3 prerequisite.",
+      "disposition": "fixed-by-new-channel"
+    },
+    {
+      "id": "A4",
+      "severity": "medium",
+      "finding": "Five junk files created by broken shell redirection inside source/ (r.json()), 0), x.routeId), !item.importWired, resolved) changed the release-input digest and were themselves enough to fail the Wave 1 gate.",
+      "disposition": "deleted; sweep added to the verification steps"
+    },
+    {
+      "id": "A5",
+      "severity": "high",
+      "finding": "Found during live verification of the new graphify guard: a refused working directory fell back to the default root instead of failing closed, so a request naming C:\\Windows still executed, in the default directory. The first Playwright run passed only because that default directory does not exist on the test machine.",
+      "disposition": "fixed; an explicitly requested directory that is refused now returns 403, and the spec asserts both the escaping-directory and missing-directory cases"
+    }
+  ],
+  "graphifyControls": {
+    "route": "POST /api/graphify/run",
+    "exposure": "live-restricted",
+    "localBoundary": "authorizeLocalMutation (loopback URL, single loopback Host matching the URL port, exact Origin match, cross-site fetch metadata denied)",
+    "body": "readLocalMutationJson (application/json only, Content-Length pre-check, 64 KiB streamed cap, plain JSON object required)",
+    "commandPolicy": {
+      "shell": "none; execFile with an argument array",
+      "allowedFirstTokens": ["--version", "-V", "--help", "-h", "help", "query", "path", "explain", "god-nodes", "diagnose", "tree", "detect", "extract"],
+      "deniedArguments": ["--mcp", "--watch", "--neo4j", "--neo4j-push", "--falkordb", "--falkordb-push", "--obsidian", "--obsidian-dir", "--wiki"],
+      "deniedPatterns": ["any argument containing ://", "absolute paths outside an allowed root", "control characters", "more than 40 tokens", "tokens longer than 500 characters", "commands longer than 8000 characters"]
+    },
+    "workingDirectory": "canonical realpath, not a symlink, existing directory, no UNC or device path, inside AGENT_OS_GRAPHIFY_ROOTS (default: AGENT_OS_FOLDERS_ROOT and the directory that contains the AGENT-OS install). A refused directory fails closed.",
+    "environment": "buildToolChildEnvironment: common OS keys plus an explicit model-provider allowlist, forbidden keys dropped, PYTHONPATH cleared. process.env is no longer inherited.",
+    "output": "redactText over stdout and stderr",
+    "binaryResolution": "AGENT_OS_GRAPHIFY_BIN, else the first graphify.exe/.com on PATH. The extensionless bash shim and the .cmd wrapper are rejected because running them would require a shell.",
+    "auditRecord": "classified execution candidate with rationale in scripts/control-plane/verify-wave1-execution-freeze.mjs",
+    "wave4Requirement": "must move behind a Tool Gateway pre-execution approval"
+  },
+  "browserBootstrap": {
+    "route": "GET /api/workbench/session/bootstrap",
+    "authorization": "authorizeWorkbenchRead (loopback, Origin optional for a navigation, cross-site denied) plus validateWorkbenchBootstrapSecret on the token query parameter",
+    "response": "303 to a same-app relative path, default /, with the HttpOnly SameSite=Strict session and mutation cookies scoped to /api/workbench",
+    "tokenExposure": "never in a body, never in page JavaScript; Referrer-Policy: no-referrer and the redirect removes it from the address bar",
+    "launcher": "scripts/launch-agent-os.mjs generates the secret, starts next start with it, polls /api/vitals, then opens exactly one bootstrap navigation. Start Agent OS.bat and Start Agent OS.command call it.",
+    "sessionLifetime": "rotation now extends the idle window to the configured TTL, capped by a hard 8-hour deadline from issuance, so a working tab no longer dies after 15 minutes"
+  },
+  "static-contract": {
+    "status": "pass",
+    "mutationInventory": {
+      "command": "node scripts/control-plane/inventory-mutations.mjs --check",
+      "status": "pass",
+      "routeHandlers": 154,
+      "frontendMutationCallers": 164,
+      "sourceFileCount": 602,
+      "releaseInputFileCount": 720
+    },
+    "executionFreeze": {
+      "command": "node scripts/control-plane/verify-wave1-execution-freeze.mjs",
+      "status": "pass",
+      "inventoryFreshnessStatus": "pass",
+      "frozenRoutes": 106,
+      "missingFrozenRoutes": 0,
+      "unguardedFrozenRoutes": 0,
+      "unclassifiedExecutionCandidates": 0,
+      "classifiedExecutionCandidates": ["POST /api/graphify/run"],
+      "directExecutionCallers": 115,
+      "uiDirectExecutionStatus": "blocked",
+      "routeContractStatus": "pass"
+    },
+    "spawnGuardSweep": {
+      "command": "grep -rln \"spawn(|execFile(|execSync(\" src/app/api --include=route.ts",
+      "status": "pass",
+      "frozenSpawningRoutes": 17,
+      "guardedLiveSpawningRoutes": 1,
+      "unguardedSpawningRoutes": 0
+    },
+    "typecheck": { "command": "npx tsc --noEmit", "status": "pass" },
+    "build": { "command": "npm run build", "status": "pass" }
+  },
+  "fake-runtime": {
+    "status": "pass",
+    "nodeTests": {
+      "command": "node --experimental-strip-types --test",
+      "status": "pass",
+      "passed": 467,
+      "failed": 0,
+      "skipped": 0,
+      "durationSeconds": 476.6,
+      "note": "Re-run at the final tree state, after the A5 fix."
+    },
+    "playwrightSecurityAndPolicy": {
+      "command": "npx playwright test graphify-command-policy workbench-browser-bootstrap wave1-execution-freeze workbench-security provider-execution-safety workbench-secret-path-policy --project=chromium",
+      "status": "pass",
+      "passed": 31,
+      "failed": 0,
+      "newSpecs": ["tests/e2e/graphify-command-policy.spec.ts", "tests/e2e/workbench-browser-bootstrap.spec.ts"]
+    },
+    "routeSmoke": {
+      "command": "npx playwright test tests/e2e/routes.smoke.spec.ts --project=chromium",
+      "status": "pass",
+      "passed": 49,
+      "failed": 0,
+      "note": "Page surface is now 48 routes: the previous 47 plus /graphify."
+    }
+  },
+  "live-runtime": {
+    "status": "pass",
+    "scope": "browser bootstrap channel and graphify command policy only. No provider run was attempted here; Codex and Claude live evidence remains WAVE-3-RESTRICTED-PILOT-EVIDENCE.json.",
+    "server": "node scripts/launch-agent-os.mjs on 127.0.0.1:3919 against the current production build",
+    "probes": [
+      { "probe": "launcher started the server and passed its generated secret", "evidence": "GET /api/vitals = 200; GET /api/workbench/session/bootstrap without a token = 401, not the 503 that an unconfigured secret returns", "result": "pass" },
+      { "probe": "bootstrap exchange", "evidence": "303 with Location / and two Set-Cookie headers, both HttpOnly SameSite=Strict Path=/api/workbench Max-Age=900, neither containing the secret", "result": "pass" },
+      { "probe": "allowlisted command", "evidence": "POST /api/graphify/run {command:\"--version\"} = 200, stdout \"graphify 0.9.45\"", "result": "pass" },
+      { "probe": "denied argument", "evidence": "query with --neo4j-push bolt://localhost:7687 = 403 graphify_command_denied", "result": "pass" },
+      { "probe": "denied command", "evidence": "--mcp = 403 graphify_command_denied", "result": "pass" },
+      { "probe": "denied URL argument", "evidence": "explain https://evil.example/x = 403 graphify_command_denied", "result": "pass" },
+      { "probe": "escaping directory", "evidence": "cwd C:\\Windows = 403 graphify_directory_denied (was 200 before the A5 fix)", "result": "pass" },
+      { "probe": "missing directory", "evidence": "cwd <source>\\no-such-directory-9f2b = 403 graphify_directory_denied", "result": "pass" },
+      { "probe": "cross-origin", "evidence": "Origin https://attacker.example = 403", "result": "pass" }
+    ]
+  },
+  "exitGate": {
+    "wave": 3,
+    "status": "blocked",
+    "unchangedBy": "this repair",
+    "missing": [
+      "Claude live start",
+      "Claude native resume",
+      "Claude verified active-process cancel",
+      "Claude restart recovery"
+    ],
+    "basis": "Claude remains blocked on provider quota. This record closes three audit findings and one defect found during its own live verification; it does not close the Wave 3 gate.",
+    "nextWave": 4,
+    "nextWaveStatus": "closed",
+    "waivers": []
+  },
+  "notClaimed": [
+    "Tool Gateway discovery, health, invocation, audit and enforceable approvals (Wave 4). POST /api/workbench/runs/[id]/approvals/[approvalId] still returns 501.",
+    "Follow-up message delivery and steering. POST /api/workbench/runs/[id]/messages still returns 501.",
+    "Hermes, OpenClaw and Antigravity lifecycle parity and truthful availability (Wave 5). Their UIs still call frozen private routes and Antigravity still shows a composer while offline.",
+    "Mission Control coverage of all five agents, runs, approvals, artifacts and a global run rail (Wave 6).",
+    "The complete tool, skill, MCP, app, plugin, hook, automation and model catalog, and the agent-orchestrator routing repair (Wave 7).",
+    "Removal of the broad /api/** mocking in the nine mocked Playwright specs, and a release manifest (Wave 8).",
+    "src/lib/workbench/artifactStore.ts remains unwired to any production path.",
+    "Live sampling of CPU, memory and disk against the per-run budget; resourceAdmission still reserves rather than measures.",
+    "33 non-frozen mutation routes still lack the local HTTP boundary, for example POST /api/videouse/jobs.",
+    "src/lib/videouse.ts still spawns claude with --permission-mode bypassPermissions and the full environment; it is reachable only through a frozen route and must be fixed before that route is unfrozen."
+  ],
+  "worktree": {
+    "committed": true,
+    "branch": "control-plane-repair",
+    "preservedUntrackedPath": "../e2e-final/",
+    "broadStagingProhibited": true
+  }
+}
