@@ -33,16 +33,20 @@ and 3756 additional skills were not included in the model-visible skills list.
 נמדד בשיטה שלא דורשת קריאת מודל: אזהרת התקציב נכתבת בתחילת ה-session, לפני הקריאה לספק, ולכן היא
 מודדת שינויים גם כשהקוואטה חסומה.
 
-- תיקון שלושה קבצי `SKILL.md` שבורים ב-`~/.agents/skills` העלה את הספירה **3753 → 3756**.
-- הוספת skill תקין ל-`~/.codex/skills` לא שינתה את הספירה.
-- הוספת skill תקין ל-`~/.claude/skills` לא שינתה את הספירה.
+**מדידה ראשונה, שהייתה מטעה:** הוספת skill בודד ותקין ל-`~/.codex/skills` או ל-`~/.claude/skills`
+לא שינתה את הספירה, בעוד שתיקון שלושה קבצים שבורים ב-`~/.agents/skills` העלה אותה 3753 → 3756.
+מכאן הוסק בטעות ש-Codex קורא רק את `~/.agents/skills`.
 
-**מסקנה:** מבין שלושת השורשים, Codex מונה רק את `~/.agents/skills`. שאר ההפרש (3,756 מול 2,371)
-מגיע ממקורות שאינם השורש הזה — ה-marketplaces וה-plugins הרשומים ב-`~/.codex/config.toml`
-(`openai-bundled`, `openai-primary-runtime`, `claude-plugins-official`, `impeccable` ועוד).
+**מדידה בתפזורת, שהיא הנכונה:**
 
-**נגזרת:** ה-sync שהעתיק 2,229 skills מ-`~/.claude/skills` אל `~/.codex/skills`
-(`~/.codex/claude-compatible-skill-sync-report.json`) לא תרם ל-Codex דבר. 60MB שאינם נקראים.
+| פעולה | ספירה |
+|---|---|
+| מצב התחלתי | 3,756 |
+| אחרי ארכוב `~/.codex/skills` בשלמותו | **1,770** |
+| אחרי הסרת `~/.agents/skills` בנוסף | **אין אזהרה כלל** |
+
+כלומר `~/.codex/skills` תרם כ-1,986 skills — הוא בהחלט נספר. הסמן הבודד לא זז ככל הנראה בגלל cache
+של אינדקס ה-skills; רק שינוי בתפזורת חושף את התמונה. **לקח: מדידה של פריט בודד אינה מדידה של מקור.**
 
 ## מה `skills.config` כן ולא עושה
 
@@ -83,13 +87,79 @@ enabled = true    # חובה
 
 אחרי התיקון שגיאות `failed to load skill` נעלמו מהפלט, והספירה עלתה ב-3 — הראיה שהם נטענים עכשיו.
 
+## מה בוצע — צמצום מדוד
+
+### כמה skills נכנסים בתקציב
+
+נמדד בשחזור מדורג של השורש, כאשר האזהרה בתחילת ה-session היא המדד:
+
+| מספר skills חיים | תוצאה |
+|---|---|
+| 3,756 (מצב התחלתי) | `Exceeded... **כל** התיאורים הוסרו, 3,756 skills לא נכללו` |
+| 300 | חריגה |
+| 250 | חריגה |
+| **200–220** | `התיאורים **קוצרו** — Codex עדיין רואה **כל** skill` |
+| 150 / 100 / 60 | אותה הודעה בדיוק (קיצור), לא טובה יותר |
+
+כלומר האיכות אינה משתפרת מתחת ל-200, אבל הכיסוי כן נפגע. נקודת ההפעלה שנבחרה: **220**.
+ההבדל המהותי אינו במספר אלא בסוג ההודעה: מ"אף תיאור לא נראה ו-3,756 skills חסרים" ל"כל skill נראה".
+
+### ה-plugins אינם צרכני התקציב
+
+נמדד מול כל 20 ה-plugins שב-`config.toml`:
+
+| מצב | תוצאה |
+|---|---|
+| baseline (220 skills) | קיצור תיאורים |
+| **כל 20 ה-plugins מושבתים** | קיצור תיאורים — **ללא שינוי** |
+| כל plugin מושבת לחוד (20 הרצות) | קיצור תיאורים — ללא שינוי |
+
+לכן הסרת marketplaces או plugins הייתה מורידה פונקציונליות שבשימוש (caveman, ponytail, impeccable,
+claude-mem, כלי openai) בתמורה לאפס. **לא בוצעה.** הקונפיג לא נגע; גיבוי נשמר ב-
+`~/.codex/config.toml.bak-2026-08-17`.
+
+### המצב הסופי, והכל הפיך
+
+| מיקום | תוכן |
+|---|---|
+| `~/.agents/skills` | 220 skills חיים |
+| `~/.agents/skills.staging-2026-08-17` | כל 2,371 המקוריים |
+| `~/.codex/skills.archived-2026-08-17` | 2,254 (60MB) שאורכבו |
+| `~/.agents/skills-live-set-2026-08-17.txt` | רשימת ה-220 |
+
+**איך בוחרים skill בחזרה:**
+
+```powershell
+Copy-Item -Recurse "$HOME\.agents\skills.staging-2026-08-17\<name>" "$HOME\.agents\skills\<name>"
+```
+
+**איך משחזרים הכל:**
+
+```powershell
+Remove-Item -Recurse -Force "$HOME\.agents\skills"
+Rename-Item "$HOME\.agents\skills.staging-2026-08-17" "skills"
+Rename-Item "$HOME\.codex\skills.archived-2026-08-17" "skills"
+```
+
+### על בחירת ה-220 — מה שקוף ומה שרירותי
+
+הקריטריון היה זמן שינוי של `SKILL.md`, אבל **2,319 מתוך 2,364 חולקים את אותו יום (2026-07-21)** —
+התקנה בתפזורת. לכן:
+
+- **45 skills הותקנו או עודכנו במכוון** (ימים אחרים: caveman על מגוון פקודותיו, watch, migration,
+  lean-build, investigate-first, safe-refactor, surgical-patch, verify-and-stop ועוד). כולם בסט החי.
+- **175 הנותרים נבחרו שרירותית** מתוך גוש ה-21.7. אין במכונה אות שימוש אמין: תמלילי ה-sessions
+  מכילים את קטלוג ה-skills המלא בכל הפעלה, ולכן תדירות הופעה של שם אינה מדד לשימוש.
+- שבע תיקיות ללא `SKILL.md` (`libreoffice`, `linear`, `nano-banana-prompts`, `nanobanana-prompt`,
+  `npxskillui`, `security`, `SPDD`) נשארו ב-staging; הן אינן נטענות ממילא.
+
+אם תרצה סט אחר — הוא נבחר בפקודת העתקה אחת מהרשימה למעלה.
+
 ## מה נשאר להחלטה של הבעלים
 
-אלה נגיעות בנתונים ובקונפיגורציה של המכונה, ולכן לא בוצעו:
-
-1. **לצמצם את `~/.agents/skills`** — זה השורש היחיד שנמנה מהדיסק. כל skill שמוסר יורד מהמניה.
-2. **לצמצם marketplaces/plugins** ב-`~/.codex/config.toml` — שם נמצא ההפרש של ~1,385 הפריטים.
-3. **לארכב את `~/.codex/skills`** (2,254 תיקיות, 60MB) — נמדד כלא-נקרא על ידי Codex.
+1. **צמצום `~/.agents/skills`** — בוצע: 220 חיים, השאר ב-staging.
+2. **צמצום marketplaces/plugins** — נמדד כחסר תועלת ולכן לא בוצע.
+3. **ארכוב `~/.codex/skills`** — בוצע.
 4. עוד שבעה ערכים ב-`~/.agents/skills` הם תיקיות ללא `SKILL.md` כלל (`libreoffice`, `linear`,
    `nano-banana-prompts`, `nanobanana-prompt`, `npxskillui`, `security`, `SPDD`) ואחד הוא `.system`
    ב-`~/.codex/skills`. הם אינם skills; לא נגעתי בהם.
