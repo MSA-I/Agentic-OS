@@ -355,3 +355,89 @@ command line is refused.
 
 Still deferred: OpenClaw and Antigravity parity, the Tool Gateway, and the
 Wave 3 Codex live re-run, which remains the gate.
+
+## Agent-authored install steps, and a pilot defect found while proving them — 2026-08-18
+
+Owner decision. The Setup Center can now run the plan an agent produced, after a
+single approval. Two routes carry it, both live and both classified in
+`verify-wave1-execution-freeze.mjs` alongside `POST /api/graphify/run` and
+`POST /api/setup/action`.
+
+### The approval is a server-side fact, not a UI state
+
+`POST /api/setup/agent-install/plan` stores the approved plan and returns a
+token; `POST /api/setup/agent-install/step` accepts only `{planId, stepIndex}`.
+Program names and arguments therefore leave the execution request entirely — the
+server runs its own copy of what the user read. Each index is single-use, plans
+expire after 30 minutes, the map is bounded, and nothing survives a restart, so
+an approval nobody remembers giving cannot be resurrected.
+
+Without this the step route would have had to accept `{program, args}`. It could
+re-validate them, but it could not know they were the ones on screen when the
+user clicked approve.
+
+### The new risk, stated plainly
+
+Until now every command Setup Center could run was a literal in `FIXED_COMMANDS`
+— written by a person, reviewed in Git. After this change the *set* of commands
+is authored by a language model at runtime. That is a genuine new class of risk
+and argument filtering does not remove it: a plan can be wrong, and a plan can be
+steered by text the model read. The guides in `install/*.md` are repository
+content, but a diagnostic message carries arbitrary local strings, so injection
+into a plan is possible in principle.
+
+What bounds it: the program allowlist is closed, small, and every entry is a
+package manager, so the worst directly reachable outcome is an unwanted package
+install; the argument class is identical to `spawnInvocation`'s, so no space,
+quote or cmd.exe metacharacter survives and chaining, redirection and
+substitution are unreachable; there is no shell anywhere; the user sees the
+literal `program + args` of every step before anything runs; and the plan token
+makes the approved list server-enforced.
+
+**The real residual is package postinstall scripts.** `npm install -g <anything>`
+runs arbitrary code by design. This feature does not create that capability — it
+makes it reachable from a button. That is the decision being recorded.
+
+Execution reuses `runForegroundCommand`, generalised with an optional cwd and a
+wider output tail so both the fixed commands and the installer share one spawn
+site, one timeout and one output cap. `git clone` is the only command whose
+result depends on the working directory, so it gets a server-created folder under
+`AGENT_OS_FOLDERS_ROOT`; a cwd is never accepted from a client.
+
+### Defect found while proving it: the pilot stopped working after five minutes
+
+`restrictedPilotGuardState` requires the admission attestation's
+`executable.observedAt` to be within five minutes. But
+`assertPinnedExecutableIdentity` pinned an identity once and returned that same
+object — with its original timestamp — for the life of the process. So every
+Codex, Claude and Hermes run refused with `guard_missing` once the server had
+been up for more than five minutes, and the earlier live evidence in this
+tracker only passed because each run happened moments after a restart.
+
+Fixed by recording when the chain was last *verified* rather than when it was
+first seen: the pinned path set and digests are re-read and compared on every
+call already, so a match is an observation happening now. The revalidated
+identity replaces the pin. This is more accurate, not looser — a changed chain
+still throws `executable_identity_changed`, and
+`assertExecutableIdentityBindingSync` still re-checks every path and digest
+immediately before spawn.
+
+### Evidence — live-runtime, 2026-08-18
+
+Approve-and-run driven through the real HTTP surface with the capability cookie,
+using a deliberately read-only plan so the probe installs nothing:
+
+- `POST /api/setup/agent-install/plan` → `200`, `runnable: 2`
+- catalog step (`test` on `/thumbnails`) → `200`, ran and reported its result
+- command step (`git clone https://github.com/octocat/Hello-World`) → `200`,
+  `Cloning into 'Hello-World'...`, `cwdLabel: agent-install\thumbnails`
+- manual step → `409 step_not_runnable`
+- replaying step 0 → `409 step_already_run`
+
+The clone directory was removed after the probe.
+
+`tests/e2e/agent-install-policy.spec.ts` covers the refusals: cross-origin, no
+Origin, no capability cookie, non-JSON, oversized, six hostile command shapes,
+unknown service, unknown request field, a smuggled `program`/`args` pair, an
+unknown plan id and an out-of-range index. Both routes were added to
+`local-mutation-boundary.spec.ts`. 10/10 pass, and none of them spawns anything.

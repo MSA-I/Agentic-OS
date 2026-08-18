@@ -20,12 +20,12 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "898780fd22c4bf931ea831a931d9692a537936f9",
-    "sourceDigestSha256": "404e6a2b30a7399b18976db49b7c9570511cc986cef8ae731bf64b43f8cf97be",
+    "gitHead": "40c5fe4552615858bf31a449166b09759b27d8f9",
+    "sourceDigestSha256": "a473432c9979cc6d06be777b02962c65ae23d73c612501e580a60c61e195d2fe",
     "generatorSha256": "78fb2939a1a511c8649c41a576fb2878ec733ffa8aa993cf8a15673db489f6fc",
-    "sourceFilesRead": 626,
-    "releaseInputDigestSha256": "de7058326669b9e13f0687d099b1221e89ba6f516162d6b425bfaaa410901511",
-    "releaseInputFilesRead": 747,
+    "sourceFilesRead": 631,
+    "releaseInputDigestSha256": "aee3ec76601d933cfe0811ebf4c2bd1a02df0b5d34bc80ec948b4729a2a1dda7",
+    "releaseInputFilesRead": 753,
     "releaseInputDirectories": [
       "public",
       "scripts",
@@ -48,26 +48,26 @@
     }
   },
   "summary": {
-    "routeHandlers": 154,
-    "routeFiles": 145,
-    "mutationFetchCalls": 180,
-    "frontendMutationCallers": 164,
-    "directFrontendMutationCallers": 155,
+    "routeHandlers": 156,
+    "routeFiles": 147,
+    "mutationFetchCalls": 182,
+    "frontendMutationCallers": 166,
+    "directFrontendMutationCallers": 157,
     "indirectFrontendMutationCallers": 9,
     "routeHandlersByMethod": {
-      "POST": 141,
+      "POST": 143,
       "PUT": 0,
       "PATCH": 3,
       "DELETE": 10
     },
     "mutationFetchCallsByMethod": {
-      "POST": 168,
+      "POST": 170,
       "PUT": 0,
       "PATCH": 2,
       "DELETE": 10
     },
     "frontendCallersByMethod": {
-      "POST": 152,
+      "POST": 154,
       "PUT": 0,
       "PATCH": 2,
       "DELETE": 10
@@ -75,17 +75,17 @@
     "routeHandlersByClassification": {
       "direct-provider": 40,
       "workbench": 5,
-      "other": 109
+      "other": 111
     },
     "mutationFetchCallsByClassification": {
       "direct-provider": 45,
       "workbench": 0,
-      "other": 135
+      "other": 137
     },
     "frontendCallersByClassification": {
       "direct-provider": 45,
       "workbench": 0,
-      "other": 119
+      "other": 121
     },
     "routesWithoutStaticFrontendCaller": 15,
     "unmatchedMutationCallers": 0,
@@ -1325,6 +1325,24 @@
       "classification": "other",
       "file": "src/app/api/setup/action/route.ts",
       "line": 43,
+      "column": 23
+    },
+    {
+      "id": "POST /api/setup/agent-install/plan",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/plan",
+      "classification": "other",
+      "file": "src/app/api/setup/agent-install/plan/route.ts",
+      "line": 22,
+      "column": 23
+    },
+    {
+      "id": "POST /api/setup/agent-install/step",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/step",
+      "classification": "other",
+      "file": "src/app/api/setup/agent-install/step/route.ts",
+      "line": 35,
       "column": 23
     },
     {
@@ -4002,6 +4020,38 @@
       "targetPattern": "/api/openclaw/chat",
       "matchedRouteIds": [
         "POST /api/openclaw/chat"
+      ]
+    },
+    {
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:198:30",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/plan",
+      "classification": "other",
+      "file": "src/components/setup/AgentInstallPanel.tsx",
+      "line": 198,
+      "column": 30,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/setup/agent-install/plan\"",
+      "targetPattern": "/api/setup/agent-install/plan",
+      "matchedRouteIds": [
+        "POST /api/setup/agent-install/plan"
+      ]
+    },
+    {
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:222:32",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/step",
+      "classification": "other",
+      "file": "src/components/setup/AgentInstallPanel.tsx",
+      "line": 222,
+      "column": 32,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/setup/agent-install/step\"",
+      "targetPattern": "/api/setup/agent-install/step",
+      "matchedRouteIds": [
+        "POST /api/setup/agent-install/step"
       ]
     },
     {
@@ -6990,6 +7040,38 @@
       "targetPattern": "/api/openclaw/chat",
       "matchedRouteIds": [
         "POST /api/openclaw/chat"
+      ]
+    },
+    {
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:198:30",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/plan",
+      "classification": "other",
+      "file": "src/components/setup/AgentInstallPanel.tsx",
+      "line": 198,
+      "column": 30,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/setup/agent-install/plan\"",
+      "targetPattern": "/api/setup/agent-install/plan",
+      "matchedRouteIds": [
+        "POST /api/setup/agent-install/plan"
+      ]
+    },
+    {
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:222:32",
+      "kind": "direct-fetch",
+      "method": "POST",
+      "apiPath": "/api/setup/agent-install/step",
+      "classification": "other",
+      "file": "src/components/setup/AgentInstallPanel.tsx",
+      "line": 222,
+      "column": 32,
+      "sourceRole": "client-module",
+      "targetExpression": "\"/api/setup/agent-install/step\"",
+      "targetPattern": "/api/setup/agent-install/step",
+      "matchedRouteIds": [
+        "POST /api/setup/agent-install/step"
       ]
     }
   ],

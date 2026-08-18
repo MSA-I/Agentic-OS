@@ -259,6 +259,54 @@ const falsePositiveClassifications = new Map([
     + " Windows executables, and safeCommandOutput truncating and de-homing child output. Must"
     + " move behind a Tool Gateway approval in Wave 4.",
   ],
+  [
+    "POST /api/setup/agent-install/plan",
+    "Records the install plan the user approved and returns a single-use token."
+    + " It spawns nothing: its only power is to move \"the user approved this list\""
+    + " out of the browser, where it is a UI state, and into the server, where the"
+    + " step route can rely on it. Kept live by explicit owner decision. Standing"
+    + " controls: authorizeLocalMutation (loopback, Host/Origin match, no"
+    + " cross-site), authorizeSetupMutation with the HttpOnly, SameSite=Strict,"
+    + " Path=/api/setup capability cookie, application/json only with a 20 KB body"
+    + " cap, a two-key request allowlist, a known catalog route, at most 12 steps,"
+    + " and every command step re-validated against the closed program allowlist"
+    + " before it is stored. Plans live in memory with a 30-minute TTL, a bounded"
+    + " map and a single-use marker per step, so a server restart cannot resurrect"
+    + " an approval and an approved plan cannot be replayed. Must move behind a"
+    + " Tool Gateway approval in Wave 4.",
+  ],
+  [
+    "POST /api/setup/agent-install/step",
+    "Runs one step of a plan the user already approved, kept live by explicit"
+    + " owner decision. This is the first route in the repository whose command"
+    + " *set* is chosen by a language model at runtime rather than written by a"
+    + " person and reviewed in Git, and that is the decision being recorded here."
+    + " It is not a provider execution path: no AGENT-OS run, session or provider"
+    + " identity is created, and the agent that authored the plan has already"
+    + " finished and has no channel to this route. Standing controls:"
+    + " authorizeLocalMutation, authorizeSetupMutation with the Path=/api/setup"
+    + " capability cookie, application/json only with a 2 KB body cap, a request"
+    + " carrying only {planId, stepIndex} so no program name or argument is ever"
+    + " accepted from the browser at execution time, program and arguments read"
+    + " from the server's own stored copy of what the user read, a single-use"
+    + " index so a step cannot be replayed, a closed program allowlist of package"
+    + " managers (npm, npx, pnpm, uv, py, pip, winget, git, ollama) each with its"
+    + " own subcommand allowlist and no interpreter of any kind, an argument"
+    + " character class identical to spawnInvocation's so no space, quote or"
+    + " cmd.exe metacharacter can appear and command chaining, redirection and"
+    + " substitution are unreachable, absolute paths and every '://' argument"
+    + " refused except one https-only git clone URL pattern with no credentials"
+    + " and no IP host, winget confirmation flags appended by the server, the"
+    + " shared runForegroundCommand spawn site with setupChildEnv, stdin ignored"
+    + " so an interactive prompt fails instead of hanging, a clamped 10-second to"
+    + " 30-minute timeout with terminateProcessTree, a server-owned cwd (the app"
+    + " root, or a server-created scratch directory for git clone) never supplied"
+    + " by the client, and safeCommandTail truncating and de-homing child output."
+    + " Residual risk stated plainly: a package postinstall script runs arbitrary"
+    + " code by design, so the worst reachable outcome is an unwanted package"
+    + " install that the user approved after reading its literal command line."
+    + " Must move behind a Tool Gateway approval in Wave 4.",
+  ],
 ]);
 const unclassifiedExecutionCandidates = [];
 for (const route of inventory.routes) {

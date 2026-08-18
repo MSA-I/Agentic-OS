@@ -247,7 +247,7 @@ function executableNames(base: string): string[] {
     : [base];
 }
 
-async function findExecutable(base: string, extra: string[] = []): Promise<string | null> {
+export async function findExecutable(base: string, extra: string[] = []): Promise<string | null> {
   const candidates = [...extra];
   if (path.isAbsolute(base)) {
     candidates.push(...executableNames(base));
@@ -1161,6 +1161,15 @@ function safeCommandOutput(output: string): string {
   return cleaned.split(/\r?\n/).slice(-8).join("\n").slice(-1600);
 }
 
+export function safeCommandTail(output: string, lines: number, chars: number): string {
+  const cleaned = output
+    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .split(HOME).join("~")
+    .trim();
+  return cleaned.split(/\r?\n/).slice(-lines).join("\n").slice(-chars);
+}
+
 function setupChildEnv(): NodeJS.ProcessEnv {
   const names = [
     "SystemRoot", "WINDIR", "ComSpec", "PATHEXT", "OS",
@@ -1180,21 +1189,36 @@ function setupChildEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-async function runForegroundCommand(spec: ResolvedFixedCommandSpec): Promise<string> {
+export interface ForegroundCommandOptions {
+  /** Server-owned working directory. Never accepted from a client. */
+  cwd?: string;
+  /** Wider output window for a step panel; the default stays 8 lines. */
+  tail?: { lines: number; chars: number };
+}
+
+export async function runForegroundCommand(
+  spec: ResolvedFixedCommandSpec,
+  options: ForegroundCommandOptions = {},
+): Promise<string> {
   const executable = await findExecutable(spec.executable);
   if (!executable) throw new SetupRuntimeError(`${spec.executable} is not installed or not available on PATH.`, 409);
   const invocation = spawnInvocation(executable, spec.args);
+  const format = (value: string) => (options.tail
+    ? safeCommandTail(value, options.tail.lines, options.tail.chars)
+    : safeCommandOutput(value));
 
   return new Promise<string>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
     const child = spawn(invocation.command, invocation.args, {
-      cwd: process.cwd(),
+      cwd: options.cwd ?? process.cwd(),
       env: setupChildEnv(),
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: invocation.verbatim,
+      // stdin is ignored so a command that asks a question fails fast rather
+      // than holding the step open until its timeout.
       stdio: ["ignore", "pipe", "pipe"],
     });
     const append = (current: string, chunk: Buffer | string) => `${current}${chunk.toString()}`.slice(-32_000);
@@ -1210,7 +1234,7 @@ async function runForegroundCommand(spec: ResolvedFixedCommandSpec): Promise<str
     });
     child.once("close", (code) => {
       clearTimeout(timer);
-      const output = safeCommandOutput(`${stdout}\n${stderr}`);
+      const output = format(`${stdout}\n${stderr}`);
       if (timedOut) {
         reject(new SetupRuntimeError("The allowlisted command timed out. Check the guide before retrying.", 504));
       } else if (code !== 0) {

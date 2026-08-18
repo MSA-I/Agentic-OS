@@ -491,7 +491,7 @@ export default function SetupCenterHost() {
                     </div>
 
                     <div>
-                      <AgentInstallPanel entry={selected} />
+                      <AgentInstallPanel entry={selected} onFinished={() => void refresh()} />
                       <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--cream-dim)]">Actions</h4>
                       <div className="grid gap-2 lg:grid-cols-2">
                         {selected.actions.map((action) => {

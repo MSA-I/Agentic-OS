@@ -24,12 +24,18 @@ import { INSTALL_PROJECT_ID, askInstallAgent, type AskResult } from "@/lib/agent
  * "Ask an agent to install this" for one service.
  *
  * The agent runs with every tool disabled, so it cannot install anything — it
- * reads the failing checks and the guide and answers with a plan. This stage
- * shows that plan for review. Running it arrives next, which is why the approve
- * button says so rather than pretending.
+ * reads the failing checks and the guide and answers with a plan. The user
+ * approves that plan once, and the application runs it step by step: catalog
+ * steps through the existing /api/setup/action, commands through a plan token
+ * so the server executes what the user actually read.
  */
 
-type Phase = "idle" | "asking" | "review" | "unusable" | "failed";
+interface StepProgress {
+  state: "pending" | "running" | "done" | "failed" | "skipped";
+  message?: string;
+}
+
+type Phase = "idle" | "asking" | "review" | "running" | "done" | "unusable" | "failed";
 
 const HOST = {
   platform: "win32",
@@ -42,12 +48,40 @@ function formatWhen(at: string | undefined): string {
   return Number.isFinite(time) ? new Date(time).toLocaleString() : "";
 }
 
+function stepColor(state: StepProgress["state"] | undefined, runnable: boolean): string {
+  if (state === "done") return "var(--preview)";
+  if (state === "failed") return "var(--tally)";
+  if (state === "running") return "var(--sdi-soft)";
+  return runnable ? "var(--gold)" : "var(--amber)";
+}
+
+function stepBorder(state: StepProgress["state"] | undefined, runnable: boolean): string {
+  if (state === "done") return "rgba(43,224,138,.3)";
+  if (state === "failed") return "rgba(255,46,77,.35)";
+  if (state === "running") return "rgba(46,125,255,.35)";
+  return runnable ? "var(--line-soft)" : "rgba(255,176,32,.28)";
+}
+
+function stepBackground(state: StepProgress["state"] | undefined, runnable: boolean): string {
+  if (state === "done") return "rgba(43,224,138,.05)";
+  if (state === "failed") return "rgba(255,46,77,.06)";
+  if (state === "running") return "rgba(46,125,255,.06)";
+  return runnable ? "rgba(255,255,255,.018)" : "rgba(255,176,32,.05)";
+}
+
 function stepCommandText(step: ReviewedStep["step"]): string | null {
   if (step.kind !== "command") return null;
   return [step.program, ...step.args].join(" ");
 }
 
-export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
+export default function AgentInstallPanel({
+  entry,
+  onFinished,
+}: {
+  entry: PromptEntry;
+  /** Called after a run so the caller can refresh the readiness checks. */
+  onFinished?: () => void;
+}) {
   const [availability, setAvailability] = useState<InstallAgentAvailability | null>(null);
   const [checking, setChecking] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
@@ -58,6 +92,9 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
   const [askError, setAskError] = useState("");
   const [copied, setCopied] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const [progress, setProgress] = useState<StepProgress[]>([]);
+  const [runError, setRunError] = useState("");
+  const runAbortRef = useRef<AbortController | null>(null);
 
   const refreshAvailability = useCallback(async () => {
     setChecking(true);
@@ -84,9 +121,15 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
     setParsed(null);
     setAnswer(null);
     setAskError("");
+    setProgress([]);
+    setRunError("");
+    runAbortRef.current?.abort();
   }, [entry.route]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    runAbortRef.current?.abort();
+  }, []);
 
   const chosen: InstallAgentStatus | null =
     availability?.agents.find((agent) => agent.id === availability.selected) ?? null;
@@ -133,6 +176,80 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
   }, [chosen, entry]);
 
   const runnableCount = parsed?.steps.filter((step) => step.runnable).length ?? 0;
+
+  /**
+   * The single approval. Everything runnable in the list runs, in order, and
+   * the loop stops at the first failure rather than pressing on through a
+   * dependency that never installed.
+   */
+  const approveAndRun = useCallback(async () => {
+    if (!parsed?.plan) return;
+    const controller = new AbortController();
+    runAbortRef.current = controller;
+    setRunError("");
+    setPhase("running");
+    setProgress(parsed.steps.map((step) => ({
+      state: step.runnable ? "pending" : "skipped",
+      message: step.rejection?.reason,
+    })));
+
+    let planId: string;
+    try {
+      const response = await fetch("/api/setup/agent-install/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route: entry.route, steps: parsed.steps.map((step) => step.step) }),
+        signal: controller.signal,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? `אישור התוכנית נכשל (${response.status})`);
+      planId = body.planId as string;
+    } catch (cause) {
+      if (controller.signal.aborted) { setPhase("review"); return; }
+      setRunError(cause instanceof Error ? cause.message : "אישור התוכנית נכשל");
+      setPhase("review");
+      return;
+    }
+
+    let failed = false;
+    for (const [index, reviewed] of parsed.steps.entries()) {
+      if (!reviewed.runnable) continue;
+      if (controller.signal.aborted) break;
+      setProgress((current) => current.map((item, position) => (
+        position === index ? { state: "running" } : item
+      )));
+      try {
+        const response = await fetch("/api/setup/agent-install/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planId, stepIndex: index }),
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => ({}));
+        const ok = response.ok && body.ok !== false;
+        setProgress((current) => current.map((item, position) => (
+          position === index
+            ? { state: ok ? "done" : "failed", message: body.message ?? body.error }
+            : item
+        )));
+        if (!ok) { failed = true; break; }
+      } catch (cause) {
+        if (controller.signal.aborted) break;
+        setProgress((current) => current.map((item, position) => (
+          position === index
+            ? { state: "failed", message: cause instanceof Error ? cause.message : "הצעד נכשל" }
+            : item
+        )));
+        failed = true;
+        break;
+      }
+    }
+
+    // Re-read the service so the readiness checks above reflect what just ran.
+    onFinished?.();
+    setPhase(failed ? "failed" : "done");
+    if (failed) setRunError("צעד נכשל, ולכן שאר הצעדים לא רצו.");
+  }, [entry.route, onFinished, parsed]);
   const conversationHref = answer
     ? buildConversationHref(answer.agent, answer.sessionId, INSTALL_PROJECT_ID)
     : null;
@@ -275,7 +392,7 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
             </div>
           )}
 
-          {phase === "review" && parsed?.plan && (
+          {(phase === "review" || phase === "running" || phase === "done" || (phase === "failed" && parsed?.plan)) && parsed?.plan && (
             <div className="mt-3" data-agent-install-review>
               <p className="text-[10.5px] leading-relaxed text-[var(--cream)]">{parsed.plan.summary}</p>
               {parsed.plan.risks.length > 0 && (
@@ -289,22 +406,28 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
                   const badge = reviewed.step.kind === "catalog" ? "פעולה מהקטלוג"
                     : reviewed.step.kind === "command" ? "פקודה"
                       : "ידני";
+                  const state = progress[index]?.state;
+                  const outcome = progress[index]?.message;
                   return (
                     <li
                       key={`${index}-${reviewed.step.kind}`}
                       data-agent-install-step={String(index)}
                       data-agent-install-runnable={String(reviewed.runnable)}
                       className="flex items-start gap-2 rounded-sm border px-2.5 py-2"
+                      data-agent-install-step-state={state ?? ""}
                       style={{
-                        borderColor: reviewed.runnable ? "var(--line-soft)" : "rgba(255,176,32,.28)",
-                        background: reviewed.runnable ? "rgba(255,255,255,.018)" : "rgba(255,176,32,.05)",
-                        opacity: reviewed.rejection ? 0.85 : 1,
+                        borderColor: stepBorder(state, reviewed.runnable),
+                        background: stepBackground(state, reviewed.runnable),
+                        opacity: reviewed.rejection && !state ? 0.85 : 1,
                       }}
                     >
-                      <span className="mt-0.5 shrink-0" style={{ color: reviewed.runnable ? "var(--gold)" : "var(--amber)" }}>
-                        {reviewed.step.kind === "catalog" ? <PackagePlus size={12} />
-                          : reviewed.step.kind === "command" ? <TerminalSquare size={12} />
-                            : <AlertTriangle size={12} />}
+                      <span className="mt-0.5 shrink-0" style={{ color: stepColor(state, reviewed.runnable) }}>
+                        {state === "running" ? <Loader2 size={12} className="animate-spin" />
+                          : state === "done" ? <CheckCircle2 size={12} />
+                            : state === "failed" ? <AlertTriangle size={12} />
+                              : reviewed.step.kind === "catalog" ? <PackagePlus size={12} />
+                                : reviewed.step.kind === "command" ? <TerminalSquare size={12} />
+                                  : <AlertTriangle size={12} />}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-1.5">
@@ -334,6 +457,9 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
                         {reviewed.rejection && (
                           <span className="mt-1 block text-[9px]" style={{ color: "var(--amber)" }}>{reviewed.rejection.reason}</span>
                         )}
+                        {outcome && state !== "skipped" && (
+                          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[8.5px] leading-relaxed" style={{ color: state === "failed" ? "var(--tally)" : "var(--cream-mute)" }}>{outcome}</pre>
+                        )}
                       </span>
                     </li>
                   );
@@ -341,17 +467,36 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
               </ol>
 
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {/* Running the plan lands in the next stage. Saying so beats a button
-                    that looks live and does nothing. */}
-                <button
-                  type="button"
-                  disabled
-                  title="הרצת התוכנית מגיעה בשלב הבא"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold disabled:opacity-50"
-                  style={{ color: "var(--amber)", borderColor: "rgba(255,176,32,.36)", background: "rgba(0,0,0,.16)" }}
-                >
-                  אשר והרץ {runnableCount} צעדים · בקרוב
-                </button>
+                {/* The single approval. Everything runnable below runs after this
+                    click, without asking again — the label says so. */}
+                {phase === "review" && (
+                  <button
+                    type="button"
+                    onClick={() => void approveAndRun()}
+                    disabled={runnableCount === 0}
+                    data-agent-install-approve
+                    title={runnableCount === 0 ? "אין צעד שאפשר להריץ אוטומטית" : undefined}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] font-semibold transition hover:brightness-125 disabled:opacity-50"
+                    style={{ color: "var(--amber)", borderColor: "rgba(255,176,32,.36)", background: "rgba(0,0,0,.16)" }}
+                  >
+                    {runnableCount === 0 ? "אין צעד אוטומטי להרצה" : `אשר והרץ ${runnableCount} צעדים`}
+                  </button>
+                )}
+                {phase === "running" && (
+                  <button
+                    type="button"
+                    onClick={() => runAbortRef.current?.abort()}
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-sm border px-3 text-[10px] text-[var(--cream-dim)]"
+                    style={{ borderColor: "var(--line-soft)" }}
+                  >
+                    <X size={11} /> עצור
+                  </button>
+                )}
+                {phase === "done" && (
+                  <span className="inline-flex min-h-9 items-center gap-1.5 text-[10px] font-semibold" style={{ color: "var(--preview)" }}>
+                    <CheckCircle2 size={13} /> כל הצעדים הסתיימו
+                  </span>
+                )}
                 {conversationHref && (
                   <a
                     href={conversationHref}
@@ -362,14 +507,19 @@ export default function AgentInstallPanel({ entry }: { entry: PromptEntry }) {
                   </a>
                 )}
               </div>
+              {runError && (
+                <p className="mt-1.5 text-[9.5px] leading-relaxed" style={{ color: "var(--tally)" }}>{runError}</p>
+              )}
               <p className="mt-1.5 text-[9px] leading-relaxed text-[var(--cream-mute)]">
-                עד אז אפשר להעתיק כל פקודה ולהריץ אותה בטרמינל. השיחה נשמרה כסשן רגיל של הסוכן;
-                היא עשויה להופיע שם רק אחרי כמה שניות.
+                {phase === "running"
+                  ? "עצירה מבטלת את הצעדים הבאים; צעד שכבר התחיל יסיים בשרת."
+                  : "אפשר גם להעתיק כל פקודה ולהריץ אותה בטרמינל."}
+                {" "}השיחה נשמרה כסשן רגיל של הסוכן; היא עשויה להופיע שם רק אחרי כמה שניות.
               </p>
             </div>
           )}
 
-          {(phase === "idle" || phase === "unusable" || phase === "failed") && (
+          {(phase === "idle" || phase === "unusable" || (phase === "failed" && !parsed?.plan)) && (
             <button
               type="button"
               onClick={() => void ask()}
