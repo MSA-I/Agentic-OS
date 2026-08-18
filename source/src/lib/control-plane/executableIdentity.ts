@@ -344,7 +344,15 @@ export async function assertPinnedExecutableIdentity(
       invalidations.set(provider, "executable_identity_changed");
       throw new ExecutableIdentityError("executable_identity_changed", `${provider} executable chain changed after it was pinned; launch denied.`);
     }
-    return pinned;
+    // observedAt records when the chain was last verified, not when it was
+    // first seen. Every digest above has just been re-read and matched, so
+    // this observation is happening now. Returning the original timestamp
+    // made the pin look stale to the admission guard, which requires an
+    // observation within five minutes — so a server left running for longer
+    // than that refused every pilot run with guard_missing.
+    const revalidated: ExecutableIdentity = { ...pinned, observedAt: new Date().toISOString() };
+    pins.set(provider, revalidated);
+    return revalidated;
   }
 
   const versionArgs = options.versionArgs ?? ["--version"];
