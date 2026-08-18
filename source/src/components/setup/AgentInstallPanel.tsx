@@ -91,6 +91,7 @@ export default function AgentInstallPanel({
   const [answer, setAnswer] = useState<AskResult | null>(null);
   const [askError, setAskError] = useState("");
   const [copied, setCopied] = useState("");
+  const [pickedAgent, setPickedAgent] = useState<InstallAgentStatus["id"] | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [progress, setProgress] = useState<StepProgress[]>([]);
   const [runError, setRunError] = useState("");
@@ -123,6 +124,7 @@ export default function AgentInstallPanel({
     setAskError("");
     setProgress([]);
     setRunError("");
+    setPickedAgent(null);
     runAbortRef.current?.abort();
   }, [entry.route]);
 
@@ -131,8 +133,14 @@ export default function AgentInstallPanel({
     runAbortRef.current?.abort();
   }, []);
 
-  const chosen: InstallAgentStatus | null =
-    availability?.agents.find((agent) => agent.id === availability.selected) ?? null;
+  // The server ranks the agents and names a default. A pick overrides it, and
+  // falls back the moment that agent stops being available — so the button
+  // never points at an agent that cannot run.
+  const defaultAgent = availability?.agents.find((agent) => agent.id === availability.selected) ?? null;
+  const picked = pickedAgent
+    ? availability?.agents.find((agent) => agent.id === pickedAgent && agent.available) ?? null
+    : null;
+  const chosen: InstallAgentStatus | null = picked ?? defaultAgent;
 
   const ask = useCallback(async () => {
     if (!chosen) return;
@@ -300,21 +308,35 @@ export default function AgentInstallPanel({
             </div>
           )}
 
-          {/* The availability list collapses to one line once an agent is chosen:
-              three rows of reasons only help when nothing can run. */}
+          {/* Every agent stays listed while idle: an available one is a control
+              that selects it, a blocked one shows why and what would fix it. */}
           {availability && (!chosen || phase === "idle") && (
-            <div className="mt-2.5 space-y-1">
+            <div className="mt-2.5 space-y-1" role="radiogroup" aria-label="בחירת סוכן">
               {availability.agents
-                .filter((agent) => !chosen || agent.available)
-                .map((agent) => (
+                .map((agent) => {
+                  const isChosen = agent.id === chosen?.id;
+                  return (
                   <div
                     key={agent.id}
                     data-agent-status={agent.id}
                     data-agent-available={String(agent.available)}
-                    className="flex items-start gap-2 rounded-sm border px-2.5 py-1.5"
+                    data-agent-chosen={String(isChosen)}
+                    role={agent.available ? "radio" : undefined}
+                    aria-checked={agent.available ? isChosen : undefined}
+                    tabIndex={agent.available ? 0 : undefined}
+                    onClick={agent.available ? () => setPickedAgent(agent.id) : undefined}
+                    onKeyDown={agent.available
+                      ? (event) => {
+                          if (event.key === " " || event.key === "Enter") {
+                            event.preventDefault();
+                            setPickedAgent(agent.id);
+                          }
+                        }
+                      : undefined}
+                    className={`flex items-start gap-2 rounded-sm border px-2.5 py-1.5 ${agent.available ? "cursor-pointer transition hover:brightness-110" : ""}`}
                     style={{
-                      borderColor: agent.available ? "rgba(43,224,138,.26)" : "var(--line-soft)",
-                      background: agent.available ? "rgba(43,224,138,.05)" : "rgba(255,255,255,.015)",
+                      borderColor: isChosen ? "var(--preview)" : agent.available ? "rgba(43,224,138,.26)" : "var(--line-soft)",
+                      background: isChosen ? "rgba(43,224,138,.1)" : agent.available ? "rgba(43,224,138,.05)" : "rgba(255,255,255,.015)",
                     }}
                   >
                     <span className="mt-0.5 shrink-0">
@@ -325,8 +347,10 @@ export default function AgentInstallPanel({
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[10.5px] font-medium text-[var(--cream)]">{agent.label}</span>
-                        {agent.id === availability.selected && (
-                          <span className="text-[7.5px] uppercase tracking-[0.1em]" style={{ color: "var(--preview)" }}>ייבחר</span>
+                        {isChosen && (
+                          <span className="text-[7.5px] uppercase tracking-[0.1em]" style={{ color: "var(--preview)" }}>
+                            {pickedAgent === agent.id ? "נבחר" : "ברירת מחדל"}
+                          </span>
                         )}
                       </span>
                       <span className="block text-[9.5px] leading-relaxed text-[var(--cream-mute)]">{agent.reason}</span>
@@ -347,7 +371,11 @@ export default function AgentInstallPanel({
                       )}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
+              <p className="pt-0.5 text-[9px] text-[var(--cream-mute)]">
+                לחיצה על סוכן פנוי בוחרת אותו. בלי בחירה רץ הראשון ברשימה.
+              </p>
             </div>
           )}
 

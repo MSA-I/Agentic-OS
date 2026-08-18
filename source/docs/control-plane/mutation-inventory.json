@@ -20,11 +20,11 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "40c5fe4552615858bf31a449166b09759b27d8f9",
-    "sourceDigestSha256": "a473432c9979cc6d06be777b02962c65ae23d73c612501e580a60c61e195d2fe",
+    "gitHead": "8014b3939e8967d788b5024d599229aa89a7a314",
+    "sourceDigestSha256": "8d4f0f9e1663a1bb5e49079cb63880dc4b68680bafe5d89110902993562be609",
     "generatorSha256": "78fb2939a1a511c8649c41a576fb2878ec733ffa8aa993cf8a15673db489f6fc",
     "sourceFilesRead": 631,
-    "releaseInputDigestSha256": "aee3ec76601d933cfe0811ebf4c2bd1a02df0b5d34bc80ec948b4729a2a1dda7",
+    "releaseInputDigestSha256": "f08e49015ff7aa2fcbf39672f5435cdb0769bb1989127634f2cd6cfc373dccc1",
     "releaseInputFilesRead": 753,
     "releaseInputDirectories": [
       "public",
@@ -4023,13 +4023,13 @@
       ]
     },
     {
-      "id": "POST src/components/setup/AgentInstallPanel.tsx:198:30",
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:206:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/agent-install/plan",
       "classification": "other",
       "file": "src/components/setup/AgentInstallPanel.tsx",
-      "line": 198,
+      "line": 206,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/agent-install/plan\"",
@@ -4039,13 +4039,13 @@
       ]
     },
     {
-      "id": "POST src/components/setup/AgentInstallPanel.tsx:222:32",
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:230:32",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/agent-install/step",
       "classification": "other",
       "file": "src/components/setup/AgentInstallPanel.tsx",
-      "line": 222,
+      "line": 230,
       "column": 32,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/agent-install/step\"",
@@ -7043,13 +7043,13 @@
       ]
     },
     {
-      "id": "POST src/components/setup/AgentInstallPanel.tsx:198:30",
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:206:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/agent-install/plan",
       "classification": "other",
       "file": "src/components/setup/AgentInstallPanel.tsx",
-      "line": 198,
+      "line": 206,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/agent-install/plan\"",
@@ -7059,13 +7059,13 @@
       ]
     },
     {
-      "id": "POST src/components/setup/AgentInstallPanel.tsx:222:32",
+      "id": "POST src/components/setup/AgentInstallPanel.tsx:230:32",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/agent-install/step",
       "classification": "other",
       "file": "src/components/setup/AgentInstallPanel.tsx",
-      "line": 222,
+      "line": 230,
       "column": 32,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/agent-install/step\"",

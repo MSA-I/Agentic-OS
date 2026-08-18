@@ -65,10 +65,14 @@ const PROBE_ARGS: Record<InstallAgentId, readonly string[]> = {
   hermes: ["status"],
 };
 
+// Claude and Codex answer --version from a native binary in well under a second.
+// `hermes status` starts a Python venv and probes every configured provider, so
+// a cold call regularly passes eight seconds and was being reported as a timeout
+// for an agent that was in fact healthy.
 const PROBE_TIMEOUT_MS: Record<InstallAgentId, number> = {
   claude: 6_000,
   codex: 6_000,
-  hermes: 8_000,
+  hermes: 20_000,
 };
 
 // Mirrors DEFAULT_ADMISSION_POLICY.maxActiveRuns in resourceAdmission.ts. Kept
