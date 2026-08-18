@@ -5,6 +5,13 @@ import { probeProvider } from "@/lib/runner";
 import { diagnosticsFor } from "@/lib/setupRuntime";
 import { getDurableWorkbenchControlPlane } from "@/lib/workbench/durableControlPlane";
 import { TERMINAL_RUN_STATUSES } from "@/lib/workbench/stateMachine";
+import type {
+  InstallAgentAvailability,
+  InstallAgentBlockReason,
+  InstallAgentFix,
+  InstallAgentId,
+  InstallAgentStatus,
+} from "./agentTypes";
 
 /**
  * Answers one question for the Setup Center: which agent can plan an install
@@ -16,49 +23,14 @@ import { TERMINAL_RUN_STATUSES } from "@/lib/workbench/stateMachine";
  * exist, cheapest first, and stops at the first one that blocks.
  */
 
-export type InstallAgentId = "claude" | "codex" | "hermes";
+export type {
+  InstallAgentId,
+  InstallAgentBlockReason,
+  InstallAgentFix,
+  InstallAgentStatus,
+  InstallAgentAvailability,
+} from "./agentTypes";
 
-export type InstallAgentBlockReason =
-  | "not_installed"
-  | "not_authenticated"
-  | "circuit_open"
-  | "quota_blocked"
-  | "identity_invalidated"
-  | "identity_changed"
-  | "probe_timeout"
-  | "probe_failed"
-  | "capacity"
-  | "transport_unavailable";
-
-export interface InstallAgentFix {
-  kind: "restart" | "wait" | "setup" | "auth" | "none";
-  label: string;
-  /** Setup Center route to open, when the fix lives there. */
-  route?: string;
-  /** Command the user runs themselves. Never executed by Agent OS. */
-  command?: string;
-  /** ISO timestamp the block is expected to clear at, when one is known. */
-  at?: string;
-}
-
-export interface InstallAgentStatus {
-  id: InstallAgentId;
-  label: string;
-  transport: "workbench" | "unavailable";
-  available: boolean;
-  blockedBy: InstallAgentBlockReason | null;
-  reason: string;
-  fix: InstallAgentFix | null;
-  latencyMs: number | null;
-}
-
-export interface InstallAgentAvailability {
-  version: 1;
-  checkedAt: string;
-  agents: InstallAgentStatus[];
-  selected: InstallAgentId | null;
-  capacity: { activeRuns: number; maxActiveRuns: number; saturated: boolean };
-}
 
 /**
  * Preference order. Claude and Codex run through the audited Workbench pilot,
