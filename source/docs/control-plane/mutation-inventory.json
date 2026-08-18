@@ -20,12 +20,12 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "a10afaf10ec50fb634e866ffd4e94f82dbc0e34a",
-    "sourceDigestSha256": "9bde6ab5e2113ff48be56403980bc2e8fd418313fb5f298ad919a05c6f4b9855",
+    "gitHead": "147358266f72a8dbefaa00bf8259f3256daf9e48",
+    "sourceDigestSha256": "0d96565b74fa32d7b47fc83c630fa7c1e3eb4751fb719796552cbda35023a67d",
     "generatorSha256": "78fb2939a1a511c8649c41a576fb2878ec733ffa8aa993cf8a15673db489f6fc",
-    "sourceFilesRead": 609,
-    "releaseInputDigestSha256": "8c1c9bc853d01a3d365bb62c7adc5992fdf7e839c8355efb99c79455aa6434a4",
-    "releaseInputFilesRead": 730,
+    "sourceFilesRead": 613,
+    "releaseInputDigestSha256": "c980d426f407cc0eea5198fc1970213a8aec4c73f57b0694d3a4794f462e8406",
+    "releaseInputFilesRead": 734,
     "releaseInputDirectories": [
       "public",
       "scripts",
@@ -3637,13 +3637,13 @@
       ]
     },
     {
-      "id": "POST src/components/SetupCenterHost.tsx:340:30",
+      "id": "POST src/components/SetupCenterHost.tsx:341:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/action",
       "classification": "other",
       "file": "src/components/SetupCenterHost.tsx",
-      "line": 340,
+      "line": 341,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/action\"",
@@ -6625,13 +6625,13 @@
       ]
     },
     {
-      "id": "POST src/components/SetupCenterHost.tsx:340:30",
+      "id": "POST src/components/SetupCenterHost.tsx:341:30",
       "kind": "direct-fetch",
       "method": "POST",
       "apiPath": "/api/setup/action",
       "classification": "other",
       "file": "src/components/SetupCenterHost.tsx",
-      "line": 340,
+      "line": 341,
       "column": 30,
       "sourceRole": "client-module",
       "targetExpression": "\"/api/setup/action\"",

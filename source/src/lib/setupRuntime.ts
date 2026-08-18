@@ -491,7 +491,7 @@ async function higgsfieldLiveState(profile: string): Promise<{ authenticated: bo
   return { authenticated: result.ok && !unauthorized && tools > 0, tools };
 }
 
-async function diagnosticsFor(route: SetupRoute): Promise<SetupDiagnostic[]> {
+export async function diagnosticsFor(route: SetupRoute): Promise<SetupDiagnostic[]> {
   switch (route) {
     case "/claude": {
       const [cli, auth] = await Promise.all([

@@ -18,6 +18,7 @@ import {
   DurableExecutionError,
   DurableWorkbenchWorker,
   type DurableCommand,
+  type DurableProviderCircuitSnapshot,
   type WorkerRunResult,
 } from "./durableWorker";
 import { DurableExecutionCleanupDrainer } from "./executionCleanupDrainer";
@@ -542,6 +543,24 @@ export class DurableWorkbenchControlPlane {
     if (!run) throw new WorkbenchNotFoundError("Run not found.");
     const commands = this.store.outboxForRun(run.id, 200);
     return { run, stop: stopPresentation(run, commands), failure: failurePresentation(run) };
+  }
+
+  /**
+   * Read-only provider circuit state for callers that only want to know whether a
+   * provider is currently tripped. It never calls ensureWorkerRuntime: standing up
+   * the worker pool, the Windows Job driver and a second SQLite handle just to
+   * answer a health question would be both wasteful and a WAL hazard. When the
+   * runtime has not been created yet there is no circuit row either, so the
+   * repository's own default for a missing row is the honest answer.
+   */
+  async providerCircuit(provider: string): Promise<DurableProviderCircuitSnapshot | null> {
+    const runtime = this.runtime;
+    if (!runtime) return null;
+    try {
+      return await runtime.repository.loadProviderCircuit(provider);
+    } catch {
+      return null;
+    }
   }
 
   list(input: ListRunsInput = {}): RunPresentation[] {

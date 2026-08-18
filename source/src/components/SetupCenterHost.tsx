@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import ScrollArea from "./ScrollArea";
+import AgentInstallPanel from "./setup/AgentInstallPanel";
 import { EXECUTION_FROZEN_COPY, isFrozenExecutionPath } from "@/lib/executionAvailability";
 
 // Setup actions run allowlisted commands, so they are part of the execution
@@ -490,6 +491,7 @@ export default function SetupCenterHost() {
                     </div>
 
                     <div>
+                      <AgentInstallPanel serviceTitle={selected.title} />
                       <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--cream-dim)]">Actions</h4>
                       <div className="grid gap-2 lg:grid-cols-2">
                         {selected.actions.map((action) => {
