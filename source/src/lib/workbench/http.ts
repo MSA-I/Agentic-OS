@@ -146,8 +146,37 @@ export function authorizeWorkbenchMutation(request: Request): string {
   }
 }
 
+/**
+ * The event stream cannot use authorizeOriginBoundRequest: EventSource does not
+ * send an Origin header on a same-origin request, so requiring one made every
+ * Workbench SSE stream unreachable from a browser. The run would start, finish,
+ * and the page would sit on its spinner forever.
+ *
+ * Fetch metadata carries the same claim. One of the two must prove same-origin:
+ * an exactly matching Origin, or `Sec-Fetch-Site: same-origin`. A hostile page
+ * cannot produce either, because its EventSource sends `Sec-Fetch-Site:
+ * cross-site` and both headers are forbidden to page script. The session cookie
+ * is still required below, so this widens who may ask, never who is let in.
+ */
+function authorizeStreamOrigin(request: Request): URL {
+  const expected = requestOrigin(request);
+  if (!expected) {
+    throw new WorkbenchValidationError("Workbench event streams are available only through this app on localhost.", 403);
+  }
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin") {
+    throw new WorkbenchValidationError("Cross-site Workbench event streams are not allowed.", 403);
+  }
+  const origin = request.headers.get("origin");
+  if (origin) assertMatchingOrigin(origin, expected, "Workbench event stream");
+  else if (fetchSite !== "same-origin") {
+    throw new WorkbenchValidationError("Workbench event streams require a browser Origin or same-origin fetch metadata.", 403);
+  }
+  return expected;
+}
+
 export function authorizeWorkbenchStream(request: Request): void {
-  const expected = authorizeOriginBoundRequest(request, "Workbench event stream");
+  const expected = authorizeStreamOrigin(request);
   try {
     authorizeWorkbenchSession(request.headers.get("cookie"), normalizedOrigin(expected));
   } catch (error) {

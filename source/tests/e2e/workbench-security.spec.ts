@@ -101,6 +101,29 @@ test.describe("Workbench local HTTP and session boundary", () => {
     expect(crossOriginStream.status()).toBe(403);
   });
 
+  // EventSource sends no Origin on a same-origin request, only fetch metadata.
+  // Requiring Origin here made every Workbench stream unreachable from a browser:
+  // a run would finish and the page would keep spinning.
+  test("an event stream is reachable with same-origin fetch metadata and no Origin", async ({ request, baseURL }) => {
+    const origin = new URL(baseURL!).origin;
+    await expectBootstrap(request, origin);
+
+    const browserLike = await request.get("/api/workbench/runs/missing-run/events", {
+      headers: { Accept: "text/event-stream", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors" },
+    });
+    // Past the origin gate: the refusal is now about the run, not the header.
+    expect(browserLike.status()).not.toBe(403);
+
+    const crossSite = await request.get("/api/workbench/runs/missing-run/events", {
+      headers: { Accept: "text/event-stream", "Sec-Fetch-Site": "cross-site" },
+    });
+    expect(crossSite.status()).toBe(403);
+
+    const noProof = await request.get("/api/workbench/runs/missing-run/events", {
+      headers: { Accept: "text/event-stream" },
+    });
+    expect(noProof.status()).toBe(403);
+  });
   test("requires tokens for mutations and event streams", async ({ request, baseURL }) => {
     const origin = new URL(baseURL!).origin;
     const mutation = await request.post("/api/workbench/runs/missing-run/cancel", {
