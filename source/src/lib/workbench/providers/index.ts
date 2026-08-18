@@ -21,6 +21,10 @@ import {
   createCodexRestrictedExecutionSpecResolver,
 } from "./codex";
 import { createClaudeRestrictedExecutionSpecResolver } from "./claude";
+import {
+  HERMES_RESTRICTED_EXECUTION_CONTRACT,
+  createHermesRestrictedExecutionSpecResolver,
+} from "./hermes";
 
 const CANONICAL_PAYLOAD_KEYS = new Set([
   "schemaVersion",
@@ -53,6 +57,7 @@ interface CanonicalRestrictedPayload {
 
 let codexResolver: WindowsJobExecutionSpecResolver | null = null;
 let claudeResolver: WindowsJobExecutionSpecResolver | null = null;
+let hermesResolver: WindowsJobExecutionSpecResolver | null = null;
 
 function fail(
   failureClass: ConstructorParameters<typeof DurableExecutionError>[0]["failureClass"],
@@ -72,8 +77,8 @@ function nullableString(value: unknown): string | null | undefined {
 }
 
 function parseCanonicalPayload(command: DurableCommand): CanonicalRestrictedPayload {
-  if (command.provider !== "codex" && command.provider !== "claude") {
-    fail("unsupported", "Only Codex and Claude are supported by the restricted pilot resolver.");
+  if (command.provider !== "codex" && command.provider !== "claude" && command.provider !== "hermes") {
+    fail("unsupported", "Only Codex, Claude and Hermes are supported by the restricted pilot resolver.");
   }
   if (command.operation !== "start" && command.operation !== "resume") {
     fail("unsupported", "Restricted pilot provider resolvers accept only start and resume commands.");
@@ -186,6 +191,12 @@ function providerCommand(command: DurableCommand, payload: Record<string, unknow
   return { ...command, payload };
 }
 
+function configuredHermesResolver(): WindowsJobExecutionSpecResolver {
+  if (!config.hermes) fail("provider_unavailable", "Hermes executable is not configured in Setup Center.");
+  hermesResolver ??= createHermesRestrictedExecutionSpecResolver({ configuredExecutable: config.hermes });
+  return hermesResolver;
+}
+
 function configuredCodexResolver(): WindowsJobExecutionSpecResolver {
   if (!config.codex) fail("provider_unavailable", "Codex executable is not configured in Setup Center.");
   codexResolver ??= createCodexRestrictedExecutionSpecResolver({ configuredExecutable: config.codex });
@@ -204,11 +215,12 @@ function configuredClaudeResolver(): WindowsJobExecutionSpecResolver {
 export interface RestrictedPilotResolverDependencies {
   codex: () => WindowsJobExecutionSpecResolver;
   claude: () => WindowsJobExecutionSpecResolver;
+  hermes: () => WindowsJobExecutionSpecResolver;
 }
 
 export interface RestrictedPilotAdmissionAttestation {
   schemaVersion: 1;
-  provider: "codex" | "claude";
+  provider: "codex" | "claude" | "hermes";
   operation: "start" | "resume";
   observedAt: string;
   validUntil: string;
@@ -227,7 +239,8 @@ export interface RestrictedPilotAdmissionAttestation {
     directoryIdentity: string;
   };
   secretControls: {
-    promptTransport: "stdin";
+    /** stdin for Claude and Codex; argv for Hermes, which has no stdin prompt mode. */
+    promptTransport: "stdin" | "argv";
     minimalEnvironment: true;
     streamRedactionRequired: true;
   };
@@ -239,7 +252,7 @@ export interface RestrictedPilotAdmissionAttestation {
   };
   executable: {
     schemaVersion: 2;
-    provider: "codex" | "claude";
+    provider: "codex" | "claude" | "hermes";
     sha256: string;
     version: string;
     observedAt: string;
@@ -337,7 +350,20 @@ export function assertRestrictedPilotExecutionSpec(
     }
     return;
   }
-  fail("unsupported", "Only Codex and Claude are supported by the restricted pilot resolver.");
+  if (provider === "hermes") {
+    // Hermes has no flag that disables its built-in tools: both --safe-mode and
+    // an empty -t were measured against the installed CLI and it still ran a
+    // shell command. Naming exactly one harmless toolset is what actually
+    // restricts it, so that pair is the policy proof.
+    if (!hasArgument(spec.args, "--ignore-rules") || !hasPair(spec.args, "-t", HERMES_RESTRICTED_EXECUTION_CONTRACT.restrictedToolset)) {
+      fail("policy", "Hermes execution does not prove its single-toolset policy.");
+    }
+    if (spec.args.includes("--yolo") || spec.args.includes("--accept-hooks")) {
+      fail("policy", "Hermes execution requests an approval bypass.");
+    }
+    return;
+  }
+  fail("unsupported", "Only Codex, Claude and Hermes are supported by the restricted pilot resolver.");
 }
 
 function createAdmissionAttestation(
@@ -347,12 +373,20 @@ function createAdmissionAttestation(
   now: number,
 ): RestrictedPilotAdmissionAttestation {
   assertRestrictedPilotExecutionSpec(command.provider as WorkbenchProvider, spec);
-  if (spec.input !== canonical.prompt || spec.cwd.projectId !== canonical.context.projectId) {
+  // Claude and Codex receive the prompt on stdin. Hermes has no stdin prompt
+  // mode at all — without -q it opens an interactive session and exits
+  // non-zero — so its prompt is the final argv value and stdin stays empty.
+  // Either way the launched process must be bound to the admitted prompt.
+  const argvPrompt = command.provider === "hermes";
+  const promptBound = argvPrompt
+    ? spec.input === "" && spec.args.at(-2) === "-q" && spec.args.at(-1) === canonical.prompt
+    : spec.input === canonical.prompt;
+  if (!promptBound || spec.cwd.projectId !== canonical.context.projectId) {
     fail("identity", "Restricted pilot execution specification is not bound to its admitted prompt and project.");
   }
   const observedAt = new Date(now).toISOString();
   const validUntil = new Date(now + PREFLIGHT_VALIDITY_MS).toISOString();
-  const provider = command.provider as "codex" | "claude";
+  const provider = command.provider as "codex" | "claude" | "hermes";
   return Object.freeze({
     schemaVersion: 1,
     provider,
@@ -374,7 +408,10 @@ function createAdmissionAttestation(
       directoryIdentity: `${spec.cwd.device}:${spec.cwd.inode}:${spec.cwd.modifiedMs}`,
     }),
     secretControls: Object.freeze({
-      promptTransport: "stdin",
+      // Recorded truthfully: an argv prompt is visible in the process list to
+      // anything already running as this user, so a Hermes prompt must carry
+      // no secret.
+      promptTransport: argvPrompt ? "argv" : "stdin",
       minimalEnvironment: true,
       streamRedactionRequired: true,
     }),
@@ -405,6 +442,17 @@ export function createRestrictedPilotExecutionSpecResolver(
 ): WindowsJobExecutionSpecResolver {
   return async (command: DurableCommand, signal: AbortSignal) => {
     const canonical = parseCanonicalPayload(command);
+    if (command.provider === "hermes") {
+      const payload: Record<string, unknown> = {
+        schemaVersion: 1,
+        provider: "hermes",
+        operation: canonical.operation,
+        prompt: canonical.prompt,
+        projectId: canonical.context.projectId,
+        ...(canonical.operation === "resume" ? { nativeSessionId: canonical.context.sessionId } : {}),
+      };
+      return dependencies.hermes()(providerCommand(command, payload), signal);
+    }
     if (command.provider === "codex") {
       const payload: Record<string, unknown> = {
         schemaVersion: 1,
@@ -440,6 +488,7 @@ export function createRestrictedPilotExecutionSpecResolver(
 export const resolveRestrictedPilotExecutionSpec = createRestrictedPilotExecutionSpecResolver({
   codex: configuredCodexResolver,
   claude: configuredClaudeResolver,
+  hermes: configuredHermesResolver,
 });
 
 export function createRestrictedPilotPreflightResolver(

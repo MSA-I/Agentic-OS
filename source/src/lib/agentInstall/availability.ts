@@ -5,6 +5,7 @@ import { probeProvider } from "@/lib/runner";
 import { diagnosticsFor } from "@/lib/setupRuntime";
 import { getDurableWorkbenchControlPlane } from "@/lib/workbench/durableControlPlane";
 import { TERMINAL_RUN_STATUSES } from "@/lib/workbench/stateMachine";
+import { stripTerminalControls } from "@/lib/workbench/providers/hermesStream";
 import type {
   InstallAgentAvailability,
   InstallAgentBlockReason,
@@ -33,11 +34,10 @@ export type {
 
 
 /**
- * Preference order. Claude and Codex run through the audited Workbench pilot,
- * which creates a durable run record, an admission attestation and a cancel
- * that is only reported after the process is verified gone. Hermes has none of
- * that yet, so it sorts last — and until it has a Workbench provider it cannot
- * run on Windows at all (runtimeContainment.ts refuses every legacy launch).
+ * Preference order. All three now run through the same durable Workbench
+ * pilot, so the ordering is about cost and proof rather than capability:
+ * Claude and Codex have live lifecycle evidence behind them, while Hermes
+ * spends OpenRouter credit per turn and joined the pilot last.
  */
 const AGENT_ORDER: readonly InstallAgentId[] = ["claude", "codex", "hermes"];
 
@@ -91,7 +91,7 @@ function blocked(
   return {
     id,
     label: AGENT_LABEL[id],
-    transport: id === "hermes" ? "unavailable" : "workbench",
+    transport: "workbench",
     available: false,
     blockedBy,
     reason,
@@ -142,6 +142,25 @@ export function classifyProbeFailure(
   };
 }
 
+/**
+ * One short line for a healthy agent. Claude and Codex answer `--version` with
+ * exactly that, but `hermes status` prints a boxed report whose first line is a
+ * border. Pull its model out instead — that is the fact worth showing.
+ */
+function describeProbe(id: InstallAgentId, stdout: string): string {
+  const text = stripTerminalControls(stdout);
+  if (id === "hermes") {
+    const model = /Model:\s+(\S+)/u.exec(text)?.[1];
+    const provider = /Provider:\s+([^\r\n]+)/u.exec(text)?.[1]?.trim();
+    if (model) return provider ? `${model} · ${provider}` : model;
+  }
+  const firstMeaningful = text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .find((line) => /[A-Za-z0-9]/u.test(line));
+  return firstMeaningful?.slice(0, 80) || "פנוי";
+}
+
 /** A required diagnostic that is not ready means the agent cannot be trusted to run. */
 function authBlocker(diagnostics: Awaited<ReturnType<typeof diagnosticsFor>>): string | null {
   const blocker = diagnostics.find(
@@ -156,19 +175,6 @@ async function evaluate(
   activeRuns: number,
   blockedRun: { at: string } | null,
 ): Promise<InstallAgentStatus> {
-  // Hermes has no Workbench provider yet, and runtimeContainment.ts refuses
-  // every legacy provider launch on Windows, so there is no path that can run
-  // it. Saying so plainly beats probing it and reporting a healthy agent the
-  // feature cannot actually use.
-  if (id === "hermes") {
-    return blocked(
-      id,
-      "transport_unavailable",
-      "Hermes עדיין לא מחובר ל-Workbench, ולכן אי אפשר להריץ אותו ב-Windows.",
-      { kind: "none", label: "מגיע בשלב הבא של הפיתוח" },
-    );
-  }
-
   if (!isAgentInstalled(id)) {
     return blocked(id, "not_installed", `ה-CLI של ${AGENT_LABEL[id]} לא נמצא.`, {
       kind: "setup",
@@ -232,7 +238,7 @@ async function evaluate(
     transport: "workbench",
     available: true,
     blockedBy: null,
-    reason: probe.stdout.trim().split(/\r?\n/)[0]?.slice(0, 80) || "פנוי",
+    reason: describeProbe(id, probe.stdout),
     fix: null,
     latencyMs: probe.durationMs,
   };

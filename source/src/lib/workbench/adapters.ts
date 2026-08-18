@@ -34,7 +34,7 @@ const QUEUE_BRIDGE_REASON = "Durable follow-up delivery is not exposed until a p
 const APPROVAL_BRIDGE_REASON = "This runtime does not expose an interactive approval bridge to Workbench.";
 
 function capabilities(provider: WorkbenchProvider): AgentCapabilities {
-  const restrictedPilot = provider === "codex" || provider === "claude";
+  const restrictedPilot = provider === "codex" || provider === "claude" || provider === "hermes";
   return {
     list: { status: "supported", detail: "Reads the provider's native session index in place." },
     load: { status: "supported", detail: "Reads the native transcript in place without copying it to Workbench SQLite." },

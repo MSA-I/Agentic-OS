@@ -38,6 +38,7 @@ import {
   type RestrictedPilotPreflightResolver,
 } from "./providers";
 import { ClaudeStreamJsonParser, type ClaudeNormalizedStreamEvent } from "./providers/claudeStream";
+import { HermesStreamNormalizer, type HermesNormalizedStreamEvent } from "./providers/hermesStream";
 import {
   CodexNdjsonStreamNormalizer,
   type CodexNormalizedStreamEvent,
@@ -67,7 +68,7 @@ import {
   type WindowsJobOutputEndEvent,
 } from "./windowsJobExecutionDriver";
 
-const RESTRICTED_PROVIDERS = new Set<WorkbenchProvider>(["codex", "claude"]);
+const RESTRICTED_PROVIDERS = new Set<WorkbenchProvider>(["codex", "claude", "hermes"]);
 const PROVIDER_WORKER_POOL_SIZE = 5;
 const WORKER_WAKE_INTERVAL_MS = 1_000;
 const PILOT_OUTPUT_BYTES = 4 * 1024 * 1024;
@@ -137,6 +138,9 @@ const pilotPolicy = new FailClosedPolicyEngine([{
 }]);
 
 function toolPolicyFor(provider: WorkbenchProvider): RestrictedPilotCommandPayload["toolPolicy"] {
+  // Claude runs with no tools at all. Codex and Hermes each keep a native
+  // surface that their resolver pins: Codex through its -c overrides, Hermes
+  // through a single named toolset. Neither can reach a shell.
   return provider === "claude" ? "disabled" : "provider-native-restricted";
 }
 
@@ -291,9 +295,15 @@ export function restrictedPilotGuardState(
     && typeof attestation.containment.directoryIdentity === "string"
     && attestation.containment.directoryIdentity.length > 0,
   );
+  // Claude and Codex must keep the prompt on stdin, where it is invisible to
+  // the process list. Hermes has no stdin prompt mode at all, so argv is
+  // allowed for it and only for it — a Claude or Codex attestation claiming
+  // argv would mean the resolver had been changed to leak prompts.
+  const promptTransportVerified = attestation?.secretControls.promptTransport === "stdin"
+    || (identity.provider === "hermes" && attestation?.secretControls.promptTransport === "argv");
   const secretControlsVerified = Boolean(
     fresh
-    && attestation?.secretControls.promptTransport === "stdin"
+    && promptTransportVerified
     && attestation.secretControls.minimalEnvironment === true
     && attestation.secretControls.streamRedactionRequired === true,
   );
@@ -514,6 +524,7 @@ export class DurableWorkbenchControlPlane {
   private readonly preflight: RestrictedPilotPreflightResolver;
   private readonly runtimeController: RestrictedPilotRuntimeController | null;
   private readonly claudeStreams = new Map<string, ClaudeStreamJsonParser>();
+  private readonly hermesStreams = new Map<string, HermesStreamNormalizer>();
   private readonly codexStreams = new Map<string, CodexNdjsonStreamNormalizer>();
 
   constructor(
@@ -575,13 +586,13 @@ export class DurableWorkbenchControlPlane {
     commandIdentity: ControlPlaneIdentity,
   ): Promise<{ run: Run; commandId: string; created: boolean; operation: "start" | "resume" }> {
     if (!RESTRICTED_PROVIDERS.has(input.provider)) {
-      throw new WorkbenchUnsupportedError("Only Codex and Claude are enabled in the restricted Wave 3 pilot.");
+      throw new WorkbenchUnsupportedError("Only Codex, Claude and Hermes are enabled in the restricted pilot.");
     }
     if (input.adapterId !== input.provider || input.context.agentId !== input.provider) {
       throw new WorkbenchConflictError("Workbench adapter and provider targets do not match.", "identity_mismatch");
     }
     if (input.context.actorId !== input.provider) {
-      throw new WorkbenchConflictError("Restricted Codex and Claude runs require their canonical actor identity.", "actor_mismatch");
+      throw new WorkbenchConflictError("Restricted pilot runs require their canonical actor identity.", "actor_mismatch");
     }
     const admissionIdentity = expectedCreateIdentity(input, commandIdentity);
     assertCanonicalIdentity(admissionIdentity, commandIdentity);
@@ -925,6 +936,16 @@ export class DurableWorkbenchControlPlane {
       this.persistCodexStreamEvents(runId, executionId, events);
       return;
     }
+    if (run.provider === "hermes") {
+      let parser = this.hermesStreams.get(executionId);
+      if (!parser) {
+        parser = new HermesStreamNormalizer({ expectedSessionId: run.context.sessionId });
+        this.hermesStreams.set(executionId, parser);
+      }
+      const events = channel === "stdout" ? parser.pushStdout(text) : parser.pushStderr(text);
+      this.persistHermesStreamEvents(runId, executionId, events);
+      return;
+    }
     if (channel === "stderr") {
       this.store.appendEvent(runId, "terminal", {
         channel,
@@ -960,12 +981,52 @@ export class DurableWorkbenchControlPlane {
         this.codexStreams.delete(executionId);
       }
     }
+    const hermesParser = this.hermesStreams.get(executionId);
+    if (hermesParser) {
+      try {
+        if (!stopping) {
+          this.persistHermesStreamEvents(runId, executionId, hermesParser.finish({ requireSession: true }));
+        }
+      } finally {
+        this.hermesStreams.delete(executionId);
+      }
+    }
     const parser = this.claudeStreams.get(executionId);
     if (!parser) return;
     try {
       if (!stopping) this.persistClaudeStreamEvents(runId, executionId, parser.finish());
     } finally {
       this.claudeStreams.delete(executionId);
+    }
+  }
+
+  private persistHermesStreamEvents(
+    runId: string,
+    executionId: string,
+    events: readonly HermesNormalizedStreamEvent[],
+  ): void {
+    for (const event of events) {
+      if (event.type === "session") {
+        this.store.bindNativeSessionId(runId, event.sessionId);
+        this.store.appendEvent(runId, "terminal", {
+          channel: "metadata",
+          executionId,
+          nativeSessionId: event.sessionId,
+        });
+      } else if (event.type === "assistant") {
+        this.store.appendEvent(runId, "message", {
+          role: "assistant",
+          executionId,
+          text: redactText(event.text, 128 * 1024),
+        });
+      } else {
+        this.store.appendEvent(runId, event.severity === "error" ? "error" : "terminal", {
+          channel: event.channel,
+          executionId,
+          severity: event.severity,
+          message: redactText(event.message, 16 * 1024),
+        });
+      }
     }
   }
 

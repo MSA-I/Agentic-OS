@@ -20,12 +20,12 @@
     "note": "Frontend caller scope is a safe superset: every non-API source module is scanned and sourceRole records whether it is a client, frontend, app UI, or shared module."
   },
   "snapshot": {
-    "gitHead": "16fd8d3428e2f88e77df73ec7007721b9d2da539",
-    "sourceDigestSha256": "d1612598921ca4fca229dd61b97297670d914223b29ffd4958907b95bfd745dc",
+    "gitHead": "898780fd22c4bf931ea831a931d9692a537936f9",
+    "sourceDigestSha256": "404e6a2b30a7399b18976db49b7c9570511cc986cef8ae731bf64b43f8cf97be",
     "generatorSha256": "78fb2939a1a511c8649c41a576fb2878ec733ffa8aa993cf8a15673db489f6fc",
-    "sourceFilesRead": 623,
-    "releaseInputDigestSha256": "82a47a5f5bbc8932937daac006ffe1b739d238c7432da2d353ab10925e55e8b2",
-    "releaseInputFilesRead": 744,
+    "sourceFilesRead": 626,
+    "releaseInputDigestSha256": "de7058326669b9e13f0687d099b1221e89ba6f516162d6b425bfaaa410901511",
+    "releaseInputFilesRead": 747,
     "releaseInputDirectories": [
       "public",
       "scripts",

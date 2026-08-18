@@ -6,7 +6,7 @@ import type {
   WorkbenchPanel,
 } from "./types";
 
-export type WorkbenchPilotProvider = "codex" | "claude";
+export type WorkbenchPilotProvider = "codex" | "claude" | "hermes";
 export type WorkbenchErrorCategory =
   | "quota"
   | "auth"

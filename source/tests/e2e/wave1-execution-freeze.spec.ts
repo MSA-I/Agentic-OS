@@ -82,24 +82,26 @@ test.describe("Wave 1 execution freeze", () => {
     expect(beforeResponse.status(), await beforeResponse.text()).toBe(200);
     const beforeIds = (await beforeResponse.json()).runs.map((run: { id: string }) => run.id).sort();
     const headers = { Origin: origin, "Content-Type": "application/json" };
+    // OpenClaw, not Hermes: Hermes joined the restricted pilot on 2026-08-18,
+    // so it is no longer an example of a provider the control plane refuses.
     const requestBody = {
-      agentId: "hermes",
+      agentId: "openclaw",
       prompt: "Wave 1 freeze probe",
-      idempotencyKey: "wave1-http-hermes-no-run",
+      idempotencyKey: "wave1-http-openclaw-no-run",
       context: {
-        actorId: "hermes",
+        actorId: "openclaw",
         projectId: "wave1-http",
         environment: "local",
         panel: "transcript",
       },
       identity: {
-        actorId: "hermes",
+        actorId: "openclaw",
         projectId: "wave1-http",
         worktreeId: "local",
-        provider: "hermes",
+        provider: "openclaw",
         profileId: null,
         nativeSessionId: null,
-        runId: "wave1-http-hermes-no-run",
+        runId: "wave1-http-openclaw-no-run",
       },
     };
 

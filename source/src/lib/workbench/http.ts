@@ -316,7 +316,7 @@ export function validateCreateRun(body: Record<string, unknown>): ValidatedCreat
     throw new WorkbenchValidationError("options.effort is invalid.");
   }
   if (
-    (adapter.descriptor.provider === "codex" || adapter.descriptor.provider === "claude")
+    (adapter.descriptor.provider === "codex" || adapter.descriptor.provider === "claude" || adapter.descriptor.provider === "hermes")
     && (model !== null || engine !== null || effort !== null)
   ) {
     throw new WorkbenchValidationError(

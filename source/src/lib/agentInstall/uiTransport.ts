@@ -6,11 +6,9 @@ import type { InstallAgentId } from "./agentTypes";
 /**
  * One call the panel makes, whichever agent answers.
  *
- * Claude and Codex go through the durable Workbench pilot from the browser, so
+ * All three agents go through the durable Workbench pilot from the browser, so
  * the conversation is saved as a normal session of that agent — which is the
  * whole point of routing through it rather than inventing a side channel.
- * Hermes has no Workbench provider yet and cannot launch on Windows at all, so
- * asking for it fails here with the reason rather than somewhere deeper.
  */
 
 /** One stable project for every install conversation, so the deep link is deterministic. */
@@ -33,7 +31,7 @@ export class InstallTransportError extends Error {
 }
 
 function isWorkbenchAgent(agent: InstallAgentId): agent is WorkbenchPilotProvider {
-  return agent === "claude" || agent === "codex";
+  return agent === "claude" || agent === "codex" || agent === "hermes";
 }
 
 export async function askInstallAgent(
@@ -47,10 +45,7 @@ export async function askInstallAgent(
   signal?: AbortSignal,
 ): Promise<AskResult> {
   if (!isWorkbenchAgent(input.agent)) {
-    throw new InstallTransportError(
-      input.agent,
-      "Hermes עדיין לא מחובר ל-Workbench, ולכן אי אפשר להריץ אותו ב-Windows.",
-    );
+    throw new InstallTransportError(input.agent, `${input.agent} אינו סוכן נתמך.`);
   }
 
   let text = "";

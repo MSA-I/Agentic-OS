@@ -262,3 +262,96 @@ Evidence, measured against the running app on port 3737 after a rebuild:
 - Same request without the cookie: `403`. With a cross-site `Origin`: `403`.
 - Setup Center in the browser: all five OpenCode actions render enabled, with no `· disabled` suffix
   and no freeze tooltip.
+
+## Hermes joins the restricted pilot — 2026-08-18
+
+Owner decision, taken to make the Setup Center agent installer usable with the
+agent the owner named first. This brings forward part of Wave 5 (Hermes/OpenClaw
+parity) ahead of the Wave 3 exit gate, which stays blocked on a current Codex
+live re-run. Recorded here as a deliberate, evidenced exception, in the same
+manner as the `POST /api/graphify/run` and `POST /api/setup/action` decisions.
+
+### Why it was not simply "unfreeze the existing route"
+
+`POST /api/hermes/chat` calls `run("hermes", …)`, and `run()` calls
+`assertRuntimeContainmentAvailable`, which **always throws on Windows**
+(`runtimeContainment.ts:92`). That route could never have executed here, frozen
+or not. `probeProvider` deliberately skips that gate, which is why `/api/vitals`
+has been reporting `hermes ok:true` for a provider nothing could launch. The
+only path that runs a provider on Windows is `WindowsJobExecutionDriver`, and it
+already accepted all five providers (`GUARDED_PROVIDERS`, line 49) — what was
+missing was the provider layer above it.
+
+### What the CLI actually allows, measured
+
+Hermes ships with `terminal`, `file`, `code_execution` and `computer_use`
+enabled. Three restriction attempts were measured against the installed CLI
+(0.17.0) with a prompt asking it to run `echo PROVE_SHELL`:
+
+| Attempt | Result |
+|---|---|
+| `--safe-mode` alone | `HTTP 400: No models provided` — it drops the user's model config |
+| `--safe-mode -m <model> --provider openrouter` | ran the shell command and reported the output |
+| `-t ""` (empty toolset list) | ran the shell command and reported the output |
+| `-t clarify` | *"the only tool available to me is `clarify` — there is no `terminal`"* |
+
+So the restriction that works is naming exactly one harmless toolset, and that
+pair — `--ignore-rules` plus `-t clarify` — is what
+`assertRestrictedPilotExecutionSpec` now requires for Hermes. `--safe-mode` and
+`--ignore-user-config` are deliberately absent: both remove the model
+configuration and leave the tools live, so relying on them would have been a
+restriction in name only.
+
+### The prompt travels in argv, and that is recorded honestly
+
+`hermes chat` has no stdin prompt mode: without `-q` it opens an interactive
+session and exits non-zero when stdin closes (measured). So the Hermes spec puts
+the prompt as the final argv value and leaves `input` empty, the admission
+attestation records `promptTransport: "argv"` rather than claiming stdin, and
+`restrictedPilotGuardState` accepts that value **only** when the identity's
+provider is Hermes — a Claude or Codex attestation claiming argv still fails the
+secret-controls guard, because for them it would mean a resolver that leaked
+prompts into the process list.
+
+The cost is real: an argv prompt is visible to anything already running as this
+user. The Setup Center planner already placeholders secret-shaped lines before
+sending, and its prompt is repository guides plus local diagnostics, so nothing
+secret is put there. Any future caller of the Hermes provider inherits that
+constraint.
+
+### Changes
+
+- `providers/hermes.ts` — resolver, payload contract and argv construction.
+- `providers/hermesStream.ts` — normalizer. Quiet mode prints plain text on
+  stdout and one `session_id:` line on stderr, so there is no structured stream
+  to parse. Hermes allocates its own session id, so `start` binds what the
+  process announces, the way Codex does.
+- `providers/index.ts` — Hermes accepted by the canonical parser, its policy
+  proof added to the spec assertion, prompt binding made transport-aware.
+- `durableControlPlane.ts` — added to `RESTRICTED_PROVIDERS`, stream routing and
+  persistence, argv transport allowed in the guard for Hermes only.
+- `adapters.ts` — `start`/`resume`/`cancel` reported as supported.
+- `http.ts` — the client-supplied `options` must be null for Hermes too.
+
+### Evidence — live-runtime, 2026-08-18
+
+One run driven through the real HTTP surface exactly as the browser does
+(bootstrap, session rotation, create, poll, read events):
+
+- `POST /api/workbench/runs` → `201`, run `17a203d1`
+- status reached `succeeded`
+- native session `20260818_155155_fbf3aa` bound from the process's own stderr
+- events: `status`, `terminal`, `message`; the assistant message contained the
+  requested JSON plan in Hebrew
+- the conversation is readable at `GET /api/agent-history?agent=hermes` as
+  `hermesdb:default:20260818_155155_fbf3aa`, with `id` equal to the run's
+  `context.sessionId`, which is what the Hermes desktop matches a deep link on
+
+Unit coverage: `providers/hermes.test.mjs`, 16 tests over the stream normalizer
+and the resolver, including that the single-toolset pair is present, that
+`--yolo` and `--accept-hooks` can never be produced, that `--safe-mode` and
+`--ignore-user-config` are *not* used, and that a prompt too large for a Windows
+command line is refused.
+
+Still deferred: OpenClaw and Antigravity parity, the Tool Gateway, and the
+Wave 3 Codex live re-run, which remains the gate.
